@@ -5,6 +5,12 @@ New integrations should build on the typed contracts exported here.
 """
 
 from .domain import Category, DocumentType, DomainEvidence, DomainPack
+from .artifacts import (
+    ArtifactExtraction,
+    ArtifactProfile,
+    DEFAULT_ARTIFACT_PROFILE,
+    extract_artifact,
+)
 from .engine import AnalysisResult, analyse_text
 from .coverage import CheckCoverage, CoverageManifest
 from .provenance import SourceAnchor, SourceRecord, anchor_quote
@@ -91,6 +97,8 @@ __all__ = [
     "AnalysisResult",
     "AnnotationBundle",
     "ArtifactDigest",
+    "ArtifactExtraction",
+    "ArtifactProfile",
     "AttestedSpanSeed",
     "ArenaPolicy",
     "ArenaReport",
@@ -104,6 +112,7 @@ __all__ = [
     "CheckCoverage",
     "CoverageManifest",
     "DocumentType",
+    "DEFAULT_ARTIFACT_PROFILE",
     "DomainDigest",
     "DetectorDecision",
     "DetectorIdentity",
@@ -160,6 +169,7 @@ __all__ = [
     "build_pilot_probe",
     "import_legalbenchrag",
     "evaluate_support_admission",
+    "extract_artifact",
     "load_support_seeds",
     "prepare_review_manifest",
     "propose_negation_flip",

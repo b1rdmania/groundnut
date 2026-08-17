@@ -76,6 +76,20 @@ an explicit runtime operation whose normalized bytes should be snapshotted
 before downstream analysis. Model parity tests likewise replay recorded or
 synthetic responses rather than calling a live model.
 
+## Artifact ingestion
+
+`groundnut-artifact-profile/v1` maps generic structured fields and rendered
+evidence conventions into canonical claims. `extract_artifact` accepts
+structured JSON, Markdown citations, and rendered HTML, retaining source
+identity, quotes, locators, declared analysis, input hash, profile hash, and
+artifact location. The parser does not fetch, anchor, assess support, or assign
+a domain outcome; those remain later and independently recorded stages.
+
+Consumer-specific field names and HTML conventions belong in a profile rather
+than engine conditionals. Reference apparatus can be excluded explicitly, and
+unsupported or malformed artifacts fail rather than silently becoming empty
+evidence.
+
 ## Run manifest
 
 `groundnut-run-manifest/v2` is the portable receipt for one run. It binds an

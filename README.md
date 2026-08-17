@@ -156,6 +156,7 @@ Thresholds are fixed before holdout scoring.
 |---|---|
 | Domain packs, registry, playbook/evidence hashes | Landed |
 | Source resolution, verified snapshots, exact anchors | Landed |
+| Configurable JSON, Markdown, and rendered-HTML claim ingestion | Landed |
 | Fail-closed per-segment coverage | Landed |
 | Mechanical citation and excerpt verification | Landed |
 | Frozen semantic-support contract and exact baseline | Landed |
