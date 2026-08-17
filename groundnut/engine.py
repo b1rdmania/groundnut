@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from typing import Any
 
 from pipeline.chunking import chunk_text
-from pipeline.extract import filter_verbatim, merge_findings, parse_response
+from pipeline.extract import filter_verbatim, merge_findings
 from pipeline.prompt import build_prompt
 
 from .domain import DomainPack
+from .coverage import CoverageManifest, build_coverage
 from .provenance import SourceAnchor, SourceRecord, anchor_quote
 
 
@@ -41,6 +43,7 @@ class AnalysisResult:
     evidence_disclosure: str
     source: SourceRecord
     segments_total: int
+    coverage: CoverageManifest
     findings: dict[str, list[str]]
     anchored_findings: tuple[AnchoredFinding, ...]
 
@@ -61,6 +64,7 @@ class AnalysisResult:
                 "characters": self.source.characters,
             },
             "segments_total": self.segments_total,
+            "coverage": self.coverage.to_dict(),
             "findings": self.findings,
             "anchored_findings": [row.to_dict() for row in self.anchored_findings],
         }
@@ -76,12 +80,28 @@ def analyse_text(
     """Run one domain pack over one source and return anchored findings."""
     chunks = chunk_text(text)
     chunk_results = []
+    segment_checks: list[set[str] | None] = []
+    errors = []
     for chunk in chunks:
         prompt = build_prompt(domain.category_names, chunk, domain=domain)
         raw = backend.complete(prompt, doc_id=source_id)
-        chunk_results.append(filter_verbatim(parse_response(raw), chunk))
+        parsed = _parse_domain_response(raw)
+        if parsed is None:
+            chunk_results.append({})
+            segment_checks.append(None)
+            errors.append("invalid_response")
+            continue
+        parsed_findings, checked_categories = parsed
+        chunk_results.append(filter_verbatim(parsed_findings, chunk))
+        segment_checks.append(checked_categories)
 
     findings = merge_findings(chunk_results, domain.category_names)
+    coverage = build_coverage(
+        domain,
+        segment_checks=segment_checks,
+        findings=findings,
+        errors=errors,
+    )
     by_name = {category.name: category for category in domain.categories}
     anchored = []
     for category_name, quotes in findings.items():
@@ -106,6 +126,32 @@ def analyse_text(
         evidence_disclosure=domain.evidence.disclosure,
         source=SourceRecord.from_text(source_id, text),
         segments_total=len(chunks),
+        coverage=coverage,
         findings=findings,
         anchored_findings=tuple(anchored),
     )
+
+
+def _parse_domain_response(text: str) -> tuple[dict[str, list[str]], set[str]] | None:
+    """Parse the canonical envelope without treating invalid JSON as clear."""
+    start = text.find("{")
+    end = text.rfind("}")
+    if start < 0 or end < start:
+        return None
+    try:
+        value = json.loads(text[start : end + 1])
+    except Exception:
+        return None
+    if not isinstance(value, dict):
+        return None
+    raw_findings = value.get("findings", {})
+    raw_checked = value.get("checked_categories", [])
+    if not isinstance(raw_findings, dict) or not isinstance(raw_checked, list):
+        return None
+    findings = {
+        category: [quote for quote in quotes if isinstance(quote, str) and quote.strip()]
+        for category, quotes in raw_findings.items()
+        if isinstance(category, str) and isinstance(quotes, list)
+    }
+    checked = {name for name in raw_checked if isinstance(name, str)}
+    return findings, checked

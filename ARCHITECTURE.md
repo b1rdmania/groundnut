@@ -5,6 +5,11 @@ host gives it source documents, a versioned domain pack, and a model backend.
 Groundnut returns source-anchored findings plus the evidence disclosure carried
 by that pack.
 
+Canonical responses also acknowledge which categories were evaluated in each
+source segment. A missing finding becomes `checked_clear` only when every
+segment completed and explicitly acknowledged that category; otherwise the
+result is `incomplete`.
+
 ## Boundary
 
 Groundnut owns:

@@ -23,6 +23,7 @@ def pack(**overrides):
                 5,
                 "A distribution the trustee must make.",
             ),
+            Category("governing_law", "Governing Law", 2),
         ),
         "document_types": (
             DocumentType("trust_instrument", "Trust Instrument"),
@@ -47,6 +48,7 @@ class RecordingBackend:
         self.prompts.append(prompt)
         return json.dumps(
             {
+                "checked_categories": ["Mandatory Distribution", "Governing Law"],
                 "findings": {
                     "Mandatory Distribution": [
                         "The Trustee shall distribute the income annually."
@@ -117,3 +119,25 @@ def test_domain_pack_drives_prompt_and_returns_source_anchors():
     assert result.anchored_findings[0].anchor.exact is True
     assert result.anchored_findings[0].anchor.offsets == ((0, len(source)),)
     assert result.source.sha256 == result.anchored_findings[0].anchor.source_sha256
+    checks = {row.category_key: row for row in result.coverage.checks}
+    assert result.coverage.complete is True
+    assert checks["mandatory_distribution"].status == "risk_found"
+    assert checks["governing_law"].status == "checked_clear"
+
+
+def test_invalid_response_is_incomplete_not_clear():
+    class InvalidBackend:
+        def complete(self, prompt, doc_id=None):
+            return "not json"
+
+    result = analyse_text(
+        "No clauses here.",
+        source_id="trust-2",
+        domain=pack(),
+        backend=InvalidBackend(),
+    )
+
+    assert result.findings == {}
+    assert result.coverage.complete is False
+    assert result.coverage.errors == ("invalid_response",)
+    assert {row.status for row in result.coverage.checks} == {"incomplete"}

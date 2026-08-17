@@ -14,10 +14,15 @@ split by a semicolon). When a paragraph contains more than one distinct
 finding, return each as its own separate quote rather than one quote covering
 the whole paragraph.
 
-Respond with a single JSON object with one top-level key, findings, whose
-value maps each category name to a list of the verbatim spans you found for
-it. Use an empty list when nothing applies. Output JSON only - no prose, no
-markdown fences.
+Respond with a single JSON object with two top-level keys. checked_categories
+must list every category you evaluated in this source segment. findings maps
+each category name to a list of the verbatim spans you found for it. Use an
+empty list when nothing applies. Output JSON only - no prose, no markdown
+fences. An omitted acknowledgement is treated as an incomplete check, never
+as a clear result.
+
+JSON SHAPE:
+{{"checked_categories": ["<each evaluated category>"], "findings": {{"<category>": ["<verbatim span>"]}}}}
 
 CATEGORIES:
 {categories}
