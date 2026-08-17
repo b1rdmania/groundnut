@@ -47,6 +47,7 @@ from .run_manifest import (
     RuntimeComponent,
     SourceDigest,
 )
+from .checker import ClaimCheckReport, check_claims
 from .verification import (
     Claim,
     MatchOutcome,
@@ -66,6 +67,7 @@ __all__ = [
     "Category",
     "Claim",
     "ClaimAssessment",
+    "ClaimCheckReport",
     "CheckCoverage",
     "CoverageManifest",
     "DocumentType",
@@ -105,6 +107,7 @@ __all__ = [
     "anchor_quote",
     "anchor_excerpt",
     "compare_analysis",
+    "check_claims",
     "semantic_projection",
     "score_support",
     "verification_metrics",

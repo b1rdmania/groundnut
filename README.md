@@ -56,6 +56,10 @@ stages:
   measured independently. Numeric-preserving fuzzy matching may locate an
   excerpt, but an anchored quote still reports `support: not_assessed` until a
   separate support checker evaluates it.
+- **Batch checking** — `check_claims` composes resolution, mechanical
+  verification, and one frozen support policy into a deterministic report. Its
+  completeness and metrics are derived from the claim rows, not supplied by a
+  caller, and the report can be bound directly into the run manifest.
 - **Coverage** — no finding is not the same as a clear check. `checked_clear`
   requires every source segment to complete and acknowledge the category;
   otherwise the result is `incomplete`.
@@ -118,6 +122,7 @@ Thresholds are fixed before holdout scoring.
 | Frozen semantic-support contract and exact baseline | Landed |
 | Paired four-cell detector-transfer probe contract | Landed |
 | Canonical run manifest and artifact digests | Landed |
+| End-to-end batch claim checker and hashable report | Landed |
 | Frozen-policy arena and offline adjudication CLI | Landed |
 | Learned detector adapters | Next build tranche, after valid transfer measurement |
 | Labelled domain support cases | Next measurement tranche |

@@ -24,6 +24,8 @@ until they deliberately adopt a stable Groundnut contract.
   substring labels prevent the invalid detector comparison from recurring.
 - Canonical run manifests binding engine, playbook, evidence, source/snapshot,
   policy, runtime-component, and output-artifact hashes.
+- End-to-end batch claim checking with derived completeness, mixed-state
+  reporting, and manifest-ready self-hashed output.
 
 The widened method-layer scope is a dated decision in `ARCHITECTURE.md`. It
 does not move the stop line: no auth, application persistence, credential

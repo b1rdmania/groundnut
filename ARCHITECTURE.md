@@ -114,6 +114,12 @@ crosses support status with substring presence and shares one source origin and
 question. Consequently neither substring presence nor class-specific context
 selection can produce a valid-looking semantic result.
 
+`check_claims` is the end-to-end engine surface for claim batches. It composes
+source resolution, mechanical verification, and one frozen support policy. The
+result sorts claim identities, derives completeness and metrics from the rows,
+and rejects mixed policies or mismatched mechanical/semantic identities. Its
+self-hashed report is a first-class run-manifest artifact.
+
 ## Evidence maturity
 
 Changing configuration demonstrates portability, not quality. Every domain

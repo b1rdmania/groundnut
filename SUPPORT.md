@@ -39,6 +39,13 @@ Adapter errors yield `not_assessed`; they never erase a mechanical result.
 substring baseline. Absence from the source is `insufficient`, never
 `contradicted`.
 
+`check_claims` is the canonical batch surface. It resolves each claim against
+the supplied `SourceResolution`, preserves the mechanical `VerifiedClaim`, runs
+the frozen detector only when a source is available, and emits an order-stable
+`groundnut-claim-check-report/v1`. Completeness and status/mechanical metrics
+are derived from the immutable rows. The report is schema-tagged and self-
+hashed, so it can be added to `groundnut-run-manifest/v1` as an artifact.
+
 ## Valid transfer probe
 
 Every probe group contains four cases derived from one source clause and one
