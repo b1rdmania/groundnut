@@ -133,6 +133,22 @@ segmenter as a runtime component in addition to the complete engine-source
 hash. Claim-denominated comparisons must disclose a changed segmenter or engine
 build.
 
+## Render-bound evidence parity
+
+`groundnut-render-receipt/v1` proves that the ordered sequence of source URI,
+exact excerpt, and locator survived from an authored artifact into a rendered
+artifact. It binds both artifact hashes and extraction profiles, both segmenter
+identities, the renderer name/version/configuration hash, claim counts, and the
+complete evidence-sequence hash. Any loss, reorder, or quote/locator drift fails
+before a receipt is produced.
+
+Renderer chrome may be excluded only through attributes or classes named in the
+hashed artifact profile. The default explicit attribute is
+`data-groundnut-evidence-exclude`; report prose is never implicitly excluded.
+The receipt computes no evidence state, semantic verdict, publication gate, or
+recommendation. Groundnut owns the generic comparison; host projects continue
+to own rendering, presentation, audience, and publication authority.
+
 ## Run manifest
 
 `groundnut-run-manifest/v2` is the portable receipt for one run. It binds an

@@ -119,6 +119,9 @@ class ArtifactProfile:
     declared_analysis_classes: tuple[str, ...] = ("groundnut-declared-analysis",)
     provenance_class_markers: tuple[tuple[str, str], ...] = DEFAULT_PROVENANCE_CLASS_MARKERS
     ignored_container_classes: tuple[str, ...] = ("groundnut-references",)
+    ignored_container_attributes: tuple[str, ...] = (
+        "data-groundnut-evidence-exclude",
+    )
     segmenter: SegmenterIdentity = DEFAULT_SEGMENTER
 
     def __post_init__(self) -> None:
@@ -127,6 +130,11 @@ class ArtifactProfile:
         )
         object.__setattr__(
             self, "ignored_container_classes", tuple(self.ignored_container_classes)
+        )
+        object.__setattr__(
+            self,
+            "ignored_container_attributes",
+            tuple(self.ignored_container_attributes),
         )
         object.__setattr__(
             self,
@@ -153,6 +161,11 @@ class ArtifactProfile:
             raise ValueError("declared-analysis classes must not be empty")
         if any(not value.strip() for value in self.ignored_container_classes):
             raise ValueError("ignored-container classes must not be empty")
+        if any(
+            not re.fullmatch(r"[A-Za-z_:][A-Za-z0-9_.:-]*", value)
+            for value in self.ignored_container_attributes
+        ):
+            raise ValueError("ignored-container attributes must be valid HTML names")
         marker_classes = [marker for marker, _ in self.provenance_class_markers]
         if len(marker_classes) != len(set(marker_classes)):
             raise ValueError("provenance marker classes must be unique")
@@ -183,6 +196,9 @@ class ArtifactProfile:
                 "declared_analysis_classes": list(self.declared_analysis_classes),
                 "provenance_class_markers": dict(self.provenance_class_markers),
                 "ignored_container_classes": list(self.ignored_container_classes),
+                "ignored_container_attributes": list(
+                    self.ignored_container_attributes
+                ),
             },
             "segmenter": self.segmenter.to_dict(),
         }
@@ -242,6 +258,13 @@ class ArtifactProfile:
                 str(item)
                 for item in html.get(
                     "ignored_container_classes", ("groundnut-references",)
+                )
+            ),
+            ignored_container_attributes=tuple(
+                str(item)
+                for item in html.get(
+                    "ignored_container_attributes",
+                    ("data-groundnut-evidence-exclude",),
                 )
             ),
             segmenter=(
@@ -386,6 +409,13 @@ def _markdown_claims(raw: str, profile: ArtifactProfile) -> list[Claim]:
 def _html_claims(raw: str, profile: ArtifactProfile) -> list[Claim]:
     _validate_html_provenance_markers(raw, profile)
     prepared = raw
+    for attribute_name in profile.ignored_container_attributes:
+        prepared = re.sub(
+            rf"<([a-z][a-z0-9]*)\b[^>]*\b{re.escape(attribute_name)}(?:\s*=\s*[\"'][^\"']*[\"'])?[^>]*>[\s\S]*?</\1>",
+            " ",
+            prepared,
+            flags=re.I,
+        )
     for class_name in profile.ignored_container_classes:
         prepared = re.sub(
             rf"<([a-z][a-z0-9]*)\b[^>]*class=[\"'][^\"']*\b{re.escape(class_name)}\b[^\"']*[\"'][^>]*>[\s\S]*?</\1>",

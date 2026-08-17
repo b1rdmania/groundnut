@@ -33,6 +33,8 @@ until they deliberately adopt a stable Groundnut contract.
   populations kept separate.
 - Explicit segmenter identity bound into artifact extraction and canonical run
   manifests.
+- Generic render-bound evidence parity with explicit excluded regions,
+  renderer/configuration identity, and a self-hashed fail-closed receipt.
 - End-to-end batch claim checking with derived completeness, mixed-state
   reporting, and manifest-ready self-hashed output.
 - Offline-testable LettuceDetect and MiniCheck benchmark adapters with pinned

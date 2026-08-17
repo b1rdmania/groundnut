@@ -121,6 +121,9 @@ stages:
 - **Explicit segmentation identity** — extraction records and run manifests
   bind the segmenter version and configuration because claim boundaries move
   every claim-denominated metric.
+- **Render-bound evidence parity** — a self-hashed receipt fails closed unless
+  source URI, excerpt, and locator occurrences survive in order from authored
+  material into the rendered file supplied to a reader.
 
 ### What it does not claim
 
@@ -183,6 +186,7 @@ Thresholds are fixed before holdout scoring.
 | Hash-bound formula and named-input lineage for analyst calculations | Landed |
 | Metric envelopes and separate fuzzy-anchor population | Landed |
 | Explicit segmenter identity in extraction and run manifest | Landed |
+| Generic authored-to-rendered evidence-parity receipt and CLI | Landed |
 | Frozen-policy arena and offline adjudication CLI | Landed |
 | Profile-hashed arena task emission with section-contained context | Landed |
 | Benchmark-only LettuceDetect and MiniCheck adapters | Landed; no model adopted |
@@ -245,6 +249,10 @@ python3 -m groundnut.canonical_cli < canonical-request.json > canonical-response
 python3 -m groundnut.arena_cli --policy policies/canonical-arena-v1.json \
   --tasks tasks.jsonl --attacks attacks.jsonl --rulings rulings.jsonl \
   --out arena-report.json
+
+# fail closed if rendering loses, reorders, or changes citation evidence
+python3 -m groundnut.render_cli --source report.md --rendered report.html \
+  --renderer-name pandoc --renderer-version 3.8 --out render-receipt.json
 ```
 
 Holdout is rate-limited to one run per 6 hours and is **currently unspent**. Don't spend it until something passes dev.

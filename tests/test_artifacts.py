@@ -180,6 +180,23 @@ def test_profile_hash_changes_with_parser_contract():
     )
     assert default.sha256 != changed_segmenter.sha256
 
+    changed_exclusions = ArtifactProfile(
+        key="profile",
+        version="1",
+        ignored_container_attributes=("data-host-evidence-exclude",),
+    )
+    assert default.sha256 != changed_exclusions.sha256
+
+
+def test_html_ignores_only_profile_declared_attribute_regions(tmp_path):
+    path = tmp_path / "report.html"
+    path.write_text(
+        '<nav data-groundnut-evidence-exclude><a href="https://example.test/chrome">Chrome</a></nav>'
+        '<p>Claim <a href="https://example.test/evidence">Evidence</a></p>'
+    )
+    [claim] = extract_artifact(path).claims
+    assert claim.source.uri == "https://example.test/evidence"
+
 
 def test_typed_html_provenance_is_preserved_without_becoming_support(tmp_path):
     path = tmp_path / "typed.html"

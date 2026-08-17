@@ -14,6 +14,12 @@ from .artifacts import (
     extract_artifact,
 )
 from .metrics import MetricEnvelope
+from .rendering import (
+    RENDER_RECEIPT_SCHEMA,
+    RenderReceipt,
+    RendererIdentity,
+    compare_rendered_artifacts,
+)
 from .engine import AnalysisResult, analyse_text
 from .coverage import CheckCoverage, CoverageManifest
 from .authority import (
@@ -186,6 +192,9 @@ __all__ = [
     "ProbeContextDigest",
     "ResolvedSource",
     "RecordedProbeRun",
+    "RENDER_RECEIPT_SCHEMA",
+    "RenderReceipt",
+    "RendererIdentity",
     "Ruling",
     "RunManifest",
     "RuntimeComponent",
@@ -221,6 +230,7 @@ __all__ = [
     "apply_review_decisions_tsv",
     "anchor_excerpt",
     "compare_analysis",
+    "compare_rendered_artifacts",
     "check_claims",
     "build_present_irrelevant_candidates",
     "build_pilot_probe",
