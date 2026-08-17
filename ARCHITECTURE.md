@@ -133,6 +133,21 @@ result sorts claim identities, derives completeness and metrics from the rows,
 and rejects mixed policies or mismatched mechanical/semantic identities. Its
 self-hashed report is a first-class run-manifest artifact.
 
+## Gate roles
+
+The original four-criterion CUAD gate is the compatibility pipeline's
+extraction gate. Its 41-category macro-F1, grounding, high-severity precision,
+probe-gap bars, historical results, and protected holdout remain unchanged. It
+does not accept or reject the canonical claim checker.
+
+The canonical checker has a separate semantic-support admission gate. That
+gate is currently unmeasured and cannot pass until an adjudicated support probe
+is frozen. A detector run must match the preregistered plan and beat the exact
+baseline by its prespecified difference without regressing on a material case
+kind. Finally, each domain pack needs its own labelled quality gate; generic
+support competence cannot establish domain extraction coverage. The dated
+decision and non-swap rules are in `GATES.md`.
+
 ## Evidence maturity
 
 Changing configuration demonstrates portability, not quality. Every domain

@@ -83,6 +83,12 @@ path.
 
 ## Evaluation work before qualification
 
+The legacy four-criterion CUAD gate is retained unchanged as the compatibility
+extractor gate, not Groundnut's product acceptance bar. Its current failure is
+still published. The canonical semantic-support gate is explicitly
+`NOT MEASURED` until the adjudicated probe is frozen; this is a documented gate
+split, not a quiet metric replacement. See `GATES.md`.
+
 - Fix prediction/gold scoring to enforce one-to-one matches under a reviewed
   harness change.
 - Derive any new matcher and threshold before re-scoring.

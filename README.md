@@ -162,8 +162,8 @@ Gold answers are **not** in this repo at all — they live in `~/.dd-eval-privat
 ## Run it
 
 ```bash
-python3 -m pytest tests/          # inner loop — keep green
-harness/gate.sh dev               # four-criteria gate, 80 docs
+python3.12 -m pytest tests/        # canonical engine conformance
+harness/gate.sh dev               # compatibility extractor gate, 80 docs
 harness/gate.sh dev --pred-root runs/predictions-claude-opus-4.8-agent
 
 # canonical domain-pack run
@@ -177,7 +177,11 @@ python3 -m groundnut.arena_cli --policy policies/canonical-arena-v1.json \
 
 Holdout is rate-limited to one run per 6 hours and is **currently unspent**. Don't spend it until something passes dev.
 
-## The gate 🚦
+## Compatibility extraction gate 🚦
+
+This four-criterion CUAD gate qualifies the original 41-category extraction
+pipeline. It is retained unchanged as a regression net and historical record;
+it is not the acceptance gate for Groundnut's canonical claim-checking product.
 
 | # | Criterion | Bar | Judge |
 |---|---|---|---|
@@ -198,9 +202,25 @@ Best recorded run (`runs/predictions-claude-opus-4.8-agent`, dev-80):
 | quote-grounding | 0.9744 | ✅ |
 | High-severity precision | 0.6834 | ❌ (8 findings short) |
 
-**GATE: FAIL.** That is the honest state and it stays in the README until it isn't.
+**COMPATIBILITY EXTRACTION GATE: FAIL.** That is the honest state of the
+original extractor and it stays in the README until that exact gate passes.
 
-### On the grounding number ⚠️
+## Canonical claim-checking gate
+
+**SUPPORT GATE: NOT MEASURED.** The adjudicated four-cell support set does not
+exist yet, so Groundnut makes no semantic-support quality claim. The gate roles
+were separated explicitly on 17 August 2026; no score or threshold was removed,
+reinterpreted, or selected after seeing a result.
+
+The support gate will compare each frozen detector with the exact baseline on
+the exact probe named by `groundnut-support-probe-plan/v1`. The plan binds the
+case count and hash, source and exclusion pools, detector policies, context,
+primary metric, minimum meaningful improvement, and paraphrase-overlap bounds
+before a learned detector runs. Admission also forbids regression on a material
+failure kind. Domain packs require their own labelled gates in addition to this
+generic detector gate. See [`GATES.md`](./GATES.md).
+
+## Compatibility grounding caveat ⚠️
 
 Filtered runs score 1.0000 on quote-grounding, and that figure is **worth nothing on its own** — `pipeline/extract.py` drops any span that isn't an exact substring of its source before findings are recorded. On a filtered run, grounding is 1.0 by construction. It measures the filter.
 
@@ -260,6 +280,7 @@ MIGRATION.md  🧭 canonical-engine priorities and deferred consumers
 PARITY.md     🟰 semantic equivalence contract for any future host adapter
 SUPPORT.md    🧪 semantic outcomes, paired probes, and detector admission
 ANNOTATION.md 🖍️ LegalBench-RAG seeds and OpenContracts review interchange
+GATES.md      🚦 compatibility, support-admission, and domain gate roles
 ```
 
 ## Relationship to downstream work 🔌
