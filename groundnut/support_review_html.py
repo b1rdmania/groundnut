@@ -35,7 +35,7 @@ _DOCUMENT = r"""<!doctype html>
 <style>
 :root { color-scheme: light dark; font-family: ui-sans-serif, system-ui, sans-serif; }
 body { margin: 0; background: #11150f; color: #edf3e8; }
-header { position: sticky; top: 0; z-index: 2; padding: 14px 20px; background: #1b2417; border-bottom: 1px solid #526148; }
+header { position: static; padding: 14px 20px; background: #1b2417; border-bottom: 1px solid #526148; }
 main { max-width: 1100px; margin: auto; padding: 20px; }
 .bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .card { border: 1px solid #526148; border-radius: 10px; padding: 16px; margin: 16px 0; background: #182015; }
@@ -51,7 +51,8 @@ button:hover { background: #405c35; }
 .agent { border-color: #8eaa7e; background: #202d1b; }
 .agent-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
 .agent pre { white-space: pre-wrap; font: inherit; color: #edf3e8; }
-@media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .agent-grid { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .grid { grid-template-columns: 1fr; } header { padding: 12px; } main { padding: 12px; } }
 </style>
 </head>
 <body>
