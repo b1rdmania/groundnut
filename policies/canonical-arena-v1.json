@@ -1,0 +1,12 @@
+{
+  "schema": "groundnut-arena-policy/v1",
+  "key": "canonical_adversarial_review",
+  "version": "1.0.0",
+  "frozen_at": "2026-08-17T00:00:00Z",
+  "lenses": [
+    "wrong_premise",
+    "unsupported_leap",
+    "alternative_explanation"
+  ],
+  "required_rulings": 2
+}

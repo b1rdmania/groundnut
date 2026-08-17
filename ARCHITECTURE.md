@@ -31,6 +31,15 @@ unreachable sources, and unsupported PDFs remain explicit failure states.
 tampered snapshot, allowing IC-style verification against what the writer saw
 rather than whatever a live URL serves later.
 
+## Arena
+
+The canonical arena is a deterministic adjudicator, not a model client.
+Domain adapters emit review tasks; human or model adapters supply one attack
+per frozen policy lens and rulings from distinct families and sessions.
+Missing work fails closed, family disagreement is `withheld`, and a report
+passes only when every task `stands`. The frozen policy hash travels with the
+report so thresholds and lenses cannot be selected after seeing the outcome.
+
 ## Evidence maturity
 
 Changing configuration demonstrates portability, not quality. Every domain

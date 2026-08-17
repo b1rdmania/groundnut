@@ -16,9 +16,21 @@ from .sources import (
     SourceReference,
     SourceResolution,
 )
+from .arena import (
+    ArenaPolicy,
+    ArenaReport,
+    ArenaTask,
+    Attack,
+    Ruling,
+    adjudicate,
+)
 
 __all__ = [
     "AnalysisResult",
+    "ArenaPolicy",
+    "ArenaReport",
+    "ArenaTask",
+    "Attack",
     "Category",
     "CheckCoverage",
     "CoverageManifest",
@@ -28,11 +40,13 @@ __all__ = [
     "FileResolver",
     "HttpResolver",
     "ResolvedSource",
+    "Ruling",
     "SnapshotStore",
     "SourceAnchor",
     "SourceReference",
     "SourceRecord",
     "SourceResolution",
     "analyse_text",
+    "adjudicate",
     "anchor_quote",
 ]
