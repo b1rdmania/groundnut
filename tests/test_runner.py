@@ -3,7 +3,9 @@ import json
 from groundnut.arena_emission import DEFAULT_ARENA_EMISSION_PROFILE
 from groundnut.artifacts import DEFAULT_ARTIFACT_PROFILE
 from groundnut.authority import AuthorityDeclaration, AuthorityPolicy
-from groundnut.runner import run_canonical_check
+from groundnut.domain import Category, DomainPack
+from groundnut.run_manifest import EngineIdentity
+from groundnut.runner import execute_canonical_check, run_canonical_check
 from groundnut.provenance import sha256_text
 from groundnut.sources import (
     ResolvedSource,
@@ -25,6 +27,21 @@ AUTHORITY_POLICY = AuthorityPolicy(
     key="authority",
     version="1",
     frozen_at="2026-08-17T00:00:00Z",
+)
+DOMAIN = DomainPack(
+    key="claims",
+    version="1",
+    name="Claims",
+    document_noun="document",
+    extract_context="Extract claims.",
+    classify_context="Classify evidence.",
+    categories=(Category("claim", "Claim", 1),),
+)
+ENGINE = EngineIdentity(
+    version="0.1",
+    revision="abc123",
+    source_sha256="a" * 64,
+    dirty=False,
 )
 
 
@@ -110,3 +127,71 @@ def test_canonical_runner_can_emit_arena_tasks_from_same_artifact(tmp_path):
     assert result.arena is not None
     assert result.arena.tasks[0].trigger == "inferential"
     assert result.evidence.complete_authority is False
+
+
+def test_execution_manifest_binds_engine_domain_policies_sources_and_run(tmp_path):
+    artifact = tmp_path / "claims.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "claims": [
+                    {
+                        "claim_id": "revenue",
+                        "claim_text": "Revenue for 2025 was $4.2 million.",
+                        "source_url": "https://example.test/filing",
+                    }
+                ]
+            }
+        )
+    )
+    execution = execute_canonical_check(
+        artifact,
+        engine=ENGINE,
+        domain=DOMAIN,
+        artifact_profile=DEFAULT_ARTIFACT_PROFILE,
+        resolver=SnapshotFirstResolver(
+            SnapshotStore(tmp_path / "snapshots"),
+            FixtureResolver(),
+            mode="snapshot_preferred",
+        ),
+        detector=ExactSupportDetector(),
+        support_policy=SUPPORT_POLICY,
+        authority_policy=AUTHORITY_POLICY,
+        publication_grade=True,
+    )
+    payload = execution.to_dict()
+    assert payload["schema"] == "groundnut-canonical-execution/v1"
+    assert payload["manifest"]["engine"]["source_sha256"] == "a" * 64
+    assert payload["manifest"]["domain"]["key"] == "claims"
+    assert {row["kind"] for row in payload["manifest"]["policies"]} == {
+        "artifact_profile",
+        "authority",
+        "support",
+    }
+    assert payload["manifest"]["artifacts"][0]["kind"] == "canonical_run"
+    assert len(payload["sha256"]) == 64
+
+
+def test_publication_execution_rejects_dirty_engine(tmp_path):
+    artifact = tmp_path / "claims.json"
+    artifact.write_text(json.dumps({"claims": [{"claim_text": "Unsourced claim"}]}))
+    dirty = EngineIdentity(
+        version="0.1",
+        revision="abc123",
+        source_sha256="b" * 64,
+        dirty=True,
+    )
+    import pytest
+
+    with pytest.raises(ValueError, match="clean engine build"):
+        execute_canonical_check(
+            artifact,
+            engine=dirty,
+            domain=DOMAIN,
+            artifact_profile=DEFAULT_ARTIFACT_PROFILE,
+            resolver=SnapshotFirstResolver(SnapshotStore(tmp_path / "snapshots")),
+            detector=ExactSupportDetector(),
+            support_policy=SUPPORT_POLICY,
+            authority_policy=AUTHORITY_POLICY,
+            publication_grade=True,
+        )

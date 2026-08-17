@@ -85,6 +85,13 @@ declared evidence authority, and optionally emits arena tasks from the same
 artifact. `groundnut-canonical-run/v1` binds every nested receipt and carries a
 self-hash; it still does not turn support or authority into truth.
 
+`execute_canonical_check` closes the provenance loop by binding that canonical
+run into `groundnut-run-manifest/v2` with the exact engine build, domain pack,
+artifact/support/authority/arena policies, detector configuration, normalized
+sources, and snapshot bytes. Publication-grade execution rejects a dirty
+engine. An all-unsourced or all-unavailable run remains manifestable with an
+empty normalized-source list rather than disappearing.
+
 ## Snapshot-first acquisition
 
 `SnapshotFirstResolver` makes live-network use a named orchestration choice.
