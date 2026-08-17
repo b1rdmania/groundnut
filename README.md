@@ -131,6 +131,7 @@ Thresholds are fixed before holdout scoring.
 | Provenance-rich case and frozen preregistration contracts | Landed |
 | LegalBench-RAG seed importer with source-hash holdout exclusion | Landed |
 | OpenContracts-compatible annotation interchange | Landed |
+| Offline semantic-support admission gate | Landed; awaiting adjudicated cases |
 | Adjudicated four-cell support cases | Next measurement tranche |
 | Controlled chunking and largest-document merge comparison | Required before changing chunking |
 | IC research integration and product/OS ports | Deferred consumers |
@@ -213,8 +214,8 @@ were separated explicitly on 17 August 2026; no score or threshold was removed,
 reinterpreted, or selected after seeing a result.
 
 The support gate will compare each frozen detector with the exact baseline on
-the exact probe named by `groundnut-support-probe-plan/v1`. The plan binds the
-case count and hash, source and exclusion pools, detector policies, context,
+the exact probe named by `groundnut-support-probe-plan/v2`. The plan binds the
+case count and hash, source and exclusion pools, exact policy hashes, context,
 primary metric, minimum meaningful improvement, and paraphrase-overlap bounds
 before a learned detector runs. Admission also forbids regression on a material
 failure kind. Domain packs require their own labelled gates in addition to this

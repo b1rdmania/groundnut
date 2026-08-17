@@ -28,13 +28,13 @@ claim-checking engine.
 Current status: **NOT MEASURED**.
 
 This gate admits an optional support detector, not a whole domain pack. Before
-the first learned run, `groundnut-support-probe-plan/v1` freezes:
+the first learned run, `groundnut-support-probe-plan/v2` freezes:
 
 - exact probe hash and group count;
 - sampling seed;
 - safe source-pool and complete exclusion-pool hashes;
 - context-window size;
-- baseline and candidate policy identities;
+- baseline and candidate policy keys and exact configuration hashes;
 - primary metric and minimum meaningful improvement;
 - allowed lexical-overlap band for supported paraphrases.
 
@@ -46,6 +46,19 @@ The same cases and windows run through the exact baseline and each candidate.
 A candidate is admissible only if it is complete, improves the preregistered
 primary metric by at least the frozen difference, and does not regress on any
 material case kind. Cached outputs must reproduce the decision offline.
+
+The executable consumer is:
+
+```bash
+python3 -m groundnut.support_gate_cli \
+  --plan support-plan.json \
+  --baseline exact-run.json \
+  --candidate detector-run.json \
+  --out admission.json
+```
+
+It recomputes scores from the recorded gold and assessment rows instead of
+trusting the score field carried by either run.
 
 Until an adjudicated probe exists, this gate cannot report pass or fail. A
 missing measurement is not a failure, but it is also not evidence of quality.

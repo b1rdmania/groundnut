@@ -122,10 +122,11 @@ model/package/configuration identity, and map outputs conservatively. Binary or
 untyped unsupported output is insufficient evidence, not contradiction.
 
 `run_support_probe` is the deterministic experiment runner. It requires a
-`groundnut-support-probe-plan/v1` preregistration, feeds every
+`groundnut-support-probe-plan/v2` preregistration, feeds every
 detector source-identical windows derived from the paired original offsets and
-binds the plan, context, detector, policy, normalized decisions, scores, and
-probe manifest into one self-hashed artifact suitable for the run manifest.
+binds the plan, context, detector, exact policy hash, normalized decisions,
+scores, and probe manifest into one self-hashed artifact suitable for the run
+manifest.
 
 `check_claims` is the end-to-end engine surface for claim batches. It composes
 source resolution, mechanical verification, and one frozen support policy. The

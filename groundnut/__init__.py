@@ -49,6 +49,11 @@ from .support_seeds import (
 )
 from .annotations import AnnotationBundle, EvidenceAnnotation
 from .probe_plan import SupportProbePlan
+from .support_admission import (
+    RecordedProbeRun,
+    SupportAdmissionReport,
+    evaluate_support_admission,
+)
 from .run_manifest import (
     ArtifactDigest,
     DomainDigest,
@@ -105,6 +110,7 @@ __all__ = [
     "PolicyDigest",
     "ProbeContextDigest",
     "ResolvedSource",
+    "RecordedProbeRun",
     "Ruling",
     "RunManifest",
     "RuntimeComponent",
@@ -116,6 +122,7 @@ __all__ = [
     "SourceResolution",
     "SeedImport",
     "SupportAssessment",
+    "SupportAdmissionReport",
     "SupportCase",
     "SupportGold",
     "SupportPolicy",
@@ -134,6 +141,7 @@ __all__ = [
     "check_claims",
     "build_present_irrelevant_candidates",
     "import_legalbenchrag",
+    "evaluate_support_admission",
     "load_support_seeds",
     "sample_present_irrelevant_candidates",
     "semantic_projection",

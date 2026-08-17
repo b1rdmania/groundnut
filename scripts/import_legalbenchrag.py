@@ -52,6 +52,8 @@ def main() -> int:
         json.dumps(
             {
                 "seeds": len(result.seeds),
+                "benchmark_tests": result.benchmark_test_count,
+                "validated_snippets": result.validated_snippet_count,
                 "safe_sources": result.safe_source_count,
                 "excluded_holdout_sources": len(result.excluded_holdout_sources),
                 "source_pool_sha256": result.source_pool_sha256,

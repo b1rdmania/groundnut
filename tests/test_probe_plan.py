@@ -17,6 +17,11 @@ def plan():
         minimum_improvement=0.05,
         baseline_policy_keys=("exact-v1",),
         detector_policy_keys=("lettuce-v2", "minicheck"),
+        policy_hashes={
+            "exact-v1": "d" * 64,
+            "lettuce-v2": "e" * 64,
+            "minicheck": "f" * 64,
+        },
         lexical_overlap_min=0.2,
         lexical_overlap_max=0.8,
     )
@@ -39,3 +44,19 @@ def test_plan_is_order_stable_and_freezes_sample_size():
 def test_plan_requires_a_positive_preregistered_difference():
     with pytest.raises(ValueError, match="minimum improvement"):
         SupportProbePlan(**{**plan().__dict__, "minimum_improvement": 0})
+
+
+def test_plan_keeps_baseline_and_candidate_policy_roles_distinct():
+    with pytest.raises(ValueError, match="must be distinct"):
+        SupportProbePlan(
+            **{
+                **plan().__dict__,
+                "detector_policy_keys": ("exact-v1",),
+                "policy_hashes": {"exact-v1": "d" * 64},
+            }
+        )
+
+
+def test_plan_requires_an_exact_hash_for_every_policy():
+    with pytest.raises(ValueError, match="one hash for every policy"):
+        SupportProbePlan(**{**plan().__dict__, "policy_hashes": {"exact-v1": "d" * 64}})

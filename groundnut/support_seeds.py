@@ -99,6 +99,8 @@ class AttestedSpanSeed:
 class SeedImport:
     seeds: tuple[AttestedSpanSeed, ...]
     excluded_holdout_sources: tuple[str, ...]
+    benchmark_test_count: int
+    validated_snippet_count: int
     safe_source_count: int
     source_pool_sha256: str
     excluded_pool_sha256: str
@@ -109,14 +111,20 @@ class SeedImport:
         ids = [seed.seed_id for seed in self.seeds]
         if len(ids) != len(set(ids)):
             raise ValueError("duplicate support-seed id")
-        if self.safe_source_count < 1:
-            raise ValueError("support-seed import must contain a safe source")
+        if (
+            self.benchmark_test_count < 1
+            or self.validated_snippet_count < 1
+            or self.safe_source_count < 1
+        ):
+            raise ValueError("support-seed import counts must be positive")
 
     def manifest(self) -> dict[str, Any]:
         payload = {
             "schema": "groundnut-support-seed-import/v1",
             "seed_ids": sorted(seed.seed_id for seed in self.seeds),
             "excluded_holdout_sources": list(self.excluded_holdout_sources),
+            "benchmark_test_count": self.benchmark_test_count,
+            "validated_snippet_count": self.validated_snippet_count,
             "safe_source_count": self.safe_source_count,
             "source_pool_sha256": self.source_pool_sha256,
             "excluded_pool_sha256": self.excluded_pool_sha256,
@@ -366,6 +374,7 @@ def import_legalbenchrag(
     source_cache: dict[str, tuple[str, str]] = {}
     seeds: list[AttestedSpanSeed] = []
     excluded_sources: list[str] = []
+    validated_snippet_count = 0
     dataset = dataset_name or benchmark_path.stem
 
     for test_index, test in enumerate(tests):
@@ -376,7 +385,10 @@ def import_legalbenchrag(
             raise ValueError(f"LegalBench-RAG test {test_index} has no snippets")
         for snippet_index, snippet in enumerate(snippets):
             if not isinstance(snippet, Mapping):
-                raise ValueError(f"LegalBench-RAG snippet {test_index}:{snippet_index} is not an object")
+                raise ValueError(
+                    f"LegalBench-RAG snippet {test_index}:{snippet_index} "
+                    "is not an object"
+                )
             relative = str(snippet.get("file_path", ""))
             source_path = (corpus_root / relative).resolve()
             if corpus_root not in source_path.parents:
@@ -385,16 +397,23 @@ def import_legalbenchrag(
                 source_text = source_path.read_text()
                 source_cache[relative] = (source_text, sha256_text(source_text))
             source_text, source_sha256 = source_cache[relative]
+            span = snippet.get("span")
+            if not isinstance(span, (list, tuple)) or len(span) != 2:
+                raise ValueError(
+                    f"LegalBench-RAG snippet {test_index}:{snippet_index} "
+                    "has invalid span"
+                )
+            start, end = int(span[0]), int(span[1])
+            if start < 0 or end <= start or end > len(source_text):
+                raise ValueError(
+                    f"LegalBench-RAG snippet {test_index}:{snippet_index} "
+                    "span is out of bounds"
+                )
+            original = source_text[start:end]
+            validated_snippet_count += 1
             if source_sha256 in excluded_hashes:
                 excluded_sources.append(relative)
                 continue
-            span = snippet.get("span")
-            if not isinstance(span, (list, tuple)) or len(span) != 2:
-                raise ValueError(f"LegalBench-RAG snippet {test_index}:{snippet_index} has invalid span")
-            start, end = int(span[0]), int(span[1])
-            if start < 0 or end <= start or end > len(source_text):
-                raise ValueError(f"LegalBench-RAG snippet {test_index}:{snippet_index} span is out of bounds")
-            original = source_text[start:end]
             record_id = f"{benchmark_path.name}:{test_index}:{snippet_index}"
             seed_id = hashlib.sha256(
                 f"{dataset}\0{record_id}\0{source_sha256}\0{start}\0{end}".encode()
@@ -419,7 +438,9 @@ def import_legalbenchrag(
             )
 
     pool_payload = [
-        (relative, digest) for relative, (_, digest) in sorted(source_cache.items()) if digest not in excluded_hashes
+        (relative, digest)
+        for relative, (_, digest) in sorted(source_cache.items())
+        if digest not in excluded_hashes
     ]
     pool_hash = hashlib.sha256(
         json.dumps(pool_payload, separators=(",", ":")).encode()
@@ -434,7 +455,10 @@ def import_legalbenchrag(
             "LegalBench-RAG safe source count differs from expected inventory: "
             f"{safe_source_count} != {expected_safe_sources}"
         )
-    if expected_excluded_sources is not None and excluded_source_count != expected_excluded_sources:
+    if (
+        expected_excluded_sources is not None
+        and excluded_source_count != expected_excluded_sources
+    ):
         raise ValueError(
             "LegalBench-RAG excluded source count differs from expected inventory: "
             f"{excluded_source_count} != {expected_excluded_sources}"
@@ -442,6 +466,8 @@ def import_legalbenchrag(
     return SeedImport(
         tuple(seeds),
         tuple(excluded_sources),
+        len(tests),
+        validated_snippet_count,
         safe_source_count,
         pool_hash,
         excluded_pool_hash,

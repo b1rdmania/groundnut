@@ -18,7 +18,7 @@ The importer reads the upstream benchmark and corpus directly:
 python3 scripts/import_legalbenchrag.py \
   --benchmark /path/to/data/benchmarks/cuad.json \
   --corpus-root /path/to/data/corpus \
-  --expected-safe-sources 270 \
+  --expected-safe-sources 271 \
   --expected-excluded-sources 191 \
   --output /tmp/groundnut-support-seeds.jsonl
 ```
@@ -30,6 +30,25 @@ pool hash for preregistration and writes them to a self-hashed manifest beside
 the seed JSONL. The expected inventory flags make a dataset-edition or text-
 normalization mismatch fail closed instead of silently weakening the holdout
 exclusion.
+
+### Verified downloaded edition
+
+Groundnut downloaded and checked the upstream Dropbox edition on 17 August
+2026. Its CUAD slice contains 4,042 queries, 6,247 non-empty in-bounds snippet
+offsets, and 462 source documents. The Groundnut holdout hashes exclude 191
+documents, leaving **271**, not 270, safe documents and 3,610 safe snippet
+seeds. The importer intentionally fails if invoked with the earlier 270 count.
+
+The downloaded `LegalBench-RAG.zip` archive SHA-256 is
+`27431be37db9b1db23f8ab790a42d076adb1f72d7f9e7562e36a10573405f88d`.
+The archive and extracted documents remain outside the repository; underlying
+dataset usage terms apply independently of the LegalBench-RAG code licence.
+
+For this edition the safe-pool hash is
+`f089eb671b2dbc8bd7f6e4070066660abe82a82b7dace06ca1626a8afbfce7b4` and
+the complete exclusion-pool hash is
+`1e474fa294229e3832aef8c937c4fe7d436b021d8b1132f8f6eb1c9e1710d2e7`.
+These are inventory facts, not semantic-support measurements.
 
 Each imported row discloses that LegalBench-RAG's span/category relationship is
 expert-derived while the category-to-query wording may be generated. The row

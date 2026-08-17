@@ -73,6 +73,8 @@ def test_legalbench_import_preserves_offsets_and_excludes_holdout_by_hash(tmp_pa
 
     assert len(result.seeds) == 1
     assert result.excluded_holdout_sources == ("holdout.txt",)
+    assert result.benchmark_test_count == 2
+    assert result.validated_snippet_count == 2
     assert result.safe_source_count == 1
     seed = result.seeds[0]
     seed.validate_source(safe)
@@ -107,6 +109,15 @@ def test_legalbench_import_fails_closed_on_unexpected_inventory(tmp_path):
             groundnut_manifest=manifest,
             expected_safe_sources=270,
         )
+
+
+def test_legalbench_import_validates_excluded_holdout_offsets(tmp_path):
+    corpus, benchmark, manifest, _ = write_legalbench_fixture(tmp_path)
+    value = json.loads(benchmark.read_text())
+    value["tests"][1]["snippets"][0]["span"] = [0, 999]
+    benchmark.write_text(json.dumps(value))
+    with pytest.raises(ValueError, match="span is out of bounds"):
+        import_legalbenchrag(benchmark, corpus, groundnut_manifest=manifest)
 
 
 def test_annotation_interchange_requires_review_before_promotion():

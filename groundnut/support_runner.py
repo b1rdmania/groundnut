@@ -116,7 +116,7 @@ class SupportProbeRun:
 
     def canonical_payload(self) -> dict[str, Any]:
         return {
-            "schema": "groundnut-support-probe-run/v2",
+            "schema": "groundnut-support-probe-run/v3",
             "plan": {"key": self.plan_key, "sha256": self.plan_sha256},
             "probe_sha256": self.probe_sha256,
             "max_context_characters": self.max_context_characters,
@@ -127,6 +127,7 @@ class SupportProbeRun:
             },
             "complete": self.complete,
             "contexts": [row.to_dict() for row in self.contexts],
+            "gold": [row.to_dict() for row in self.gold],
             "score": self.score,
             "assessments": [row.to_dict() for row in self.assessments],
         }
@@ -161,6 +162,8 @@ def run_support_probe(
     admitted_policies = set(plan.baseline_policy_keys) | set(plan.detector_policy_keys)
     if policy.key not in admitted_policies:
         raise ValueError(f"policy is not frozen in probe plan: {policy.key}")
+    if policy.sha256 != plan.policy_sha256(policy.key):
+        raise ValueError("support policy hash differs from frozen probe plan")
     contexts = probe.contexts(sources, max_context_characters)
     context_digests = []
     assessments = []

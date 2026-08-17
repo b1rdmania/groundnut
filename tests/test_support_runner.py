@@ -79,6 +79,7 @@ def exact():
 
 
 def plan(*, group_count=1, context=120, probe_hash=None):
+    _, exact_policy = exact()
     return SupportProbePlan(
         key="support-pilot-v1",
         frozen_at="2026-08-17T00:00:00Z",
@@ -92,6 +93,11 @@ def plan(*, group_count=1, context=120, probe_hash=None):
         minimum_improvement=0.05,
         baseline_policy_keys=("exact",),
         detector_policy_keys=("lettuce-v2", "minicheck"),
+        policy_hashes={
+            "exact": exact_policy.sha256,
+            "lettuce-v2": "3" * 64,
+            "minicheck": "4" * 64,
+        },
         lexical_overlap_min=0.2,
         lexical_overlap_max=0.8,
     )
@@ -136,7 +142,7 @@ def test_probe_run_is_order_stable_and_manifest_ready():
     artifact = ArtifactDigest.from_value("support_probe", first.to_dict())
 
     assert first.sha256 == reordered.sha256
-    assert artifact.schema == "groundnut-support-probe-run/v2"
+    assert artifact.schema == "groundnut-support-probe-run/v3"
 
 
 def test_probe_run_rejects_mixed_policy_rows():
@@ -179,4 +185,13 @@ def test_runner_refuses_unregistered_or_post_hoc_protocol_changes():
         run_support_probe(
             probe(), {"s1": SOURCE}, max_context_characters=120,
             detector=detector, policy=policy, plan=plan(probe_hash="f" * 64),
+        )
+
+    changed_hashes = dict(plan().policy_hashes)
+    changed_hashes["exact"] = "9" * 64
+    changed_plan = SupportProbePlan(**{**plan().__dict__, "policy_hashes": changed_hashes})
+    with pytest.raises(ValueError, match="policy hash differs"):
+        run_support_probe(
+            probe(), {"s1": SOURCE}, max_context_characters=120,
+            detector=detector, policy=policy, plan=changed_plan,
         )

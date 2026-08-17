@@ -113,17 +113,26 @@ attested support seeds, and accepted non-human annotations require a human
 reviewer. See [`ANNOTATION.md`](./ANNOTATION.md).
 
 `run_support_probe` executes any frozen detector over those cases only under a
-`groundnut-support-probe-plan/v1`. The plan freezes N, sampling seed, the exact
+`groundnut-support-probe-plan/v2`. The plan freezes N, sampling seed, the exact
 probe hash, source and exclusion pool hashes, context size, baseline and
-detector policy keys, primary metric, minimum meaningful improvement, and
-permitted paraphrase-overlap band
-before a learned detector runs. The runner derives
+detector policy keys plus their exact configuration hashes, primary metric,
+minimum meaningful improvement, and permitted paraphrase-overlap band before a
+learned detector runs. The runner derives
 every context from the original offsets, records a hash and length for each
 window, binds detector and policy identity to every assessment, computes the
-one-to-one score, and emits a self-hashed `groundnut-support-probe-run/v2`
-artifact. Mixed policies, mismatched context hashes, source tampering, missing
+one-to-one score, and emits a self-hashed `groundnut-support-probe-run/v3`
+artifact containing the gold rows required to recompute its declared score.
+Mixed policies, mismatched context hashes, source tampering, missing
 case IDs, duplicate IDs, post-hoc sample-size changes, and unregistered policies
 fail before a result can be accepted.
+
+`python3 -m groundnut.support_gate_cli` is the offline admission consumer. It
+loads the frozen plan plus baseline and candidate run artifacts, verifies every
+self-hash and shared identity, recomputes both scores from gold and assessment
+rows, enforces the preregistered improvement, and rejects regression on any
+material case kind. Exit codes are 0 for pass, 1 for a valid non-pass, and 2 for
+invalid or tampered input. Its result is a self-hashed
+`groundnut-support-admission/v1` artifact.
 
 ## Adapter admission
 
