@@ -8,6 +8,14 @@ from .domain import Category, DocumentType, DomainEvidence, DomainPack
 from .engine import AnalysisResult, analyse_text
 from .coverage import CheckCoverage, CoverageManifest
 from .provenance import SourceAnchor, SourceRecord, anchor_quote
+from .sources import (
+    FileResolver,
+    HttpResolver,
+    ResolvedSource,
+    SnapshotStore,
+    SourceReference,
+    SourceResolution,
+)
 
 __all__ = [
     "AnalysisResult",
@@ -17,8 +25,14 @@ __all__ = [
     "DocumentType",
     "DomainEvidence",
     "DomainPack",
+    "FileResolver",
+    "HttpResolver",
+    "ResolvedSource",
+    "SnapshotStore",
     "SourceAnchor",
+    "SourceReference",
     "SourceRecord",
+    "SourceResolution",
     "analyse_text",
     "anchor_quote",
 ]

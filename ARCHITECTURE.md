@@ -25,6 +25,12 @@ decision to sign or publish an output. Source connectors implement Groundnut's
 acquisition interface; uploaded files and live web sources enter the same
 normalized source record after acquisition.
 
+The built-in adapters cover local text and simple HTTP text/HTML. Paywalls,
+unreachable sources, and unsupported PDFs remain explicit failure states.
+`SnapshotStore` archives the normalized source with its hash and refuses a
+tampered snapshot, allowing IC-style verification against what the writer saw
+rather than whatever a live URL serves later.
+
 ## Evidence maturity
 
 Changing configuration demonstrates portability, not quality. Every domain
