@@ -96,6 +96,44 @@ class ArtifactProfile:
         ).encode()
         return hashlib.sha256(encoded).hexdigest()
 
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> "ArtifactProfile":
+        schema = value.get("schema", "groundnut-artifact-profile/v1")
+        if schema != "groundnut-artifact-profile/v1":
+            raise ValueError(f"unsupported artifact profile schema: {schema}")
+        structured = value.get("structured_fields", {})
+        html = value.get("html", {})
+        if not isinstance(structured, Mapping) or not isinstance(html, Mapping):
+            raise ValueError("artifact profile sections must be objects")
+        return cls(
+            key=str(value["key"]),
+            version=str(value["version"]),
+            claims_key=str(structured.get("claims", "claims")),
+            claim_id_key=str(structured.get("claim_id", "claim_id")),
+            claim_text_key=str(structured.get("claim_text", "claim_text")),
+            source_uri_key=str(structured.get("source_uri", "source_url")),
+            excerpt_key=str(structured.get("excerpt", "source_excerpt")),
+            locator_key=str(structured.get("locator", "source_locator")),
+            declared_analysis_key=str(
+                structured.get("declared_analysis", "declared_analysis")
+            ),
+            evidence_comment_prefix=str(
+                html.get("evidence_comment_prefix", "groundnut-source")
+            ),
+            declared_analysis_classes=tuple(
+                str(item)
+                for item in html.get(
+                    "declared_analysis_classes", ("groundnut-declared-analysis",)
+                )
+            ),
+            ignored_container_classes=tuple(
+                str(item)
+                for item in html.get(
+                    "ignored_container_classes", ("groundnut-references",)
+                )
+            ),
+        )
+
 
 DEFAULT_ARTIFACT_PROFILE = ArtifactProfile(key="groundnut-default", version="1")
 

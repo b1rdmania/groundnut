@@ -166,6 +166,7 @@ Thresholds are fixed before holdout scoring.
 | Canonical run manifest and artifact digests | Landed |
 | End-to-end batch claim checker and hashable report | Landed |
 | Canonical artifact-to-evidence runner | Landed |
+| Versioned JSON process boundary for non-Python consumers | Landed |
 | Frozen-policy arena and offline adjudication CLI | Landed |
 | Profile-hashed arena task emission with section-contained context | Landed |
 | Benchmark-only LettuceDetect and MiniCheck adapters | Landed; no model adopted |
@@ -215,6 +216,9 @@ harness/gate.sh dev --pred-root runs/predictions-claude-opus-4.8-agent
 # canonical domain-pack run
 python3 -m pipeline.run --domain trust_obligations --in contracts --out results
 
+# canonical claim-checking process boundary: request on stdin, response on stdout
+python3 -m groundnut.canonical_cli < canonical-request.json > canonical-response.json
+
 # offline adversarial adjudication: 0 pass, 1 reviewed/non-pass, 2 bad input
 python3 -m groundnut.arena_cli --policy policies/canonical-arena-v1.json \
   --tasks tasks.jsonl --attacks attacks.jsonl --rulings rulings.jsonl \
@@ -222,6 +226,39 @@ python3 -m groundnut.arena_cli --policy policies/canonical-arena-v1.json \
 ```
 
 Holdout is rate-limited to one run per 6 hours and is **currently unspent**. Don't spend it until something passes dev.
+
+### Canonical JSON boundary
+
+`groundnut.canonical_cli` is the integration surface for TypeScript and other
+non-Python consumers. It accepts one `groundnut-canonical-request/v1` object and
+returns one `groundnut-canonical-response/v1` object containing the complete,
+self-hashed execution and run manifest. Configuration may be supplied inline or
+by path; relative paths in a request file resolve beside that file.
+
+```json
+{
+  "schema": "groundnut-canonical-request/v1",
+  "artifact": "report.html",
+  "snapshot_directory": "snapshots",
+  "domain": "domain.json",
+  "support_policy": "exact-support-policy.json",
+  "authority_policy": {
+    "schema": "groundnut-authority-policy/v1",
+    "key": "canonical_authority",
+    "version": "1",
+    "frozen_at": "2026-08-17T00:00:00Z"
+  },
+  "arena_profile": true,
+  "acquisition_mode": "replay_only"
+}
+```
+
+Replay-only is the default and never touches the network. A request for
+`snapshot_preferred` or `refresh` is rejected unless the host also passes
+`--allow-live`; successful live resolutions are archived before they can be
+replayed. The process boundary currently admits only the frozen exact-support
+baseline. That restriction is intentional while the canonical semantic-support
+gate remains unmeasured.
 
 ## Compatibility extraction gate 🚦
 

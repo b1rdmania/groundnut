@@ -60,6 +60,16 @@ class AuthorityPolicy:
     def sha256(self) -> str:
         return _sha256(self.canonical_payload())
 
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> "AuthorityPolicy":
+        return cls(
+            schema=str(value.get("schema", "groundnut-authority-policy/v1")),
+            key=str(value["key"]),
+            version=str(value["version"]),
+            frozen_at=str(value["frozen_at"]),
+            kinds=tuple(str(item) for item in value.get("kinds", AUTHORITY_KINDS)),
+        )
+
 
 @dataclass(frozen=True)
 class AuthorityDeclaration:
@@ -89,6 +99,16 @@ class AuthorityDeclaration:
     @property
     def sha256(self) -> str:
         return _sha256(self.canonical_payload())
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> "AuthorityDeclaration":
+        return cls(
+            kind=str(value["kind"]),
+            basis=str(value["basis"]),
+            assigned_by=str(value["assigned_by"]),
+            note=str(value["note"]),
+            source_id=str(value["source_id"]) if value.get("source_id") else None,
+        )
 
 
 @dataclass(frozen=True)
