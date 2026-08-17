@@ -99,6 +99,46 @@ def test_declared_analysis_is_analyst_derived_without_support_upgrade():
     assert account.assessment.support.status == "not_assessed"
 
 
+def test_typed_provenance_constrains_authority_without_upgrading_support():
+    company = assess_evidence_authority(
+        assessment(
+            Claim(
+                "company",
+                "The company reports six pilots.",
+                provenance_class="company_assertion",
+            )
+        ),
+        policy=AUTHORITY_POLICY,
+    )
+    recommendation = assess_evidence_authority(
+        assessment(
+            Claim(
+                "recommendation",
+                "Restate the milestone.",
+                provenance_class="recommendation",
+            )
+        ),
+        policy=AUTHORITY_POLICY,
+    )
+    external = assess_evidence_authority(
+        assessment(
+            Claim(
+                "external",
+                "A source-backed claim.",
+                source=REFERENCE,
+                provenance_class="external_evidence",
+            )
+        ),
+        policy=AUTHORITY_POLICY,
+    )
+
+    assert company.authority.kind == "subject_provided"
+    assert company.assessment.support.status == "not_assessed"
+    assert recommendation.authority.kind == "analyst_derived"
+    assert recommendation.assessment.support.status == "not_assessed"
+    assert external.authority.kind == "unknown_authority"
+
+
 def test_declaration_must_match_source_identity():
     checked = assessment(Claim("c1", "A claim", source=REFERENCE))
     with pytest.raises(ValueError, match="source does not match"):
@@ -162,6 +202,7 @@ def test_batch_report_keeps_support_and_authority_summaries_separate():
     assert payload["summary"]["support_status_counts"] == {"supported": 2}
     assert payload["summary"]["authority_kind_counts"]["subject_provided"] == 1
     assert payload["summary"]["authority_kind_counts"]["independent_primary"] == 1
+    assert payload["summary"]["provenance_class_counts"] == {"unclassified": 2}
     assert payload["complete_authority"] is True
     assert len(payload["sha256"]) == 64
 

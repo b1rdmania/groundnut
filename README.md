@@ -109,6 +109,15 @@ stages:
   manifest, normalized sources and snapshots, frozen policies, runtime
   component configurations, and output artifacts. Dirty builds remain usable
   for development but cannot pass `require_publishable()`.
+- **Typed analytical provenance** — external evidence, company assertions,
+  analyst calculations, analyst inferences, recommendations, and open questions
+  remain distinct without changing semantic support.
+- **Denominator-safe metrics** — every mechanical verification rate carries its
+  numerator, denominator, population, and metric class. Exact and fuzzy anchors
+  are never collapsed into one validation bucket.
+- **Explicit segmentation identity** — extraction records and run manifests
+  bind the segmenter version and configuration because claim boundaries move
+  every claim-denominated metric.
 
 ### What it does not claim
 
@@ -167,6 +176,9 @@ Thresholds are fixed before holdout scoring.
 | End-to-end batch claim checker and hashable report | Landed |
 | Canonical artifact-to-evidence runner | Landed |
 | Versioned JSON process boundary for non-Python consumers | Landed |
+| Typed analytical provenance across artifact, support and authority layers | Landed |
+| Metric envelopes and separate fuzzy-anchor population | Landed |
+| Explicit segmenter identity in extraction and run manifest | Landed |
 | Frozen-policy arena and offline adjudication CLI | Landed |
 | Profile-hashed arena task emission with section-contained context | Landed |
 | Benchmark-only LettuceDetect and MiniCheck adapters | Landed; no model adopted |
@@ -185,6 +197,12 @@ support layer can then report `supported`, `contradicted`, `insufficient`,
 `source_unavailable`, or `not_assessed` in a separate artifact, without
 allowing a model score to overwrite mechanical provenance. The shipped exact
 policy is a baseline, not a learned support claim.
+
+Analytical provenance is a separate axis again. A company assertion cannot
+inherit independent authority from a nearby citation; a recommendation cannot
+be made externally verified by attaching a source; and an analyst calculation
+remains unassessed until its inputs and method are checked. See
+[`ANALYTICAL-PROVENANCE.md`](./ANALYTICAL-PROVENANCE.md).
 
 The detector admission protocol and paired case schema are specified in
 [`SUPPORT.md`](./SUPPORT.md). Every transfer-probe group contains both present

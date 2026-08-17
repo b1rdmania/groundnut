@@ -119,6 +119,20 @@ than engine conditionals. Reference apparatus can be excluded explicitly, and
 unsupported or malformed artifacts fail rather than silently becoming empty
 evidence.
 
+Artifact ingestion also preserves an explicit analytical-provenance class.
+External evidence, company assertions, analyst calculations, analyst
+inferences, recommendations, and open questions remain distinct. The class can
+constrain evidence authority but cannot upgrade mechanical anchoring or
+semantic support. Legacy declared-analysis markers map to analyst inference;
+untyped material remains `unclassified` rather than being guessed from nearby
+citations.
+
+Every extraction records a separately versioned and hashed segmenter identity,
+its claim count, and the artifact-profile hash. The canonical manifest binds the
+segmenter as a runtime component in addition to the complete engine-source
+hash. Claim-denominated comparisons must disclose a changed segmenter or engine
+build.
+
 ## Run manifest
 
 `groundnut-run-manifest/v2` is the portable receipt for one run. It binds an
@@ -142,6 +156,13 @@ through character similarity alone. An anchored excerpt always carries
 `support: not_assessed`; presence is not entailment or truth. Semantic judges
 may consume that record through an adapter but cannot rewrite its mechanical
 provenance.
+
+Every mechanical verification rate is a metric envelope carrying its
+numerator, denominator, population, and metric class. Fuzzy-found excerpts are
+reported separately from exact anchors and from absent sources. Coverage is
+also grouped by analytical-provenance class, preventing an uncited analyst
+inference from being silently counted as the same failure as an uncited
+external fact.
 
 Semantic support is a separate, versioned artifact. A support policy pins the
 detector adapter, model, revision, package version, confidence threshold, and
@@ -202,7 +223,7 @@ This prevents evidence from a neighbouring slide or heading from silently
 supporting a conclusion.
 
 Emission and adjudication are separate. The emitter proposes what should be
-attacked; `groundnut-arena-report/v1` still decides attacks and rulings under a
+attacked; `groundnut-arena-report/v2` still decides attacks and rulings under a
 different frozen policy and retains unattacked, unruled, and withheld states.
 
 ## Gate roles

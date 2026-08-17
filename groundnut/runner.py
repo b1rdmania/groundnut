@@ -204,12 +204,19 @@ def execute_canonical_check(
         revision=identity.revision,
         configuration=identity.canonical_payload(),
     )
+    segmenter = run.artifact.segmenter
+    segmenter_component = RuntimeComponent.from_config(
+        role="claim_segmenter",
+        name=segmenter.key,
+        revision=segmenter.version,
+        configuration=segmenter.canonical_payload(),
+    )
     manifest = RunManifest(
         engine=engine,
         domain=DomainDigest.from_pack(domain),
         sources=sources,
         policies=tuple(policies),
-        components=(component,),
+        components=(component, segmenter_component),
         artifacts=(ArtifactDigest.from_value("canonical_run", run.to_dict()),),
     )
     return CanonicalExecution(run=run, manifest=manifest)

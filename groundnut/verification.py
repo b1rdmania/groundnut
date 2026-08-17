@@ -12,7 +12,25 @@ from dataclasses import dataclass
 import re
 from typing import Any
 
+from .metrics import MetricEnvelope
 from .sources import SourceReference, SourceResolution
+
+
+CLAIM_PROVENANCE_CLASSES = {
+    "external_evidence",
+    "company_assertion",
+    "analyst_calculation",
+    "analyst_inference",
+    "recommendation",
+    "open_question",
+    "unclassified",
+}
+ANALYTICAL_PROVENANCE_SCHEMA = "groundnut-analytical-provenance/v1"
+ANALYST_PROVENANCE_CLASSES = {
+    "analyst_calculation",
+    "analyst_inference",
+    "recommendation",
+}
 
 
 @dataclass(frozen=True)
@@ -23,8 +41,21 @@ class Claim:
     excerpt: str | None = None
     locator: str | None = None
     declared_analysis: bool = False
+    provenance_class: str = "unclassified"
     question: str | None = None
     location: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.claim_id.strip() or not self.text.strip():
+            raise ValueError("claim identity and text are required")
+        if self.provenance_class not in CLAIM_PROVENANCE_CLASSES:
+            raise ValueError(f"unknown claim provenance class: {self.provenance_class}")
+        if self.declared_analysis and self.provenance_class == "unclassified":
+            object.__setattr__(self, "provenance_class", "analyst_inference")
+        elif self.declared_analysis and self.provenance_class not in ANALYST_PROVENANCE_CLASSES:
+            raise ValueError("declared analysis conflicts with provenance class")
+        elif self.provenance_class in ANALYST_PROVENANCE_CLASSES:
+            object.__setattr__(self, "declared_analysis", True)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -38,6 +69,10 @@ class Claim:
             "excerpt": self.excerpt,
             "locator": self.locator,
             "declared_analysis": self.declared_analysis,
+            "analytical_provenance": {
+                "schema": ANALYTICAL_PROVENANCE_SCHEMA,
+                "class": self.provenance_class,
+            },
             "question": self.question,
             "location": self.location,
         }
@@ -139,15 +174,16 @@ def best_window_similarity(needle: str, haystack: str) -> float:
 def verify_claim(claim: Claim, resolution: SourceResolution | None) -> VerifiedClaim:
     """Mechanically verify citation apparatus without judging claim support."""
     if claim.source is None:
+        typed = claim.provenance_class != "unclassified"
         return VerifiedClaim(
             claim=claim,
             anchor=None,
-            method="provenance" if claim.declared_analysis else "no_source",
+            method="provenance" if typed else "no_source",
             score=None,
-            support="declared_analysis" if claim.declared_analysis else "not_assessed",
+            support="not_assessed",
             note=(
-                "Declared analysis has no external source; review its inputs and method."
-                if claim.declared_analysis
+                f"Artifact declares {claim.provenance_class}; this class does not establish support."
+                if typed
                 else "No checkable source is attached."
             ),
         )
@@ -196,22 +232,102 @@ def verify_claim(claim: Claim, resolution: SourceResolution | None) -> VerifiedC
     )
 
 
-def verification_metrics(rows: list[VerifiedClaim]) -> dict[str, float | int | None]:
+def verification_metrics(rows: list[VerifiedClaim]) -> dict[str, Any]:
     cited = [row for row in rows if row.claim.source is not None]
     readable = [row for row in cited if row.method != "fetch_failed"]
     excerpts = [row for row in cited if row.claim.excerpt]
     anchored = [row for row in excerpts if row.anchor == "found"]
-    return {
-        "detected_claims": len(rows),
-        "cited_claims": len(cited),
-        "citation_coverage": _ratio(len(cited), len(rows)),
-        "readable_citations": len(readable),
-        "source_accessibility": _ratio(len(readable), len(cited)),
-        "excerpt_claims": len(excerpts),
-        "anchored_excerpts": len(anchored),
-        "excerpt_anchoring": _ratio(len(anchored), len(excerpts)),
+    exact_anchored = [row for row in anchored if row.method == "exact"]
+    fuzzy_anchored = [row for row in anchored if row.method == "fuzzy"]
+    anchor_outcomes = {
+        "exact_found": len(exact_anchored),
+        "fuzzy_found": len(fuzzy_anchored),
+        "fuzzy_ambiguous": sum(
+            row.method == "fuzzy" and row.anchor == "ambiguous" for row in excerpts
+        ),
+        "fuzzy_not_found": sum(
+            row.method == "fuzzy" and row.anchor == "not_found" for row in excerpts
+        ),
+        "locator_only": sum(row.method == "locator" for row in cited),
+        "no_excerpt": sum(row.method == "no_excerpt" for row in cited),
+        "fetch_failed": sum(row.method == "fetch_failed" for row in cited),
+        "no_source": sum(row.method == "no_source" for row in rows),
+        "typed_provenance": sum(row.method == "provenance" for row in rows),
     }
-
-
-def _ratio(numerator: int, denominator: int) -> float | None:
-    return numerator / denominator if denominator else None
+    rates = (
+        MetricEnvelope(
+            "citation_coverage",
+            "coverage",
+            len(cited),
+            len(rows),
+            "all detected claims",
+        ),
+        MetricEnvelope(
+            "source_accessibility",
+            "accessibility",
+            len(readable),
+            len(cited),
+            "claims with a cited source",
+        ),
+        MetricEnvelope(
+            "excerpt_anchoring",
+            "anchoring",
+            len(anchored),
+            len(excerpts),
+            "cited claims with a supplied verbatim excerpt",
+        ),
+        MetricEnvelope(
+            "exact_anchor_share",
+            "anchoring_method",
+            len(exact_anchored),
+            len(anchored),
+            "anchored excerpts",
+        ),
+        MetricEnvelope(
+            "fuzzy_anchor_share",
+            "anchoring_method",
+            len(fuzzy_anchored),
+            len(anchored),
+            "anchored excerpts",
+        ),
+    )
+    per_provenance = {}
+    for provenance_class in sorted({row.claim.provenance_class for row in rows}):
+        population = [
+            row for row in rows if row.claim.provenance_class == provenance_class
+        ]
+        population_cited = [row for row in population if row.claim.source is not None]
+        per_provenance[provenance_class] = {
+            "claims": len(population),
+            "cited_claims": len(population_cited),
+            "no_source": sum(row.method == "no_source" for row in population),
+            "typed_provenance": sum(
+                row.method == "provenance" for row in population
+            ),
+            "fuzzy_anchored_excerpts": sum(
+                row.method == "fuzzy" and row.anchor == "found"
+                for row in population
+            ),
+            "citation_coverage": MetricEnvelope(
+                "citation_coverage",
+                "coverage_by_provenance",
+                len(population_cited),
+                len(population),
+                f"claims declared {provenance_class}",
+            ).to_dict(),
+        }
+    return {
+        "schema": "groundnut-verification-metrics/v2",
+        "counts": {
+            "detected_claims": len(rows),
+            "cited_claims": len(cited),
+            "readable_citations": len(readable),
+            "excerpt_claims": len(excerpts),
+            "anchored_excerpts": len(anchored),
+            "exact_anchored_excerpts": len(exact_anchored),
+            "fuzzy_anchored_excerpts": len(fuzzy_anchored),
+        },
+        "anchor_outcome_counts": anchor_outcomes,
+        "by_provenance_class": per_provenance,
+        "rates": {metric.name: metric.to_dict() for metric in rates},
+    }

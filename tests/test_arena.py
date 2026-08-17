@@ -64,6 +64,13 @@ def test_disagreement_is_withheld_not_exonerated():
 
     assert report.findings[0].verdict == "withheld"
     assert report.withheld_density == 1.0
+    envelope = report.to_dict()["withheld_density"]
+    assert (envelope["numerator"], envelope["denominator"], envelope["value"]) == (
+        1,
+        1,
+        1.0,
+    )
+    assert envelope["class"] == "adjudication_disagreement"
     assert report.passed is False
 
 

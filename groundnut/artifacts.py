@@ -16,7 +16,7 @@ from typing import Any, Mapping
 
 from .provenance import sha256_text
 from .sources import SourceReference
-from .verification import Claim
+from .verification import ANALYST_PROVENANCE_CLASSES, CLAIM_PROVENANCE_CLASSES, Claim
 
 
 _LINK = re.compile(r'\[([^\]]+)\]\((https?://[^\s)"]+)(?:\s+"([^"]*)")?\)')
@@ -25,6 +25,75 @@ _BLOCK_END = re.compile(
     re.I,
 )
 _TAG = re.compile(r"<[^>]+>")
+
+
+@dataclass(frozen=True)
+class SegmenterIdentity:
+    key: str
+    version: str
+    strategies: tuple[tuple[str, str], ...]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "strategies", tuple(sorted(self.strategies)))
+        if not self.key.strip() or not self.version.strip() or not self.strategies:
+            raise ValueError("segmenter identity and strategies are required")
+        if any(not kind.strip() or not rule.strip() for kind, rule in self.strategies):
+            raise ValueError("segmenter strategies must not be empty")
+        if len({kind for kind, _ in self.strategies}) != len(self.strategies):
+            raise ValueError("segmenter strategy kinds must be unique")
+
+    def canonical_payload(self) -> dict[str, Any]:
+        return {
+            "schema": "groundnut-segmenter-identity/v1",
+            "key": self.key,
+            "version": self.version,
+            "strategies": dict(self.strategies),
+        }
+
+    @property
+    def sha256(self) -> str:
+        encoded = json.dumps(
+            self.canonical_payload(), sort_keys=True, separators=(",", ":")
+        ).encode()
+        return hashlib.sha256(encoded).hexdigest()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {**self.canonical_payload(), "configuration_sha256": self.sha256}
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> "SegmenterIdentity":
+        strategies = value.get("strategies", {})
+        if not isinstance(strategies, Mapping):
+            raise ValueError("segmenter strategies must be an object")
+        return cls(
+            key=str(value["key"]),
+            version=str(value["version"]),
+            strategies=tuple((str(kind), str(rule)) for kind, rule in strategies.items()),
+        )
+
+
+DEFAULT_SEGMENTER = SegmenterIdentity(
+    key="groundnut.artifact-block-segmenter",
+    version="1",
+    strategies=(
+        ("structured_json", "one claim per configured claims-array row"),
+        ("markdown", "one claim per HTTP citation per physical line"),
+        (
+            "rendered_html",
+            "one claim per HTTP citation per normalized block line; one claim per typed unsourced block",
+        ),
+    ),
+)
+
+
+DEFAULT_PROVENANCE_CLASS_MARKERS = (
+    ("groundnut-external-evidence", "external_evidence"),
+    ("groundnut-company-assertion", "company_assertion"),
+    ("groundnut-analyst-calculation", "analyst_calculation"),
+    ("groundnut-analyst-inference", "analyst_inference"),
+    ("groundnut-recommendation", "recommendation"),
+    ("groundnut-open-question", "open_question"),
+)
 
 
 @dataclass(frozen=True)
@@ -38,9 +107,12 @@ class ArtifactProfile:
     excerpt_key: str = "source_excerpt"
     locator_key: str = "source_locator"
     declared_analysis_key: str = "declared_analysis"
+    provenance_class_key: str = "provenance_class"
     evidence_comment_prefix: str = "groundnut-source"
     declared_analysis_classes: tuple[str, ...] = ("groundnut-declared-analysis",)
+    provenance_class_markers: tuple[tuple[str, str], ...] = DEFAULT_PROVENANCE_CLASS_MARKERS
     ignored_container_classes: tuple[str, ...] = ("groundnut-references",)
+    segmenter: SegmenterIdentity = DEFAULT_SEGMENTER
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -48,6 +120,11 @@ class ArtifactProfile:
         )
         object.__setattr__(
             self, "ignored_container_classes", tuple(self.ignored_container_classes)
+        )
+        object.__setattr__(
+            self,
+            "provenance_class_markers",
+            tuple(sorted(tuple(row) for row in self.provenance_class_markers)),
         )
         values = (
             self.key,
@@ -59,6 +136,7 @@ class ArtifactProfile:
             self.excerpt_key,
             self.locator_key,
             self.declared_analysis_key,
+            self.provenance_class_key,
             self.evidence_comment_prefix,
         )
         if not all(value.strip() for value in values):
@@ -67,6 +145,14 @@ class ArtifactProfile:
             raise ValueError("declared-analysis classes must not be empty")
         if any(not value.strip() for value in self.ignored_container_classes):
             raise ValueError("ignored-container classes must not be empty")
+        marker_classes = [marker for marker, _ in self.provenance_class_markers]
+        if len(marker_classes) != len(set(marker_classes)):
+            raise ValueError("provenance marker classes must be unique")
+        if any(
+            not marker.strip() or provenance not in CLAIM_PROVENANCE_CLASSES - {"unclassified"}
+            for marker, provenance in self.provenance_class_markers
+        ):
+            raise ValueError("provenance markers require a canonical provenance class")
 
     def canonical_payload(self) -> dict[str, Any]:
         return {
@@ -81,12 +167,15 @@ class ArtifactProfile:
                 "excerpt": self.excerpt_key,
                 "locator": self.locator_key,
                 "declared_analysis": self.declared_analysis_key,
+                "provenance_class": self.provenance_class_key,
             },
             "html": {
                 "evidence_comment_prefix": self.evidence_comment_prefix,
                 "declared_analysis_classes": list(self.declared_analysis_classes),
+                "provenance_class_markers": dict(self.provenance_class_markers),
                 "ignored_container_classes": list(self.ignored_container_classes),
             },
+            "segmenter": self.segmenter.to_dict(),
         }
 
     @property
@@ -105,6 +194,12 @@ class ArtifactProfile:
         html = value.get("html", {})
         if not isinstance(structured, Mapping) or not isinstance(html, Mapping):
             raise ValueError("artifact profile sections must be objects")
+        provenance_markers = html.get(
+            "provenance_class_markers",
+            dict(DEFAULT_PROVENANCE_CLASS_MARKERS),
+        )
+        if not isinstance(provenance_markers, Mapping):
+            raise ValueError("provenance_class_markers must be an object")
         return cls(
             key=str(value["key"]),
             version=str(value["version"]),
@@ -117,6 +212,9 @@ class ArtifactProfile:
             declared_analysis_key=str(
                 structured.get("declared_analysis", "declared_analysis")
             ),
+            provenance_class_key=str(
+                structured.get("provenance_class", "provenance_class")
+            ),
             evidence_comment_prefix=str(
                 html.get("evidence_comment_prefix", "groundnut-source")
             ),
@@ -126,11 +224,20 @@ class ArtifactProfile:
                     "declared_analysis_classes", ("groundnut-declared-analysis",)
                 )
             ),
+            provenance_class_markers=tuple(
+                (str(marker), str(provenance))
+                for marker, provenance in provenance_markers.items()
+            ),
             ignored_container_classes=tuple(
                 str(item)
                 for item in html.get(
                     "ignored_container_classes", ("groundnut-references",)
                 )
+            ),
+            segmenter=(
+                SegmenterIdentity.from_mapping(value["segmenter"])
+                if isinstance(value.get("segmenter"), Mapping)
+                else DEFAULT_SEGMENTER
             ),
         )
 
@@ -144,14 +251,17 @@ class ArtifactExtraction:
     input_sha256: str
     profile_key: str
     profile_sha256: str
+    segmenter: SegmenterIdentity
     claims: tuple[Claim, ...]
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema": "groundnut-artifact-extraction/v1",
+            "schema": "groundnut-artifact-extraction/v2",
             "kind": self.kind,
             "input_sha256": self.input_sha256,
             "profile": {"key": self.profile_key, "sha256": self.profile_sha256},
+            "segmenter": self.segmenter.to_dict(),
+            "claim_count": len(self.claims),
             "claims": [claim.to_dict() for claim in self.claims],
         }
 
@@ -178,6 +288,7 @@ def extract_artifact(
         input_sha256=sha256_text(raw),
         profile_key=profile.key,
         profile_sha256=profile.sha256,
+        segmenter=profile.segmenter,
         claims=tuple(claims),
     )
 
@@ -203,6 +314,13 @@ def _structured_claims(value: Any, profile: ArtifactProfile) -> list[Claim]:
                     row.get(profile.declared_analysis_key, False),
                     profile.declared_analysis_key,
                 ),
+                provenance_class=(
+                    _optional_string(
+                        row.get(profile.provenance_class_key),
+                        profile.provenance_class_key,
+                    )
+                    or "unclassified"
+                ),
                 location=f"{profile.claims_key}[{index}]",
             )
         )
@@ -226,6 +344,7 @@ def _markdown_claims(raw: str, profile: ArtifactProfile) -> list[Claim]:
                     excerpt=excerpt,
                     locator=locator,
                     declared_analysis=_declared(line, profile),
+                    provenance_class=_provenance_class(line, profile),
                     location=f"line {line_number}",
                 )
             )
@@ -233,11 +352,22 @@ def _markdown_claims(raw: str, profile: ArtifactProfile) -> list[Claim]:
 
 
 def _html_claims(raw: str, profile: ArtifactProfile) -> list[Claim]:
+    _validate_html_provenance_markers(raw, profile)
     prepared = raw
     for class_name in profile.ignored_container_classes:
         prepared = re.sub(
             rf"<([a-z][a-z0-9]*)\b[^>]*class=[\"'][^\"']*\b{re.escape(class_name)}\b[^\"']*[\"'][^>]*>[\s\S]*?</\1>",
             " ",
+            prepared,
+            flags=re.I,
+        )
+    for class_name, provenance_class in profile.provenance_class_markers:
+        prepared = re.sub(
+            rf"<([a-z][a-z0-9]*)\b[^>]*class=[\"'][^\"']*\b{re.escape(class_name)}\b[^\"']*[\"'][^>]*>([\s\S]*?)</\1>",
+            lambda match: (
+                f" {match.group(2)} "
+                f"__GROUNDNUT_PROVENANCE_{provenance_class.upper()}__ "
+            ),
             prepared,
             flags=re.I,
         )
@@ -270,6 +400,9 @@ def _html_claims(raw: str, profile: ArtifactProfile) -> list[Claim]:
             continue
         links = list(_LINK.finditer(line))
         declared = "__GROUNDNUT_DECLARED_ANALYSIS__" in line
+        provenance_class = _provenance_class(line, profile)
+        if declared and provenance_class == "unclassified":
+            provenance_class = "analyst_inference"
         reading = _reading_text(line, profile)
         if links:
             for match in links:
@@ -293,15 +426,19 @@ def _html_claims(raw: str, profile: ArtifactProfile) -> list[Claim]:
                         excerpt=excerpt,
                         locator=locator,
                         declared_analysis=declared,
+                        provenance_class=provenance_class,
                         location=f"line {line_number}",
                     )
                 )
-        elif declared and reading:
+        elif (declared or provenance_class != "unclassified") and reading:
             claims.append(
                 Claim(
                     claim_id=f"c{len(claims) + 1}",
                     text=reading,
-                    declared_analysis=True,
+                    declared_analysis=(
+                        declared or provenance_class in ANALYST_PROVENANCE_CLASSES
+                    ),
+                    provenance_class=provenance_class,
                     location=f"line {line_number}",
                 )
             )
@@ -326,7 +463,11 @@ def _html_attribute(attributes: str, name: str) -> str | None:
 def _reading_text(value: str, profile: ArtifactProfile) -> str:
     value = _LINK.sub(lambda match: match.group(1), value)
     value = _comment_pattern(profile).sub("", value)
-    value = re.sub(r"__GROUNDNUT_(?:DECLARED_ANALYSIS|EVIDENCE_(?:QUOTE|LOCATOR)_[^\s]+)__", "", value)
+    value = re.sub(
+        r"__GROUNDNUT_(?:DECLARED_ANALYSIS|PROVENANCE_[A-Z_]+|EVIDENCE_(?:QUOTE|LOCATOR)_[^\s]+)__",
+        "",
+        value,
+    )
     return " ".join(value.replace("#", " ").replace("*", " ").replace("`", " ").split())
 
 
@@ -353,6 +494,45 @@ def _comment_pattern(profile: ArtifactProfile) -> re.Pattern[str]:
 
 def _declared(value: str, profile: ArtifactProfile) -> bool:
     return any(class_name in value for class_name in profile.declared_analysis_classes)
+
+
+def _provenance_class(value: str, profile: ArtifactProfile) -> str:
+    found = {
+        provenance
+        for marker, provenance in profile.provenance_class_markers
+        if marker in value
+        or f"__GROUNDNUT_PROVENANCE_{provenance.upper()}__" in value
+    }
+    if len(found) > 1:
+        raise ValueError(f"claim block declares conflicting provenance classes: {sorted(found)}")
+    return next(iter(found), "unclassified")
+
+
+def _validate_html_provenance_markers(raw: str, profile: ArtifactProfile) -> None:
+    """Reject contradictory provenance declarations before HTML is flattened."""
+
+    for tag in re.finditer(r"<[a-z][a-z0-9]*\b([^>]*)>", raw, re.I):
+        attributes = tag.group(1)
+        classes = _html_attribute(attributes, "class")
+        if classes is None:
+            continue
+        class_names = set(classes.split())
+        found = {
+            provenance
+            for marker, provenance in profile.provenance_class_markers
+            if marker in class_names
+        }
+        if len(found) > 1:
+            raise ValueError(
+                f"claim block declares conflicting provenance classes: {sorted(found)}"
+            )
+        declared = any(
+            class_name in class_names for class_name in profile.declared_analysis_classes
+        )
+        if declared and found and not found <= ANALYST_PROVENANCE_CLASSES:
+            raise ValueError(
+                "claim block conflicts with legacy declared-analysis provenance"
+            )
 
 
 def _reference(uri: str) -> SourceReference:

@@ -13,6 +13,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .metrics import MetricEnvelope
+
 
 POLICY_SCHEMA = "groundnut-arena-policy/v1"
 VERDICTS = {
@@ -157,11 +159,18 @@ class ArenaReport:
         totals = {verdict: 0 for verdict in sorted(VERDICTS)}
         for finding in self.findings:
             totals[finding.verdict] += 1
+        withheld_density = MetricEnvelope(
+            name="withheld_density",
+            metric_class="adjudication_disagreement",
+            numerator=totals["withheld"],
+            denominator=len(self.findings),
+            population="all arena findings under the frozen policy",
+        )
         return {
-            "schema": "groundnut-arena-report/v1",
+            "schema": "groundnut-arena-report/v2",
             "policy": {"key": self.policy_key, "sha256": self.policy_sha256},
             "passed": self.passed,
-            "withheld_density": self.withheld_density,
+            "withheld_density": withheld_density.to_dict(),
             "totals": {"tasks": len(self.findings), **totals},
             "findings": [
                 {

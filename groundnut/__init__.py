@@ -9,8 +9,11 @@ from .artifacts import (
     ArtifactExtraction,
     ArtifactProfile,
     DEFAULT_ARTIFACT_PROFILE,
+    DEFAULT_SEGMENTER,
+    SegmenterIdentity,
     extract_artifact,
 )
+from .metrics import MetricEnvelope
 from .engine import AnalysisResult, analyse_text
 from .coverage import CheckCoverage, CoverageManifest
 from .authority import (
@@ -109,6 +112,9 @@ from .runner import (
 from .adapters import LettuceDetectAdapter, MiniCheckAdapter
 from .support_runner import ProbeContextDigest, SupportProbeRun, run_support_probe
 from .verification import (
+    ANALYTICAL_PROVENANCE_SCHEMA,
+    ANALYST_PROVENANCE_CLASSES,
+    CLAIM_PROVENANCE_CLASSES,
     Claim,
     MatchOutcome,
     VerifiedClaim,
@@ -119,6 +125,8 @@ from .verification import (
 
 __all__ = [
     "AnalysisResult",
+    "ANALYTICAL_PROVENANCE_SCHEMA",
+    "ANALYST_PROVENANCE_CLASSES",
     "AUTHORITY_KINDS",
     "AnnotationBundle",
     "ArtifactDigest",
@@ -139,6 +147,7 @@ __all__ = [
     "CanonicalExecution",
     "CaseProvenance",
     "Claim",
+    "CLAIM_PROVENANCE_CLASSES",
     "ClaimAssessment",
     "ClaimCheckReport",
     "ClaimEvidenceAccount",
@@ -147,6 +156,7 @@ __all__ = [
     "CoverageManifest",
     "DocumentType",
     "DEFAULT_ARTIFACT_PROFILE",
+    "DEFAULT_SEGMENTER",
     "DEFAULT_ARENA_EMISSION_PROFILE",
     "DomainDigest",
     "DetectorDecision",
@@ -160,6 +170,7 @@ __all__ = [
     "EvidenceAnnotation",
     "HttpResolver",
     "MatchOutcome",
+    "MetricEnvelope",
     "MiniCheckAdapter",
     "ParityComparison",
     "PresentIrrelevantCandidate",
@@ -182,6 +193,7 @@ __all__ = [
     "SourceRecord",
     "SourceResolution",
     "SeedImport",
+    "SegmenterIdentity",
     "SupportAssessment",
     "SupportAdmissionReport",
     "SupportBakeoff",

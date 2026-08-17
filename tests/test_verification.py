@@ -69,6 +69,40 @@ def test_metrics_keep_coverage_accessibility_and_anchoring_separate():
     ]
 
     metrics = verification_metrics(rows)
-    assert metrics["citation_coverage"] == 0.5
-    assert metrics["source_accessibility"] == 1.0
-    assert metrics["excerpt_anchoring"] == 1.0
+    assert metrics["schema"] == "groundnut-verification-metrics/v2"
+    assert metrics["rates"]["citation_coverage"] == {
+        "schema": "groundnut-metric-envelope/v1",
+        "name": "citation_coverage",
+        "class": "coverage",
+        "numerator": 1,
+        "denominator": 2,
+        "population": "all detected claims",
+        "value": 0.5,
+    }
+    assert metrics["rates"]["source_accessibility"]["value"] == 1.0
+    assert metrics["rates"]["excerpt_anchoring"]["value"] == 1.0
+    assert metrics["anchor_outcome_counts"]["no_source"] == 1
+    by_class = metrics["by_provenance_class"]["unclassified"]
+    assert by_class["citation_coverage"]["denominator"] == 2
+
+
+def test_metrics_keep_fuzzy_anchors_as_their_own_population():
+    reference = SourceReference("s1", "https://example.test/a")
+    source = (
+        "The company reported consolidated revenue of $14.2 million for the "
+        "financial year ending 31 December 2025."
+    )
+    drifted = source.replace("consolidated", "consolidate")
+    rows = [
+        verify_claim(
+            Claim("fuzzy", "Claim", source=reference, excerpt=drifted),
+            resolved(reference, source),
+        )
+    ]
+    metrics = verification_metrics(rows)
+    assert rows[0].method == "fuzzy"
+    assert rows[0].anchor == "found"
+    assert metrics["counts"]["fuzzy_anchored_excerpts"] == 1
+    assert metrics["anchor_outcome_counts"]["fuzzy_found"] == 1
+    fuzzy = metrics["rates"]["fuzzy_anchor_share"]
+    assert (fuzzy["numerator"], fuzzy["denominator"], fuzzy["value"]) == (1, 1, 1.0)

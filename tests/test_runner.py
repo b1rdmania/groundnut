@@ -191,6 +191,11 @@ def test_execution_manifest_binds_engine_domain_policies_sources_and_run(tmp_pat
         "support",
     }
     assert payload["manifest"]["artifacts"][0]["kind"] == "canonical_run"
+    assert {row["role"] for row in payload["manifest"]["components"]} == {
+        "claim_segmenter",
+        "semantic_support_detector",
+    }
+    assert payload["run"]["artifact"]["segmenter"]["configuration_sha256"]
     assert len(payload["sha256"]) == 64
 
 
