@@ -100,7 +100,12 @@ from .run_manifest import (
     source_tree_sha256,
 )
 from .checker import ClaimCheckReport, check_claims
-from .runner import CanonicalRun, run_canonical_check
+from .runner import (
+    CanonicalExecution,
+    CanonicalRun,
+    execute_canonical_check,
+    run_canonical_check,
+)
 from .adapters import LettuceDetectAdapter, MiniCheckAdapter
 from .support_runner import ProbeContextDigest, SupportProbeRun, run_support_probe
 from .verification import (
@@ -131,6 +136,7 @@ __all__ = [
     "Attack",
     "Category",
     "CanonicalRun",
+    "CanonicalExecution",
     "CaseProvenance",
     "Claim",
     "ClaimAssessment",
@@ -203,6 +209,7 @@ __all__ = [
     "import_legalbenchrag",
     "evaluate_support_admission",
     "emit_arena_tasks",
+    "execute_canonical_check",
     "extract_artifact",
     "load_support_seeds",
     "prepare_review_manifest",

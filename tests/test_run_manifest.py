@@ -140,6 +140,12 @@ def test_artifact_requires_schema_and_finite_canonical_json():
         ArtifactDigest.from_value("analysis", {"schema": "x/v1", "value": float("nan")})
 
 
+def test_manifest_allows_an_unsourced_fail_closed_run():
+    first = manifest()
+    unsourced = replace(first, sources=())
+    assert unsourced.to_dict()["sources"] == []
+
+
 def test_source_tree_identity_changes_without_revision_change(tmp_path):
     package = tmp_path / "groundnut"
     package.mkdir()

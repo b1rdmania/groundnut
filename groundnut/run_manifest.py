@@ -292,8 +292,8 @@ class RunManifest:
         )
         if self.schema != RUN_SCHEMA:
             raise ValueError(f"unsupported run-manifest schema: {self.schema}")
-        if not self.sources or not self.artifacts:
-            raise ValueError("run manifest requires at least one source and artifact")
+        if not self.artifacts:
+            raise ValueError("run manifest requires at least one artifact")
         _require_unique("source", [row.source_id for row in self.sources])
         _require_unique("policy", [(row.kind, row.key) for row in self.policies])
         _require_unique(
