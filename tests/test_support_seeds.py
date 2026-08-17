@@ -4,7 +4,14 @@ import pytest
 
 from groundnut.annotations import AnnotationBundle, EvidenceAnnotation
 from groundnut.provenance import sha256_text
-from groundnut.support_seeds import import_legalbenchrag, load_support_seeds
+from groundnut.support_cases import CaseProvenance
+from groundnut.support_seeds import (
+    AttestedSpanSeed,
+    build_present_irrelevant_candidates,
+    import_legalbenchrag,
+    load_support_seeds,
+    sample_present_irrelevant_candidates,
+)
 
 
 def write_legalbench_fixture(tmp_path):
@@ -133,4 +140,63 @@ def test_annotation_interchange_requires_review_before_promotion():
                 **annotation.__dict__,
                 "reviewer_ids": (),
             }
+        )
+
+
+def test_cross_query_pairs_filter_overlap_but_remain_adjudication_candidates():
+    source = "Alpha answer. Beta answer. Closing."
+    digest = sha256_text(source)
+
+    def seed(seed_id, question, start, end):
+        return AttestedSpanSeed(
+            seed_id=seed_id,
+            source_id="doc.txt",
+            source_sha256=digest,
+            original_start=start,
+            original_end=end,
+            original_text=source[start:end],
+            question=question,
+            provenance=CaseProvenance(
+                kind="attested",
+                source="legalbenchrag",
+                source_record_id=seed_id,
+                method="expert span; generated query",
+            ),
+        )
+
+    alpha_start = source.index("Alpha")
+    beta_start = source.index("Beta")
+    rows = (
+        seed("a", "What is alpha?", alpha_start, alpha_start + len("Alpha answer.")),
+        seed("b", "What is beta?", beta_start, beta_start + len("Beta answer.")),
+        seed("a-overlap", "What else is alpha?", alpha_start, alpha_start + len("Alpha")),
+    )
+
+    candidates = build_present_irrelevant_candidates(rows)
+
+    assert candidates
+    assert all(
+        row.original_end <= row.distractor_start
+        or row.distractor_end <= row.original_start
+        for row in candidates
+    )
+    assert not any(
+        {row.target_seed_id, row.distractor_seed_id} == {"a", "a-overlap"}
+        for row in candidates
+    )
+
+    sample = sample_present_irrelevant_candidates(
+        candidates, count=1, sampling_seed=991
+    )
+    case = sample[0].to_case(
+        group_id="g1",
+        reviewer_id="human:r1",
+        review_record_id="review:1",
+    )
+    assert case.provenance.kind == "adjudicated"
+    assert case.provenance.reviewed_by == ("human:r1",)
+
+    with pytest.raises(ValueError, match="only 1 eligible"):
+        sample_present_irrelevant_candidates(
+            candidates, count=2, sampling_seed=991, unique_sources=True
         )

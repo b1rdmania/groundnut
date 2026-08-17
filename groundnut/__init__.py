@@ -40,9 +40,12 @@ from .support_eval import SupportGold, score_support
 from .support_cases import CaseProvenance, SupportCase, SupportProbe
 from .support_seeds import (
     AttestedSpanSeed,
+    PresentIrrelevantCandidate,
     SeedImport,
+    build_present_irrelevant_candidates,
     import_legalbenchrag,
     load_support_seeds,
+    sample_present_irrelevant_candidates,
 )
 from .annotations import AnnotationBundle, EvidenceAnnotation
 from .probe_plan import SupportProbePlan
@@ -98,6 +101,7 @@ __all__ = [
     "MatchOutcome",
     "MiniCheckAdapter",
     "ParityComparison",
+    "PresentIrrelevantCandidate",
     "PolicyDigest",
     "ProbeContextDigest",
     "ResolvedSource",
@@ -128,8 +132,10 @@ __all__ = [
     "anchor_excerpt",
     "compare_analysis",
     "check_claims",
+    "build_present_irrelevant_candidates",
     "import_legalbenchrag",
     "load_support_seeds",
+    "sample_present_irrelevant_candidates",
     "semantic_projection",
     "score_support",
     "run_support_probe",

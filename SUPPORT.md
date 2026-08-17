@@ -65,12 +65,15 @@ text, and question. Context windows are computed from that shared original
 span, never by searching for a derived claim that may be absent.
 
 Case files are JSONL using `groundnut-support-case/v2`. Every row carries
-`attested`, `derived`, `authored`, or `model_authored` provenance, including
-its source record, construction method, parents, reviewers, and disclosure.
+`attested`, `adjudicated`, `derived`, `authored`, or `model_authored`
+provenance, including its source record, construction method, parents,
+reviewers, and disclosure.
 Model-authored rows cannot enter a probe without a recorded human reviewer;
 contradictions require derived provenance; and supported verbatim rows require
-attestation. Paraphrase token overlap is recorded deterministically so a
-generated positive class cannot be made trivially easy without showing it.
+attestation. Present-but-irrelevant rows require adjudicated provenance and a
+recorded human reviewer; CUAD/LegalBench-RAG absence is never accepted as a
+negative annotation. Paraphrase token overlap is recorded deterministically so
+a generated positive class cannot be made trivially easy without showing it.
 
 The loader verifies schema, group completeness, source hashes, original
 offsets, presence/absence conditions, unique IDs, and a stable
@@ -92,6 +95,14 @@ link is expert-derived while some query wording is generated, and that
 distinction stays in provenance. A different-query span from the same document
 is a useful `present_irrelevant` candidate, but it requires adjudication because
 one legal clause can answer more than one question.
+
+`scripts/sample_irrelevant_candidates.py` constructs a fixed review batch from
+the imported seeds. It removes identical and overlapping cross-query spans,
+uses a deterministic sampling seed, and by default selects at most one pair per
+source document. Its output schema is explicitly a candidate batch, not gold.
+Only a human ruling that the present span does not answer the target query can
+promote a row to `present_irrelevant`, at which point its case provenance is
+`adjudicated`, not `attested`.
 
 `groundnut-evidence-annotation/v1` is the workbench interchange. It preserves
 source hashes and offsets, creator kind (`human`, `dataset`, `analyzer`, or

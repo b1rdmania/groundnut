@@ -38,6 +38,10 @@ the first learned run, `groundnut-support-probe-plan/v1` freezes:
 - primary metric and minimum meaningful improvement;
 - allowed lexical-overlap band for supported paraphrases.
 
+The present-but-irrelevant candidate batch may be sampled before the plan is
+frozen, but only human-adjudicated negatives can enter the final probe. The
+exact accepted probe hash and N are then frozen before any detector runs.
+
 The same cases and windows run through the exact baseline and each candidate.
 A candidate is admissible only if it is complete, improves the preregistered
 primary metric by at least the frozen difference, and does not regress on any

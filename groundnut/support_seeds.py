@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 from pathlib import Path
+import random
 import re
 from typing import Any, Mapping
 
@@ -14,6 +15,7 @@ from .support_cases import CaseProvenance, SupportCase
 
 
 SEED_SCHEMA = "groundnut-support-seed/v1"
+IRRELEVANT_CANDIDATE_SCHEMA = "groundnut-present-irrelevant-candidate/v1"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -121,6 +123,188 @@ class SeedImport:
         }
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
         return {**payload, "sha256": hashlib.sha256(encoded).hexdigest()}
+
+
+@dataclass(frozen=True)
+class PresentIrrelevantCandidate:
+    """A mechanically safe cross-query pair awaiting semantic adjudication."""
+
+    candidate_id: str
+    target_seed_id: str
+    distractor_seed_id: str
+    source_id: str
+    source_sha256: str
+    original_start: int
+    original_end: int
+    original_text: str
+    distractor_start: int
+    distractor_end: int
+    question: str
+    claim_text: str
+    schema: str = IRRELEVANT_CANDIDATE_SCHEMA
+
+    def __post_init__(self) -> None:
+        if self.schema != IRRELEVANT_CANDIDATE_SCHEMA:
+            raise ValueError(f"unsupported irrelevant-candidate schema: {self.schema}")
+        if self.target_seed_id == self.distractor_seed_id:
+            raise ValueError("irrelevant candidate requires two different seeds")
+        if not all(
+            value.strip()
+            for value in (
+                self.candidate_id,
+                self.target_seed_id,
+                self.distractor_seed_id,
+                self.source_id,
+                self.original_text,
+                self.question,
+                self.claim_text,
+            )
+        ):
+            raise ValueError("irrelevant-candidate identity and text fields are required")
+        if not _SHA256.fullmatch(self.source_sha256):
+            raise ValueError("irrelevant-candidate source hash must be lowercase SHA-256")
+        if self.original_end <= self.original_start or self.distractor_end <= self.distractor_start:
+            raise ValueError("irrelevant-candidate spans must be non-empty")
+        if _spans_overlap(
+            self.original_start,
+            self.original_end,
+            self.distractor_start,
+            self.distractor_end,
+        ):
+            raise ValueError("irrelevant-candidate spans must be disjoint")
+        if self.original_text == self.claim_text:
+            raise ValueError("irrelevant-candidate spans must not contain identical text")
+
+    def to_case(
+        self,
+        *,
+        group_id: str,
+        reviewer_id: str,
+        review_record_id: str,
+        case_id: str | None = None,
+    ) -> SupportCase:
+        """Promote only after a human rules that the claim does not answer the question."""
+        return SupportCase(
+            case_id=case_id or f"{group_id}-present_irrelevant",
+            group_id=group_id,
+            kind="present_irrelevant",
+            expected_status="insufficient",
+            source_id=self.source_id,
+            source_sha256=self.source_sha256,
+            original_start=self.original_start,
+            original_end=self.original_end,
+            original_text=self.original_text,
+            question=self.question,
+            claim_text=self.claim_text,
+            provenance=CaseProvenance(
+                kind="adjudicated",
+                source="groundnut-review",
+                source_record_id=review_record_id,
+                method="human ruling: present span does not answer target query",
+                reviewed_by=(reviewer_id,),
+                note=(
+                    f"candidate={self.candidate_id}; target_seed={self.target_seed_id}; "
+                    f"distractor_seed={self.distractor_seed_id}"
+                ),
+            ),
+        )
+
+    def canonical_payload(self) -> dict[str, Any]:
+        return {
+            "schema": self.schema,
+            "candidate_id": self.candidate_id,
+            "target_seed_id": self.target_seed_id,
+            "distractor_seed_id": self.distractor_seed_id,
+            "source_id": self.source_id,
+            "source_sha256": self.source_sha256,
+            "original_start": self.original_start,
+            "original_end": self.original_end,
+            "original_text": self.original_text,
+            "distractor_start": self.distractor_start,
+            "distractor_end": self.distractor_end,
+            "question": self.question,
+            "claim_text": self.claim_text,
+        }
+
+
+def build_present_irrelevant_candidates(
+    seeds: tuple[AttestedSpanSeed, ...] | list[AttestedSpanSeed],
+) -> tuple[PresentIrrelevantCandidate, ...]:
+    """Pair distinct queries within a source, filtering identical/overlapping spans.
+
+    Surviving rows are candidates only. Disjointness proves that the distractor
+    is a different present span; it does not prove semantic irrelevance.
+    """
+
+    by_source: dict[tuple[str, str], list[AttestedSpanSeed]] = {}
+    for seed in seeds:
+        by_source.setdefault((seed.source_id, seed.source_sha256), []).append(seed)
+    candidates = []
+    for (source_id, source_sha256), rows in sorted(by_source.items()):
+        rows = sorted(rows, key=lambda item: item.seed_id)
+        for target in rows:
+            for distractor in rows:
+                if target.seed_id == distractor.seed_id or target.question == distractor.question:
+                    continue
+                if target.original_text == distractor.original_text or _spans_overlap(
+                    target.original_start,
+                    target.original_end,
+                    distractor.original_start,
+                    distractor.original_end,
+                ):
+                    continue
+                candidate_id = hashlib.sha256(
+                    f"{source_sha256}\0{target.seed_id}\0{distractor.seed_id}".encode()
+                ).hexdigest()[:20]
+                candidates.append(
+                    PresentIrrelevantCandidate(
+                        candidate_id=candidate_id,
+                        target_seed_id=target.seed_id,
+                        distractor_seed_id=distractor.seed_id,
+                        source_id=source_id,
+                        source_sha256=source_sha256,
+                        original_start=target.original_start,
+                        original_end=target.original_end,
+                        original_text=target.original_text,
+                        distractor_start=distractor.original_start,
+                        distractor_end=distractor.original_end,
+                        question=target.question,
+                        claim_text=distractor.original_text,
+                    )
+                )
+    return tuple(sorted(candidates, key=lambda item: item.candidate_id))
+
+
+def sample_present_irrelevant_candidates(
+    candidates: tuple[PresentIrrelevantCandidate, ...]
+    | list[PresentIrrelevantCandidate],
+    *,
+    count: int,
+    sampling_seed: int,
+    unique_sources: bool = True,
+) -> tuple[PresentIrrelevantCandidate, ...]:
+    """Select a deterministic, bounded adjudication batch."""
+
+    if count <= 0:
+        raise ValueError("irrelevant-candidate sample count must be positive")
+    ordered = sorted(candidates, key=lambda item: item.candidate_id)
+    random.Random(sampling_seed).shuffle(ordered)
+    selected = []
+    used_sources = set()
+    for candidate in ordered:
+        if unique_sources and candidate.source_id in used_sources:
+            continue
+        selected.append(candidate)
+        used_sources.add(candidate.source_id)
+        if len(selected) == count:
+            return tuple(selected)
+    raise ValueError(
+        f"only {len(selected)} eligible irrelevant candidates for requested {count}"
+    )
+
+
+def _spans_overlap(start_a: int, end_a: int, start_b: int, end_b: int) -> bool:
+    return start_a < end_b and start_b < end_a
 
 
 def load_support_seeds(path: str | Path) -> tuple[AttestedSpanSeed, ...]:

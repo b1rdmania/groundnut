@@ -28,6 +28,7 @@ CASE_KINDS = {
 }
 PROVENANCE_KINDS = {
     "attested",
+    "adjudicated",
     "derived",
     "authored",
     "model_authored",
@@ -39,9 +40,10 @@ _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 class CaseProvenance:
     """Why a support-case label exists and who has accepted it.
 
-    `attested` covers imported expert annotations, `derived` covers a recorded
-    deterministic transform, and authored cases distinguish human and model
-    authorship. Model-authored cases cannot enter a probe without a human
+    `attested` covers imported expert annotations, `adjudicated` covers a new
+    human ruling made for Groundnut, `derived` covers a recorded deterministic
+    transform, and authored cases distinguish human and model authorship.
+    Model-authored and adjudicated cases cannot enter a probe without a human
     reviewer recorded here.
     """
 
@@ -66,6 +68,8 @@ class CaseProvenance:
             raise ValueError("derived support cases require at least one parent case")
         if self.kind == "model_authored" and not self.reviewed_by:
             raise ValueError("model-authored support cases require human review")
+        if self.kind == "adjudicated" and not self.reviewed_by:
+            raise ValueError("adjudicated support cases require human review")
 
     def canonical_payload(self) -> dict[str, Any]:
         return {
@@ -146,6 +150,8 @@ class SupportCase:
             "model_authored",
         }:
             raise ValueError("paraphrase_supported cases require authored provenance")
+        if self.kind == "present_irrelevant" and self.provenance.kind != "adjudicated":
+            raise ValueError("present_irrelevant cases require adjudicated provenance")
 
     def canonical_payload(self) -> dict[str, Any]:
         return {

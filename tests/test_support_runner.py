@@ -34,7 +34,7 @@ def probe():
             "verbatim_supported": "attested",
             "paraphrase_supported": "authored",
             "contradicted": "derived",
-            "present_irrelevant": "attested",
+            "present_irrelevant": "adjudicated",
         }[kind]
         cases.append(
             SupportCase(
@@ -56,6 +56,9 @@ def probe():
                     method="test construction",
                     parent_case_ids=("g1-verbatim_supported",)
                     if provenance_kind == "derived"
+                    else (),
+                    reviewed_by=("test-reviewer",)
+                    if provenance_kind == "adjudicated"
                     else (),
                 ),
             )

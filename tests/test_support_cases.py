@@ -40,7 +40,7 @@ def case(kind, *, group="g1", question=QUESTION, start=START):
         "verbatim_supported": "attested",
         "paraphrase_supported": "authored",
         "contradicted": "derived",
-        "present_irrelevant": "attested",
+        "present_irrelevant": "adjudicated",
     }[kind]
     return SupportCase(
         case_id=f"{group}-{kind}",
@@ -62,7 +62,9 @@ def case(kind, *, group="g1", question=QUESTION, start=START):
             parent_case_ids=(f"{group}-verbatim_supported",)
             if provenance_kind == "derived"
             else (),
-            reviewed_by=("test-reviewer",) if provenance_kind == "model_authored" else (),
+            reviewed_by=("test-reviewer",)
+            if provenance_kind in {"model_authored", "adjudicated"}
+            else (),
         ),
     )
 
@@ -133,11 +135,25 @@ def test_provenance_prevents_unreviewed_or_mislabelled_cases():
             method="prompt-v1",
         )
 
+    with pytest.raises(ValueError, match="human review"):
+        CaseProvenance(
+            kind="adjudicated",
+            source="groundnut-review",
+            source_record_id="n1",
+            method="span answers query review",
+        )
+
     payload = case("contradicted").canonical_payload()
     payload.pop("lexical_overlap")
     payload["provenance"] = case("verbatim_supported").provenance.canonical_payload()
     with pytest.raises(ValueError, match="derived provenance"):
         SupportCase.from_mapping(payload)
+
+    irrelevant = case("present_irrelevant").canonical_payload()
+    irrelevant.pop("lexical_overlap")
+    irrelevant["provenance"] = case("verbatim_supported").provenance.canonical_payload()
+    with pytest.raises(ValueError, match="adjudicated provenance"):
+        SupportCase.from_mapping(irrelevant)
 
 
 def test_exact_baseline_cannot_solve_the_four_cell_probe():

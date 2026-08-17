@@ -36,6 +36,22 @@ expert-derived while the category-to-query wording may be generated. The row
 is a seed for `verbatim_supported`, not proof that any derived negative or
 authored paraphrase is valid.
 
+Build a bounded cross-query review batch from those seeds:
+
+```bash
+python3 scripts/sample_irrelevant_candidates.py \
+  --seeds /tmp/groundnut-support-seeds.jsonl \
+  --count 50 \
+  --sampling-seed 991 \
+  --output /tmp/present-irrelevant-candidates.jsonl
+```
+
+The sampler rejects identical and overlapping spans mechanically. Disjointness
+only proves that the two spans differ; it does not prove irrelevance. The
+remaining rows are candidate judgments, and the default one-document-per-row
+sampling reduces correlated evidence. A human must rule that the present span
+does not answer the target query before it can become a case.
+
 ## OpenContracts interchange
 
 `groundnut-evidence-annotation/v1` is newline-delimited JSON with these stable
@@ -68,6 +84,8 @@ rows remain review records and cannot enter a support probe.
 
 - Expert-imported spans use `attested` provenance with the query-generation
   disclosure preserved.
+- Present-but-irrelevant cases use `adjudicated` provenance and identify the
+  Groundnut reviewer; missing upstream annotation is never a negative label.
 - Negation and other deterministic mutations use `derived` provenance and name
   their parent cases and transform.
 - Human paraphrases use `authored` provenance.
