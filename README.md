@@ -1,25 +1,60 @@
 # Groundnut 🥜
 
-Sources and a checking policy in; evidence-linked findings and an honest account
-of what could not be established out.
+**The evidence engine for AI systems that must show their work.**
 
-Groundnut is a canonical anti-hallucination and checking engine. It combines
-document acquisition, source snapshots, checklist-driven analysis, exact
-provenance, claim verification, fail-closed coverage, adversarial review, and
-reproducible evaluation behind portable contracts.
+Groundnut turns claims, sources, and a checking policy into a replayable,
+source-bound account of what is supported, contradicted, incomplete,
+inaccessible, or still unassessed. Every material decision retains the evidence
+and identity needed to inspect it later.
 
-It is deliberately domain-configurable. Change the domain pack and the same
-method can review contracts, procurement files, trust instruments, research
-claims, or another evidence-backed document set:
+The north star is a canonical anti-hallucination and claim-checking engine that
+can sit beneath research agents, diligence systems, document intelligence,
+monitoring, and other high-consequence AI workflows. It owns the portable
+method: acquisition, snapshots, structured extraction, exact provenance,
+semantic support, fail-closed coverage, adversarial review, and reproducible
+evaluation. Products provide their domain policy and presentation layer; they
+should not rebuild the checking engine.
+
+## North star
+
+```text
+claims + evidence universe + frozen policy
+                    ↓
+       canonical, source-bound decisions
+                    ↓
+ support · contradiction · insufficiency · access failure · unassessed
+                    ↓
+     hashes · offsets · provenance · replay · explicit uncertainty
+```
+
+Groundnut is intended to become the trust/control plane between model-generated
+work and consequential use. It is not a truth oracle and it never upgrades
+“a matching quote exists” into “the claim is true.” Instead, it makes the
+evidence chain inspectable, distinguishes absence from exoneration, and refuses
+to hide unfinished checks behind a confidence score.
+
+Four design commitments follow:
+
+- **Evidence before confidence.** Presence, support, authority, completeness,
+  and truth are different questions and remain different fields.
+- **Fail closed.** Inaccessible sources, missing checks, judge disagreement,
+  and absent attacks stay visible as unresolved outcomes.
+- **Replay everything.** Sources, policies, components, engine builds, and
+  outputs are hash-bound so the same run can be reconstructed and challenged.
+- **Earn every quality claim.** Domain configuration is portable; credibility
+  is not. Learned components and new domains require their own frozen gates.
+
+Groundnut is deliberately domain-configurable. Change the domain pack and the
+same method can review contracts, procurement files, trust instruments,
+research claims, or another evidence-backed corpus:
 
 - **Canonical engine** — `groundnut/`. Domain packs, exact source anchors,
   fail-closed coverage, source snapshots, and the adversarial arena.
 - **Domain packs** — `domains/`. Versioned checklists with explicit evidence
   maturity; configuration portability never implies measured quality.
-- **Compatibility pipeline** — `pipeline/`. The original contract-extraction
-  CLI and backend adapters.
-- **Evaluation kernel** — `harness/`. Deterministic scoring and gates; no LLM
-  on the pass/fail path.
+- **Compatibility lineage** — `pipeline/` and `harness/`. The original contract
+  extraction system and its deterministic gate, preserved as a regression net
+  rather than mistaken for the whole product.
 
 The name is the job, but *grounded* has several layers. Groundnut keeps them
 separate: whether a source was retrieved, whether an excerpt occurs in it,
@@ -152,7 +187,7 @@ a context window derived from explicit source offsets that contains both
 present claims. A clause elsewhere in the document cannot masquerade as
 present evidence when it is absent from the detector input.
 
-## Corpus 📚
+## Compatibility corpus 📚
 
 **Groundnut does not ship contract text.** The eval corpus is [CUAD v1](https://github.com/TheAtticusProject/cuad) (The Atticus Project, CC BY 4.0) — 510 contracts across dev and holdout. Rebuild it locally:
 
@@ -198,7 +233,7 @@ it is not the acceptance gate for Groundnut's canonical claim-checking product.
 
 All four are deterministic. A model never decides whether a run passes.
 
-## Where it stands 📊
+## Compatibility lineage: where it stands 📊
 
 Best recorded run (`runs/predictions-claude-opus-4.8-agent`, dev-80):
 
