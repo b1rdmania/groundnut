@@ -206,6 +206,16 @@ def test_cross_query_pairs_filter_overlap_but_remain_adjudication_candidates():
     )
     assert case.provenance.kind == "adjudicated"
     assert case.provenance.reviewed_by == ("human:r1",)
+    assert case.present_start == sample[0].distractor_start
+    assert case.present_end == sample[0].distractor_end
+
+    with pytest.raises(ValueError, match="only 0 eligible"):
+        sample_present_irrelevant_candidates(
+            candidates,
+            count=1,
+            sampling_seed=991,
+            max_span_envelope=1,
+        )
 
     with pytest.raises(ValueError, match="only 1 eligible"):
         sample_present_irrelevant_candidates(

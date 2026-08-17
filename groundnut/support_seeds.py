@@ -38,7 +38,15 @@ class AttestedSpanSeed:
             raise ValueError("attested span seeds require attested provenance")
         if not _SHA256.fullmatch(self.source_sha256):
             raise ValueError("support-seed source hash must be lowercase SHA-256")
-        if not all(value.strip() for value in (self.seed_id, self.source_id, self.original_text, self.question)):
+        if not all(
+            value.strip()
+            for value in (
+                self.seed_id,
+                self.source_id,
+                self.original_text,
+                self.question,
+            )
+        ):
             raise ValueError("support-seed identity and text fields are required")
         if self.original_start < 0 or self.original_end <= self.original_start:
             raise ValueError("support-seed offsets must be non-empty")
@@ -64,6 +72,8 @@ class AttestedSpanSeed:
             original_text=self.original_text,
             question=self.question,
             claim_text=self.original_text,
+            present_start=self.original_start,
+            present_end=self.original_end,
             provenance=self.provenance,
         )
 
@@ -107,7 +117,11 @@ class SeedImport:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "seeds", tuple(self.seeds))
-        object.__setattr__(self, "excluded_holdout_sources", tuple(sorted(set(self.excluded_holdout_sources))))
+        object.__setattr__(
+            self,
+            "excluded_holdout_sources",
+            tuple(sorted(set(self.excluded_holdout_sources))),
+        )
         ids = [seed.seed_id for seed in self.seeds]
         if len(ids) != len(set(ids)):
             raise ValueError("duplicate support-seed id")
@@ -171,7 +185,10 @@ class PresentIrrelevantCandidate:
             raise ValueError("irrelevant-candidate identity and text fields are required")
         if not _SHA256.fullmatch(self.source_sha256):
             raise ValueError("irrelevant-candidate source hash must be lowercase SHA-256")
-        if self.original_end <= self.original_start or self.distractor_end <= self.distractor_start:
+        if (
+            self.original_end <= self.original_start
+            or self.distractor_end <= self.distractor_start
+        ):
             raise ValueError("irrelevant-candidate spans must be non-empty")
         if _spans_overlap(
             self.original_start,
@@ -204,6 +221,8 @@ class PresentIrrelevantCandidate:
             original_text=self.original_text,
             question=self.question,
             claim_text=self.claim_text,
+            present_start=self.distractor_start,
+            present_end=self.distractor_end,
             provenance=CaseProvenance(
                 kind="adjudicated",
                 source="groundnut-review",
@@ -216,6 +235,33 @@ class PresentIrrelevantCandidate:
                 ),
             ),
         )
+
+    def validate_source(self, source_text: str) -> None:
+        if sha256_text(source_text) != self.source_sha256:
+            raise ValueError(f"source hash mismatch for candidate {self.candidate_id}")
+        if source_text[self.original_start : self.original_end] != self.original_text:
+            raise ValueError(f"target span mismatch for candidate {self.candidate_id}")
+        if source_text[self.distractor_start : self.distractor_end] != self.claim_text:
+            raise ValueError(f"distractor span mismatch for candidate {self.candidate_id}")
+
+    def context_window(
+        self, source_text: str, max_characters: int
+    ) -> tuple[int, int, str]:
+        self.validate_source(source_text)
+        start = min(self.original_start, self.distractor_start)
+        end = max(self.original_end, self.distractor_end)
+        required = end - start
+        if max_characters < required:
+            raise ValueError(
+                f"candidate {self.candidate_id} spans do not fit inside context"
+            )
+        if len(source_text) <= max_characters:
+            return 0, len(source_text), source_text
+        spare = max_characters - required
+        window_start = max(0, start - spare // 2)
+        window_end = min(len(source_text), window_start + max_characters)
+        window_start = max(0, window_end - max_characters)
+        return window_start, window_end, source_text[window_start:window_end]
 
     def canonical_payload(self) -> dict[str, Any]:
         return {
@@ -233,6 +279,24 @@ class PresentIrrelevantCandidate:
             "question": self.question,
             "claim_text": self.claim_text,
         }
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> "PresentIrrelevantCandidate":
+        return cls(
+            schema=str(value.get("schema", IRRELEVANT_CANDIDATE_SCHEMA)),
+            candidate_id=str(value["candidate_id"]),
+            target_seed_id=str(value["target_seed_id"]),
+            distractor_seed_id=str(value["distractor_seed_id"]),
+            source_id=str(value["source_id"]),
+            source_sha256=str(value["source_sha256"]),
+            original_start=int(value["original_start"]),
+            original_end=int(value["original_end"]),
+            original_text=str(value["original_text"]),
+            distractor_start=int(value["distractor_start"]),
+            distractor_end=int(value["distractor_end"]),
+            question=str(value["question"]),
+            claim_text=str(value["claim_text"]),
+        )
 
 
 def build_present_irrelevant_candidates(
@@ -290,12 +354,23 @@ def sample_present_irrelevant_candidates(
     count: int,
     sampling_seed: int,
     unique_sources: bool = True,
+    max_span_envelope: int | None = None,
 ) -> tuple[PresentIrrelevantCandidate, ...]:
     """Select a deterministic, bounded adjudication batch."""
 
     if count <= 0:
         raise ValueError("irrelevant-candidate sample count must be positive")
+    if max_span_envelope is not None and max_span_envelope <= 0:
+        raise ValueError("maximum span envelope must be positive")
     ordered = sorted(candidates, key=lambda item: item.candidate_id)
+    if max_span_envelope is not None:
+        ordered = [
+            candidate
+            for candidate in ordered
+            if max(candidate.original_end, candidate.distractor_end)
+            - min(candidate.original_start, candidate.distractor_start)
+            <= max_span_envelope
+        ]
     random.Random(sampling_seed).shuffle(ordered)
     selected = []
     used_sources = set()

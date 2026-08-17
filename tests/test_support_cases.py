@@ -36,6 +36,10 @@ CLAIMS = {
 
 def case(kind, *, group="g1", question=QUESTION, start=START):
     original = SOURCE[start : start + len(ORIGINAL)]
+    present_start = {
+        "verbatim_supported": start,
+        "present_irrelevant": SOURCE.index(CLAIMS["present_irrelevant"]),
+    }.get(kind)
     provenance_kind = {
         "verbatim_supported": "attested",
         "paraphrase_supported": "authored",
@@ -54,6 +58,8 @@ def case(kind, *, group="g1", question=QUESTION, start=START):
         original_text=original,
         question=question,
         claim_text=CLAIMS[kind],
+        present_start=present_start,
+        present_end=(present_start + len(CLAIMS[kind]) if present_start is not None else None),
         provenance=CaseProvenance(
             kind=provenance_kind,
             source="test-fixture",
@@ -110,10 +116,16 @@ def test_source_validation_rejects_circular_or_tampered_cases():
 
 
 def test_every_group_member_receives_identical_context_window():
-    contexts = probe().contexts({"source-1": SOURCE}, max_characters=100)
+    contexts = probe().contexts({"source-1": SOURCE}, max_characters=125)
 
     assert len(set(contexts.values())) == 1
     assert ORIGINAL in next(iter(contexts.values()))
+    assert CLAIMS["present_irrelevant"] in next(iter(contexts.values()))
+
+
+def test_group_context_fails_if_both_present_spans_do_not_fit():
+    with pytest.raises(ValueError, match="cannot contain both"):
+        probe().contexts({"source-1": SOURCE}, max_characters=len(ORIGINAL))
 
 
 def test_manifest_hash_is_order_independent_and_gold_keeps_kinds():

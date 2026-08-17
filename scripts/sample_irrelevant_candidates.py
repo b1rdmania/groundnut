@@ -26,17 +26,34 @@ def main() -> int:
     parser.add_argument("--seeds", required=True, type=Path)
     parser.add_argument("--count", required=True, type=int)
     parser.add_argument("--sampling-seed", required=True, type=int)
+    parser.add_argument(
+        "--max-span-envelope",
+        type=int,
+        help="Require both spans to fit inside this many source characters.",
+    )
     parser.add_argument("--allow-repeated-sources", action="store_true")
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
 
     seeds = load_support_seeds(args.seeds)
     candidates = build_present_irrelevant_candidates(seeds)
+    eligible = (
+        candidates
+        if args.max_span_envelope is None
+        else tuple(
+            candidate
+            for candidate in candidates
+            if max(candidate.original_end, candidate.distractor_end)
+            - min(candidate.original_start, candidate.distractor_start)
+            <= args.max_span_envelope
+        )
+    )
     selected = sample_present_irrelevant_candidates(
         candidates,
         count=args.count,
         sampling_seed=args.sampling_seed,
         unique_sources=not args.allow_repeated_sources,
+        max_span_envelope=args.max_span_envelope,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     payloads = [row.canonical_payload() for row in selected]
@@ -51,8 +68,10 @@ def main() -> int:
             {
                 "schema": "groundnut-present-irrelevant-batch/v1",
                 "available_candidates": len(candidates),
+                "eligible_candidates": len(eligible),
                 "selected_candidates": len(selected),
                 "sampling_seed": args.sampling_seed,
+                "max_span_envelope": args.max_span_envelope,
                 "unique_sources": not args.allow_repeated_sources,
                 "sha256": batch_hash,
                 "output": str(args.output),

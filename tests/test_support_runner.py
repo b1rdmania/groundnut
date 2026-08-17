@@ -13,8 +13,9 @@ from groundnut.support_runner import SupportProbeRun, run_support_probe
 SOURCE = (
     "Opening material. "
     "The supplier shall deliver the audited report within thirty days. "
+    "The agreement is governed by English law. "
     + "Padding. " * 30
-    + "The agreement is governed by English law. Closing material."
+    + "Closing material."
 )
 ORIGINAL = "The supplier shall deliver the audited report within thirty days."
 START = SOURCE.index(ORIGINAL)
@@ -49,6 +50,20 @@ def probe():
                 original_text=ORIGINAL,
                 question=QUESTION,
                 claim_text=CLAIMS[kind],
+                present_start=(
+                    START
+                    if kind == "verbatim_supported"
+                    else SOURCE.index(CLAIMS[kind])
+                    if kind == "present_irrelevant"
+                    else None
+                ),
+                present_end=(
+                    START + len(ORIGINAL)
+                    if kind == "verbatim_supported"
+                    else SOURCE.index(CLAIMS[kind]) + len(CLAIMS[kind])
+                    if kind == "present_irrelevant"
+                    else None
+                ),
                 provenance=CaseProvenance(
                     kind=provenance_kind,
                     source="test-fixture",
@@ -115,7 +130,7 @@ def test_runner_uses_identical_group_windows_and_scores_exact_baseline():
     )
 
     assert len({row.sha256 for row in result.contexts}) == 1
-    assert result.score["accuracy"] == 0.5
+    assert result.score["accuracy"] == 0.25
     assert result.score["by_kind"]["paraphrase_supported"]["accuracy"] == 0.0
     assert result.complete is True
     assert len(result.sha256) == 64

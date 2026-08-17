@@ -12,6 +12,7 @@ from groundnut.support import (
     SupportPolicy,
 )
 from groundnut.support_admission import RecordedProbeRun, evaluate_support_admission
+from groundnut.support_bakeoff import run_support_bakeoff
 from groundnut.support_cases import CASE_KINDS, CaseProvenance, SupportCase, SupportProbe
 from groundnut.support_gate_cli import main as gate_main
 from groundnut.support_runner import run_support_probe
@@ -85,6 +86,20 @@ def probe():
                 original_text=ORIGINAL,
                 question=QUESTION,
                 claim_text=CLAIMS[kind],
+                present_start=(
+                    START
+                    if kind == "verbatim_supported"
+                    else SOURCE.index(CLAIMS[kind])
+                    if kind == "present_irrelevant"
+                    else None
+                ),
+                present_end=(
+                    START + len(ORIGINAL)
+                    if kind == "verbatim_supported"
+                    else SOURCE.index(CLAIMS[kind]) + len(CLAIMS[kind])
+                    if kind == "present_irrelevant"
+                    else None
+                ),
                 provenance=CaseProvenance(
                     kind=provenance_kind,
                     source="fixture",
@@ -233,3 +248,52 @@ def test_support_gate_cli_writes_replayable_report(tmp_path):
 
     assert code == 0
     assert json.loads(output_path.read_text())["passed"] is True
+
+
+def test_bakeoff_runs_every_frozen_policy_and_writes_hashed_artifacts(tmp_path):
+    current_probe = probe()
+    detectors = {
+        "exact": ExactSupportDetector(),
+        "perfect": FixtureDetector(),
+    }
+    policies = {
+        key: SupportPolicy(
+            key=key,
+            version="1",
+            frozen_at="2026-08-17T00:00:00Z",
+            detector=detector.identity,
+            min_confidence=1.0,
+        )
+        for key, detector in detectors.items()
+    }
+    plan = SupportProbePlan(
+        key="bakeoff-test",
+        frozen_at="2026-08-17T00:00:00Z",
+        group_count=1,
+        sampling_seed=991,
+        probe_sha256=current_probe.sha256,
+        source_pool_sha256="a" * 64,
+        excluded_pool_sha256="b" * 64,
+        max_context_characters=len(SOURCE),
+        primary_metric="macro_f1",
+        minimum_improvement=0.05,
+        baseline_policy_keys=("exact",),
+        detector_policy_keys=("perfect",),
+        policy_hashes={key: policy.sha256 for key, policy in policies.items()},
+        lexical_overlap_min=0.2,
+        lexical_overlap_max=0.8,
+    )
+
+    bakeoff = run_support_bakeoff(
+        current_probe,
+        {"s1": SOURCE},
+        plan,
+        detectors,
+        policies,
+    )
+    manifest = bakeoff.write(tmp_path)
+
+    assert bakeoff.admissions["perfect"].passed is True
+    assert json.loads(manifest.read_text())["sha256"] == bakeoff.sha256
+    assert (tmp_path / "exact.run.json").exists()
+    assert (tmp_path / "perfect.admission.json").exists()

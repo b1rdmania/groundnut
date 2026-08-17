@@ -62,6 +62,7 @@ python3 scripts/sample_irrelevant_candidates.py \
   --seeds /tmp/groundnut-support-seeds.jsonl \
   --count 50 \
   --sampling-seed 991 \
+  --max-span-envelope 4096 \
   --output /tmp/present-irrelevant-candidates.jsonl
 ```
 
@@ -70,6 +71,60 @@ only proves that the two spans differ; it does not prove irrelevance. The
 remaining rows are candidate judgments, and the default one-document-per-row
 sampling reduces correlated evidence. A human must rule that the present span
 does not answer the target query before it can become a case.
+
+For the canonical 50-group pilot, generate the complete review package directly
+from the safe seeds:
+
+```bash
+python3 scripts/prepare_support_pilot.py \
+  --seeds /path/to/groundnut-support-seeds.jsonl \
+  --seed-manifest /path/to/groundnut-support-seeds.jsonl.manifest.json \
+  --corpus-root /path/to/data/corpus \
+  --target-groups 50 \
+  --reserve-groups 25 \
+  --max-context-characters 4096 \
+  --output /path/to/support-pilot-review.jsonl
+```
+
+This writes immutable JSONL, a self-hashed manifest, and an editable TSV. The
+75 rows use distinct sources, fit both present spans inside the frozen context,
+and have a deterministic negation-flip proposal. The first 50 fully accepted
+rows in manifest order form the pilot; reserves replace rejected or ambiguous
+rows without post-hoc cherry-picking.
+
+For a less painful review than editing a large TSV directly, render the private
+self-contained reviewer. It has no network dependency or telemetry and remains
+outside the repository with the source data:
+
+```bash
+python3 scripts/render_support_review.py \
+  --review-jsonl /path/to/support-pilot-review.jsonl \
+  --manifest /path/to/support-pilot-review.jsonl.manifest.json \
+  --output /path/to/support-pilot-review.html
+```
+
+The reviewer downloads a TSV in the exact format consumed below.
+
+After review:
+
+```bash
+python3 scripts/apply_support_reviews.py \
+  --review-jsonl /path/to/support-pilot-review.jsonl \
+  --manifest /path/to/support-pilot-review.jsonl.manifest.json \
+  --worksheet /path/to/support-pilot-review.tsv \
+  --output /path/to/support-pilot-reviewed.jsonl
+
+python3 scripts/build_support_probe.py \
+  --reviewed-jsonl /path/to/support-pilot-reviewed.jsonl \
+  --manifest /path/to/support-pilot-review.jsonl.manifest.json \
+  --seeds /path/to/groundnut-support-seeds.jsonl \
+  --corpus-root /path/to/data/corpus \
+  --output /path/to/support-pilot-cases.jsonl
+```
+
+Pending rows fail closed. Accepted irrelevance, paraphrase, and contradiction
+decisions each require a reviewer identity; agent-authored paraphrases retain
+their immutable author identity and cannot promote themselves.
 
 ## OpenContracts interchange
 

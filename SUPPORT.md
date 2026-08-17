@@ -61,10 +61,11 @@ question:
 This layout makes substring presence useless as a perfect classifier: each
 side contains one present and one absent claim. `SupportProbe` additionally
 requires every group member to share the source ID/hash, original offsets and
-text, and question. Context windows are computed from that shared original
-span, never by searching for a derived claim that may be absent.
+text, and question. Both present claims carry source offsets. One identical
+group window is derived from their combined offset envelope, never by searching
+for derived text, and construction fails if both do not fit.
 
-Case files are JSONL using `groundnut-support-case/v2`. Every row carries
+Case files are JSONL using `groundnut-support-case/v3`. Every row carries
 `attested`, `adjudicated`, `derived`, `authored`, or `model_authored`
 provenance, including its source record, construction method, parents,
 reviewers, and disclosure.
@@ -99,7 +100,9 @@ one legal clause can answer more than one question.
 `scripts/sample_irrelevant_candidates.py` constructs a fixed review batch from
 the imported seeds. It removes identical and overlapping cross-query spans,
 uses a deterministic sampling seed, and by default selects at most one pair per
-source document. Its output schema is explicitly a candidate batch, not gold.
+source document. `--max-span-envelope` ensures both present spans can occur in
+the detector's real input window. Its output schema is explicitly a candidate
+batch, not gold.
 Only a human ruling that the present span does not answer the target query can
 promote a row to `present_irrelevant`, at which point its case provenance is
 `adjudicated`, not `attested`.
@@ -111,6 +114,27 @@ OpenContracts' document/annotation/relationship model without requiring the
 Groundnut engine to run its Django stack. Only accepted annotations can become
 attested support seeds, and accepted non-human annotations require a human
 reviewer. See [`ANNOTATION.md`](./ANNOTATION.md).
+
+The canonical pilot workflow is executable but stops at the human boundary:
+
+1. `scripts/prepare_support_pilot.py` freezes 50 target groups plus 25 ordered
+   reserves, emits immutable JSONL, and creates a TSV worksheet containing the
+   exact review context and deterministic negation proposal.
+2. `scripts/render_support_review.py` optionally turns that private batch into
+   a self-contained offline reviewer which downloads the same TSV format.
+3. A human rules irrelevance, authors or reviews the paraphrase, and reviews
+   the contradiction. Nothing pending is treated as accepted.
+4. `scripts/apply_support_reviews.py` rejects changed source text, questions,
+   proposals, missing rows, duplicate rows, and reviewer-free acceptances.
+5. `scripts/build_support_probe.py` promotes the first 50 fully accepted rows
+   in the preregistered order and enforces the frozen lexical-overlap band.
+6. `scripts/freeze_support_plan.py` binds the completed probe to exact policy
+   hashes before any learned run.
+
+`run_support_bakeoff` then runs every frozen policy over those identical cases,
+writes complete run artifacts, recomputes each score, and produces one
+self-hashed admission decision per candidate. External packages remain
+benchmark surfaces; the bake-off does not adopt them into Groundnut.
 
 `run_support_probe` executes any frozen detector over those cases only under a
 `groundnut-support-probe-plan/v2`. The plan freezes N, sampling seed, the exact

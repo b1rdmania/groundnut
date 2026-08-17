@@ -132,7 +132,8 @@ Thresholds are fixed before holdout scoring.
 | LegalBench-RAG seed importer with source-hash holdout exclusion | Landed |
 | OpenContracts-compatible annotation interchange | Landed |
 | Offline semantic-support admission gate | Landed; awaiting adjudicated cases |
-| Adjudicated four-cell support cases | Next measurement tranche |
+| Frozen 50-group review pack plus 25 reserves | Landed; awaiting human rulings |
+| Adjudicated four-cell support cases | Blocked only on bounded human review |
 | Controlled chunking and largest-document merge comparison | Required before changing chunking |
 | IC research integration and product/OS ports | Deferred consumers |
 
@@ -145,7 +146,9 @@ policy is a baseline, not a learned support claim.
 The detector admission protocol and paired case schema are specified in
 [`SUPPORT.md`](./SUPPORT.md). Every transfer-probe group contains both present
 and absent claims on both sides of the label boundary, and every case receives
-a context window derived from the same original source span.
+a context window derived from explicit source offsets that contains both
+present claims. A clause elsewhere in the document cannot masquerade as
+present evidence when it is absent from the detector input.
 
 ## Corpus 📚
 

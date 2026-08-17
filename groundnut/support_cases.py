@@ -19,7 +19,7 @@ from .provenance import sha256_text
 from .support_eval import SupportGold
 
 
-CASE_SCHEMA = "groundnut-support-case/v2"
+CASE_SCHEMA = "groundnut-support-case/v3"
 CASE_KINDS = {
     "verbatim_supported": "supported",
     "paraphrase_supported": "supported",
@@ -108,6 +108,8 @@ class SupportCase:
     original_text: str
     question: str
     claim_text: str
+    present_start: int | None
+    present_end: int | None
     provenance: CaseProvenance
     schema: str = CASE_SCHEMA
 
@@ -139,8 +141,26 @@ class SupportCase:
             raise ValueError("support-case original offsets must be non-empty")
         if len(self.original_text) != self.original_end - self.original_start:
             raise ValueError("support-case original text length does not match offsets")
+        present = self.kind in {"verbatim_supported", "present_irrelevant"}
+        if present != (self.present_start is not None and self.present_end is not None):
+            raise ValueError(
+                "present support cases require claim offsets; absent cases forbid them"
+            )
+        if present:
+            assert self.present_start is not None and self.present_end is not None
+            if (
+                self.present_start < 0
+                or self.present_end <= self.present_start
+                or len(self.claim_text) != self.present_end - self.present_start
+            ):
+                raise ValueError("support-case claim offsets must describe its exact text")
         if self.kind == "verbatim_supported" and self.claim_text != self.original_text:
             raise ValueError("verbatim_supported claim must equal the original span")
+        if self.kind == "verbatim_supported" and (
+            self.present_start != self.original_start
+            or self.present_end != self.original_end
+        ):
+            raise ValueError("verbatim_supported claim offsets must equal original offsets")
         if self.kind == "verbatim_supported" and self.provenance.kind != "attested":
             raise ValueError("verbatim_supported cases require attested provenance")
         if self.kind == "contradicted" and self.provenance.kind != "derived":
@@ -167,6 +187,8 @@ class SupportCase:
             "original_text": self.original_text,
             "question": self.question,
             "claim_text": self.claim_text,
+            "present_start": self.present_start,
+            "present_end": self.present_end,
             "provenance": self.provenance.canonical_payload(),
             "lexical_overlap": self.lexical_overlap,
         }
@@ -194,6 +216,12 @@ class SupportCase:
             original_text=str(value["original_text"]),
             question=str(value["question"]),
             claim_text=str(value["claim_text"]),
+            present_start=(
+                None if value.get("present_start") is None else int(value["present_start"])
+            ),
+            present_end=(
+                None if value.get("present_end") is None else int(value["present_end"])
+            ),
             provenance=CaseProvenance.from_mapping(value["provenance"]),
         )
 
@@ -202,16 +230,11 @@ class SupportCase:
             raise ValueError(f"source hash mismatch for case {self.case_id}")
         if source_text[self.original_start : self.original_end] != self.original_text:
             raise ValueError(f"original span mismatch for case {self.case_id}")
-        claim_present = self.claim_text in source_text
-        should_be_present = self.kind in {
-            "verbatim_supported",
-            "present_irrelevant",
-        }
-        if claim_present != should_be_present:
-            expectation = "present" if should_be_present else "absent"
-            raise ValueError(
-                f"{self.kind} claim must be {expectation} in source: {self.case_id}"
-            )
+        if self.present_start is not None and self.present_end is not None:
+            if source_text[self.present_start : self.present_end] != self.claim_text:
+                raise ValueError(f"present claim span mismatch for case {self.case_id}")
+        elif self.claim_text in source_text:
+            raise ValueError(f"{self.kind} claim must be absent in source: {self.case_id}")
         if self.kind == "present_irrelevant" and self.claim_text == self.original_text:
             raise ValueError("present_irrelevant claim cannot equal the original span")
 
@@ -297,10 +320,30 @@ class SupportProbe:
         self, sources: Mapping[str, str], max_characters: int
     ) -> dict[str, str]:
         self.validate_sources(sources)
-        return {
-            case.case_id: case.context_window(sources[case.source_id], max_characters)
-            for case in self.cases
-        }
+        contexts = {}
+        groups: dict[str, list[SupportCase]] = {}
+        for case in self.cases:
+            groups.setdefault(case.group_id, []).append(case)
+        for cases in groups.values():
+            exemplar = cases[0]
+            irrelevant = next(
+                case for case in cases if case.kind == "present_irrelevant"
+            )
+            assert irrelevant.present_start is not None
+            assert irrelevant.present_end is not None
+            start = min(exemplar.original_start, irrelevant.present_start)
+            end = max(exemplar.original_end, irrelevant.present_end)
+            context = _bounded_window(
+                sources[exemplar.source_id], start, end, max_characters
+            )
+            if irrelevant.claim_text not in context or exemplar.original_text not in context:
+                raise ValueError(
+                    f"support group {exemplar.group_id} present spans do not fit "
+                    "inside the frozen context window"
+                )
+            for case in cases:
+                contexts[case.case_id] = context
+        return contexts
 
     def gold(self) -> tuple[SupportGold, ...]:
         return tuple(
@@ -318,6 +361,21 @@ def _origin(case: SupportCase) -> tuple[Any, ...]:
         case.original_text,
         case.question,
     )
+
+
+def _bounded_window(source_text: str, start: int, end: int, max_characters: int) -> str:
+    required = end - start
+    if max_characters < required:
+        raise ValueError(
+            "context window cannot contain both original and irrelevant claim spans"
+        )
+    if len(source_text) <= max_characters:
+        return source_text
+    spare = max_characters - required
+    window_start = max(0, start - spare // 2)
+    window_end = min(len(source_text), window_start + max_characters)
+    window_start = max(0, window_end - max_characters)
+    return source_text[window_start:window_end]
 
 
 def _require_unique(label: str, values: Iterable[str]) -> None:
