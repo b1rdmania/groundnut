@@ -74,6 +74,19 @@ an explicit runtime operation whose normalized bytes should be snapshotted
 before downstream analysis. Model parity tests likewise replay recorded or
 synthetic responses rather than calling a live model.
 
+## Run manifest
+
+`groundnut-run-manifest/v1` is the portable receipt for one run. It binds an
+immutable engine revision; exact playbook and evidence-manifest hashes; source
+and optional snapshot hashes; frozen support/arena policies; runtime component
+revisions and configuration hashes; and schema-tagged output artifact hashes.
+Collection order is canonicalized, duplicate identities are rejected, and the
+manifest carries its own SHA-256.
+
+The manifest contains no credentials and performs no storage or signing. A host
+may persist or sign the receipt, but Groundnut only produces deterministic
+bytes. Timestamps and host workflow state stay outside its canonical hash.
+
 ## Claim verification
 
 Mechanical verification reports citation coverage, source accessibility, and

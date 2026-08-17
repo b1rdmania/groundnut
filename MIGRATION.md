@@ -22,6 +22,8 @@ until they deliberately adopt a stable Groundnut contract.
   mechanical verification, and one-to-one development scoring.
 - Paired four-cell transfer probes whose shared source origin and crossed
   substring labels prevent the invalid detector comparison from recurring.
+- Canonical run manifests binding engine, playbook, evidence, source/snapshot,
+  policy, runtime-component, and output-artifact hashes.
 
 The widened method-layer scope is a dated decision in `ARCHITECTURE.md`. It
 does not move the stop line: no auth, application persistence, credential
@@ -50,10 +52,9 @@ systems to store and sign, but it does not decide who is authorised to do so.
 ## Future proving ground: IC research
 
 Groundnut will be the basis for renewed IC work once its own contracts and
-measurements are tight. The reusable primitives already landed here; the next
-IC-facing work is to add domain task emitters and a complete run manifest while
-keeping report-specific conclusion heuristics outside the engine until they
-generalise.
+measurements are tight. The reusable primitives and run manifest have landed;
+the next IC-facing work is to add domain task emitters while keeping report-
+specific conclusion heuristics outside the engine until they generalise.
 
 The IC repository remains read-only and paused. Groundnut receives reusable
 contracts; it does not absorb IC fixtures, private company material, credentials,

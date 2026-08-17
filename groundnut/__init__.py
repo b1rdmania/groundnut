@@ -38,6 +38,15 @@ from .support import (
 )
 from .support_eval import SupportGold, score_support
 from .support_cases import SupportCase, SupportProbe
+from .run_manifest import (
+    ArtifactDigest,
+    DomainDigest,
+    EngineIdentity,
+    PolicyDigest,
+    RunManifest,
+    RuntimeComponent,
+    SourceDigest,
+)
 from .verification import (
     Claim,
     MatchOutcome,
@@ -49,6 +58,7 @@ from .verification import (
 
 __all__ = [
     "AnalysisResult",
+    "ArtifactDigest",
     "ArenaPolicy",
     "ArenaReport",
     "ArenaTask",
@@ -59,6 +69,7 @@ __all__ = [
     "CheckCoverage",
     "CoverageManifest",
     "DocumentType",
+    "DomainDigest",
     "DetectorDecision",
     "DetectorIdentity",
     "DomainEvidence",
@@ -66,13 +77,18 @@ __all__ = [
     "DomainRegistry",
     "FileResolver",
     "ExactSupportDetector",
+    "EngineIdentity",
     "HttpResolver",
     "MatchOutcome",
     "ParityComparison",
+    "PolicyDigest",
     "ResolvedSource",
     "Ruling",
+    "RunManifest",
+    "RuntimeComponent",
     "SnapshotStore",
     "SourceAnchor",
+    "SourceDigest",
     "SourceReference",
     "SourceRecord",
     "SourceResolution",

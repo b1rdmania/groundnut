@@ -38,7 +38,7 @@ flowchart LR
     C --> F["Fail-closed coverage"]
     E --> G["Frozen-policy arena"]
     F --> G
-    G --> H["Deterministic report and gate"]
+    G --> H["Run manifest, report and gate"]
 ```
 
 Groundnut owns the portable method and the artifacts passed between these
@@ -65,6 +65,9 @@ stages:
 - **Evaluation contracts** — development and holdout evidence, deterministic
   gates, replayable model outputs, and explicit comparator semantics prevent a
   passing number from being manufactured after the run.
+- **Run provenance** — one order-stable manifest binds the engine revision,
+  domain playbook and evidence manifest, normalized sources and snapshots,
+  frozen policies, runtime component configurations, and output artifacts.
 
 ### What it does not claim
 
@@ -114,6 +117,7 @@ Thresholds are fixed before holdout scoring.
 | Mechanical citation and excerpt verification | Landed |
 | Frozen semantic-support contract and exact baseline | Landed |
 | Paired four-cell detector-transfer probe contract | Landed |
+| Canonical run manifest and artifact digests | Landed |
 | Frozen-policy arena and offline adjudication CLI | Landed |
 | Learned detector adapters | Next build tranche, after valid transfer measurement |
 | Labelled domain support cases | Next measurement tranche |
