@@ -1,11 +1,16 @@
 # Groundnut 🥜
 
-Sources and a checklist in; anchored findings and an honest coverage record out.
+Sources and a checking policy in; evidence-linked findings and an honest account
+of what could not be established out.
 
-Groundnut is the canonical anti-hallucination and checking engine: a
-checklist-driven document-intelligence method plus the machinery that tests its
-claims. Change the domain pack and the same method can review contracts,
-procurement files, trust instruments, or another document set:
+Groundnut is a canonical anti-hallucination and checking engine. It combines
+document acquisition, source snapshots, checklist-driven analysis, exact
+provenance, claim verification, fail-closed coverage, adversarial review, and
+reproducible evaluation behind portable contracts.
+
+It is deliberately domain-configurable. Change the domain pack and the same
+method can review contracts, procurement files, trust instruments, research
+claims, or another evidence-backed document set:
 
 - **Canonical engine** — `groundnut/`. Domain packs, exact source anchors,
   fail-closed coverage, source snapshots, and the adversarial arena.
@@ -16,7 +21,107 @@ procurement files, trust instruments, or another document set:
 - **Evaluation kernel** — `harness/`. Deterministic scoring and gates; no LLM
   on the pass/fail path.
 
-The name is the job: everything here is about whether a finding is *grounded* — whether the quote it rests on actually exists in the document.
+The name is the job, but *grounded* has several layers. Groundnut keeps them
+separate: whether a source was retrieved, whether an excerpt occurs in it,
+whether that evidence supports the claim, whether every required check ran,
+and whether an adversarial review passed. Success at one layer never silently
+becomes success at the next.
+
+## The engine
+
+```mermaid
+flowchart LR
+    A["Source reference or file"] --> B["Resolve and snapshot"]
+    B --> C["Domain-pack analysis"]
+    C --> D["Exact anchors and source hashes"]
+    D --> E["Claim-support adapters"]
+    C --> F["Fail-closed coverage"]
+    E --> G["Frozen-policy arena"]
+    F --> G
+    G --> H["Deterministic report and gate"]
+```
+
+Groundnut owns the portable method and the artifacts passed between these
+stages:
+
+- **Acquisition and snapshots** — local and explicit HTTP resolution, honest
+  inaccessible/paywalled/unsupported states, normalized bytes, and tamper-
+  detecting hashes. Analysis never fetches implicitly.
+- **Domain packs** — versioned prompts, category and document-type taxonomies,
+  severities, playbook hashes, and evidence maturity. A configuration can ship
+  experimentally without borrowing another domain's score.
+- **Anchored analysis** — extracted findings retain source hashes, exact
+  character offsets, category identity, and severity.
+- **Claim verification** — citation accessibility and excerpt presence are
+  measured independently. Numeric-preserving fuzzy matching may locate an
+  excerpt, but an anchored quote still reports `support: not_assessed` until a
+  separate support checker evaluates it.
+- **Coverage** — no finding is not the same as a clear check. `checked_clear`
+  requires every source segment to complete and acknowledge the category;
+  otherwise the result is `incomplete`.
+- **Adversarial arena** — attacks and rulings are evaluated under a frozen
+  policy. Missing attacks, missing rulings, and judge disagreement remain
+  `unattacked`, `unruled`, or `withheld`; none is converted into exoneration.
+- **Evaluation contracts** — development and holdout evidence, deterministic
+  gates, replayable model outputs, and explicit comparator semantics prevent a
+  passing number from being manufactured after the run.
+
+### What it does not claim
+
+Groundnut is not a truth oracle. A readable source can be wrong; a verbatim
+quote can be irrelevant; a detector can miss a contradiction; and an
+experimental domain pack can be portable without being accurate. Reports keep
+those uncertainties visible instead of compressing them into one confidence
+score.
+
+Groundnut also does not own authentication, application databases, credential
+custody, UI, publishing, or human sign-off. Hosts may store or sign its hashable
+artifacts, but the engine never decides who is authorised to do so.
+
+## Lean core, optional detectors
+
+Groundnut should not train or vendor a new hallucination model when a maintained
+permissively licensed component can satisfy a measured interface. The core
+remains deterministic and lightweight; model-backed checkers belong behind
+optional adapters whose raw outputs, model revision, package version, input
+hashes, and thresholds are recorded.
+
+Current components to benchmark—not adopted quality claims—include:
+
+- [LettuceDetect](https://github.com/KRLabsOrg/LettuceDetect) (MIT code;
+  individual model licences recorded separately) for unsupported span
+  localization and contradiction/numerical typing;
+- [MiniCheck](https://github.com/Liyan06/MiniCheck) (Apache-2.0 code; model
+  licences checked separately) for sentence-to-document support scoring;
+- [semchunk](https://github.com/isaacus-dev/semchunk) (MIT) as a candidate
+  tokenizer-aware chunker with offsets;
+- [Inspect AI](https://github.com/UKGovernmentBEIS/inspect_ai) (MIT) as an
+  optional research/evaluation runner rather than a runtime dependency.
+
+No component enters the engine because its own benchmark looks good. It must
+beat exact, lexical, numeric, and current-engine baselines on a frozen Groundnut
+development set containing supported paraphrases, present-but-irrelevant text,
+negation, number/unit changes, attribution errors, and inaccessible sources.
+Thresholds are fixed before holdout scoring.
+
+## Build status
+
+| Layer | State |
+|---|---|
+| Domain packs, registry, playbook/evidence hashes | Landed |
+| Source resolution, verified snapshots, exact anchors | Landed |
+| Fail-closed per-segment coverage | Landed |
+| Mechanical citation and excerpt verification | Landed |
+| Frozen-policy arena and offline adjudication CLI | Landed |
+| Semantic claim-support contract and detector adapters | Next build tranche |
+| Valid detector-transfer probe and domain support dataset | Next measurement tranche |
+| Controlled chunking and largest-document merge comparison | Required before changing chunking |
+| IC research integration and product/OS ports | Deferred consumers |
+
+The current mechanical verifier intentionally stops at `not_assessed` for
+semantic support. The next tranche must add `supported`, `contradicted`,
+`insufficient`, `source_unavailable`, and `not_assessed` without allowing a
+model score to overwrite mechanical provenance.
 
 ## Corpus 📚
 
@@ -116,7 +221,7 @@ real contracts remains unverified.
 ## Layout 🗂️
 
 ```
-groundnut/     🥜 canonical domain engine, coverage, provenance, sources, arena
+groundnut/     🥜 engine, provenance, verification, coverage, sources, arena
 domains/       🧭 versioned checklists and evidence disclosures
 policies/      🧊 frozen arena policy
 pipeline/     🥜 the extractor — CLI, backends, chunker, prompt, verbatim filter
@@ -127,6 +232,9 @@ runs/         📦 cached predictions per model (gitignored)
 spec.md       📐 what pipeline/ must implement
 goal.md       🎯 cycle protocol, entropy rules, stop conditions
 LOG.md        📓 one entry per cycle — question, result, findings
+ARCHITECTURE.md 🏗️ scope, invariants, boundaries, and deterministic contracts
+MIGRATION.md  🧭 canonical-engine priorities and deferred consumers
+PARITY.md     🟰 semantic equivalence contract for any future host adapter
 ```
 
 ## Relationship to downstream work 🔌
