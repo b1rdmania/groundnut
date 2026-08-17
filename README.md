@@ -70,8 +70,10 @@ stages:
   gates, replayable model outputs, and explicit comparator semantics prevent a
   passing number from being manufactured after the run.
 - **Run provenance** — one order-stable manifest binds the engine revision,
-  domain playbook and evidence manifest, normalized sources and snapshots,
-  frozen policies, runtime component configurations, and output artifacts.
+  path-bound source-tree digest and dirty state, domain playbook and evidence
+  manifest, normalized sources and snapshots, frozen policies, runtime
+  component configurations, and output artifacts. Dirty builds remain usable
+  for development but cannot pass `require_publishable()`.
 
 ### What it does not claim
 

@@ -78,8 +78,9 @@ synthetic responses rather than calling a live model.
 
 ## Run manifest
 
-`groundnut-run-manifest/v1` is the portable receipt for one run. It binds an
-immutable engine revision; exact playbook and evidence-manifest hashes; source
+`groundnut-run-manifest/v2` is the portable receipt for one run. It binds an
+immutable engine revision; path-bound shipped-source digest; explicit dirty
+state; exact playbook and evidence-manifest hashes; source
 and optional snapshot hashes; frozen support/arena policies; runtime component
 revisions and configuration hashes; and schema-tagged output artifact hashes.
 Collection order is canonicalized, duplicate identities are rejected, and the

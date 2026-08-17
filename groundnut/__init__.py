@@ -73,6 +73,7 @@ from .run_manifest import (
     RunManifest,
     RuntimeComponent,
     SourceDigest,
+    source_tree_sha256,
 )
 from .checker import ClaimCheckReport, check_claims
 from .adapters import LettuceDetectAdapter, MiniCheckAdapter
@@ -130,6 +131,7 @@ __all__ = [
     "SnapshotStore",
     "SourceAnchor",
     "SourceDigest",
+    "source_tree_sha256",
     "SourceReference",
     "SourceRecord",
     "SourceResolution",
