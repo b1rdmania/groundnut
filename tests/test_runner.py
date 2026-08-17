@@ -129,6 +129,28 @@ def test_canonical_runner_can_emit_arena_tasks_from_same_artifact(tmp_path):
     assert result.evidence.complete_authority is False
 
 
+def test_canonical_runner_can_emit_arena_tasks_from_original_artifact(tmp_path):
+    artifact = tmp_path / "claims.json"
+    artifact.write_text(json.dumps({"claims": [{"claim_text": "Unsourced claim"}]}))
+    original = tmp_path / "report.md"
+    original.write_text(
+        "Therefore the company is likely to sustain this revenue level for the next year."
+    )
+    result = run_canonical_check(
+        artifact,
+        artifact_profile=DEFAULT_ARTIFACT_PROFILE,
+        resolver=SnapshotFirstResolver(SnapshotStore(tmp_path / "snapshots")),
+        detector=ExactSupportDetector(),
+        support_policy=SUPPORT_POLICY,
+        authority_policy=AUTHORITY_POLICY,
+        arena_profile=DEFAULT_ARENA_EMISSION_PROFILE,
+        arena_artifact_path=original,
+    )
+    assert result.arena is not None
+    assert result.arena.input_sha256 == sha256_text(original.read_text())
+    assert result.arena.tasks[0].trigger == "inferential"
+
+
 def test_execution_manifest_binds_engine_domain_policies_sources_and_run(tmp_path):
     artifact = tmp_path / "claims.json"
     artifact.write_text(

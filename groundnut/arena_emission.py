@@ -96,6 +96,41 @@ class ArenaEmissionProfile:
         ).encode()
         return hashlib.sha256(value).hexdigest()
 
+    @classmethod
+    def from_mapping(cls, value: dict[str, Any]) -> "ArenaEmissionProfile":
+        schema = value.get("schema", "groundnut-arena-emission-profile/v1")
+        if schema != "groundnut-arena-emission-profile/v1":
+            raise ValueError(f"unsupported arena emission profile schema: {schema}")
+        patterns = value.get("patterns", {})
+        bounds = value.get("bounds", {})
+        if not isinstance(patterns, dict) or not isinstance(bounds, dict):
+            raise ValueError("arena emission profile sections must be objects")
+        defaults = DEFAULT_ARENA_EMISSION_PROFILE
+        return cls(
+            key=str(value["key"]),
+            version=str(value["version"]),
+            inferential_patterns=tuple(
+                str(item)
+                for item in patterns.get("inferential", defaults.inferential_patterns)
+            ),
+            derived_patterns=tuple(
+                str(item)
+                for item in patterns.get("derived", defaults.derived_patterns)
+            ),
+            absence_patterns=tuple(
+                str(item)
+                for item in patterns.get("absence", defaults.absence_patterns)
+            ),
+            min_characters=int(bounds.get("min_characters", defaults.min_characters)),
+            max_characters=int(bounds.get("max_characters", defaults.max_characters)),
+            context_max_sentences=int(
+                bounds.get("context_max_sentences", defaults.context_max_sentences)
+            ),
+            context_max_characters=int(
+                bounds.get("context_max_characters", defaults.context_max_characters)
+            ),
+        )
+
 
 DEFAULT_ARENA_EMISSION_PROFILE = ArenaEmissionProfile(
     key="groundnut-conclusions", version="1"
