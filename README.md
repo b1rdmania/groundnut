@@ -2,9 +2,10 @@
 
 Sources and a checklist in; anchored findings and an honest coverage record out.
 
-Groundnut is a checklist-driven document-intelligence engine plus the machinery
-that tests its claims. Change the domain pack and the same method can review
-contracts, procurement files, trust instruments, or another document set:
+Groundnut is the canonical anti-hallucination and checking engine: a
+checklist-driven document-intelligence method plus the machinery that tests its
+claims. Change the domain pack and the same method can review contracts,
+procurement files, trust instruments, or another document set:
 
 - **Canonical engine** — `groundnut/`. Domain packs, exact source anchors,
   fail-closed coverage, source snapshots, and the adversarial arena.
@@ -128,18 +129,17 @@ goal.md       🎯 cycle protocol, entropy rules, stop conditions
 LOG.md        📓 one entry per cycle — question, result, findings
 ```
 
-## Who uses it 🔌
+## Relationship to downstream work 🔌
 
-Groundnut is the engine. Things built on it live elsewhere and call in:
-
-- **Legalise** — the governance layer: human sign-off and a tamper-evident audit trail. Groundnut's extraction plumbing is ported into its `modules/diligence/`.
-- **Atlas**, **dealroom** — Legalise deployments.
+Groundnut is the engine, not a shared folder subordinate to a current product.
+IC research is a future proving ground once the core is tight. Product v2s,
+operating-system ports, and open-source packaging are optional later decisions,
+not present milestones.
 
 Groundnut has no auth, application database, or UI. Hosts own those concerns;
-Groundnut owns the portable method, provenance, and evaluation contracts. The
-wider method-layer boundary and its hard stop are recorded in
-[`ARCHITECTURE.md`](./ARCHITECTURE.md); the pre-adapter Atlas equivalence gate
-is frozen in [`PARITY.md`](./PARITY.md). 🥜
+Groundnut owns the portable method, provenance, and evaluation contracts. Its
+boundary is recorded in [`ARCHITECTURE.md`](./ARCHITECTURE.md), and any future
+host replacement must first satisfy [`PARITY.md`](./PARITY.md). 🥜
 
 ## Licence & attribution ⚖️
 

@@ -1,9 +1,10 @@
 # Groundnut canonical engine
 
-Groundnut is the reusable, checklist-driven document-intelligence method. A
-host gives it source documents, a versioned domain pack, and a model backend.
-Groundnut returns source-anchored findings plus the evidence disclosure carried
-by that pack.
+Groundnut is the canonical anti-hallucination and checking engine. A host gives
+it source documents, a versioned domain pack, and a model backend. Groundnut
+returns source-anchored findings, honest coverage, and the evidence disclosure
+carried by that pack. It is a standalone engine, not an extraction library
+whose roadmap is set by any current deployment.
 
 Canonical responses also acknowledge which categories were evaluated in each
 source segment. A missing finding becomes `checked_clear` only when every
@@ -19,6 +20,11 @@ canonical, reusable method layer: pure analysis and verification functions,
 versioned domain and policy inputs, deterministic artifacts, and explicit
 adapters that acquire source material. This is a recorded scope decision, not
 permission for the engine to absorb deployment concerns.
+
+The current priority is to make those checking guarantees tight and measured.
+IC research is a future proving ground and consumer once the engine clears its
+own bars. Product ports, deployment rewrites, and public packaging are separate
+later decisions; none drives the core roadmap today.
 
 Groundnut owns:
 

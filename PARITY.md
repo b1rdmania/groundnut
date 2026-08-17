@@ -1,8 +1,9 @@
-# Atlas adapter parity contract
+# Downstream adapter parity contract
 
-This contract is frozen before the Atlas/Legalise diligence adapter is written.
-The adapter does not replace the copied deployment path until the fixture
-matrix below passes against both implementations.
+This contract is frozen for any future host adapter. It does not make an
+adapter a current priority. If a downstream product is eventually ported, the
+adapter does not replace its existing path until the fixture matrix below
+passes against both implementations.
 
 ## Compared artifact
 

@@ -24,36 +24,42 @@ does not move the stop line: no auth, application persistence, credential
 custody, UI, deployment policy, or sign-off authority belongs here. Tests are
 offline by contract and acquisition adapters are always invoked explicitly.
 
-## Next extraction from the deployment
+## Canonical-engine priority
 
-1. Move document-type classification behind the `DomainPack` contract.
-2. Move checklist-agnostic key-property extraction and category batching.
-3. Extract deterministic schedule, coverage, and report payload builders as
-   pure functions over Groundnut result types.
-4. Define a host gateway protocol for model invocation, retries, usage, and
-   privilege decisions without importing application sessions or users.
-5. Replace the deployment's copied diligence modules with an adapter over the
-   released Groundnut package only after the pre-adapter contract in
-   `PARITY.md` passes; pin semantic output parity before deleting either path.
+1. Tighten the anti-hallucination contract: retrieval provenance, claim
+   support, contradiction/negation handling, and fail-closed coverage.
+2. Establish labelled development sets and frozen bars for each exact domain
+   pack before making quality claims.
+3. Test segmentation and merge behaviour under a controlled protocol,
+   including the largest documents.
+4. Make arena and verification artifacts composable without allowing an
+   absent attack, inaccessible source, or unassessed quotation to imply truth.
+5. Keep the compatibility pipeline stable while the canonical API earns its
+   own gate.
 
 Authentication, database models, audit-chain persistence, sign-off workflow,
 and UI remain host concerns. Groundnut may produce hashable artifacts for those
 systems to store and sign, but it does not decide who is authorised to do so.
 
-## Next extraction from IC research
+## Future proving ground: IC research
 
-1. Add claim/citation result types and keep anchor presence separate from claim
-   support.
-2. Add snapshot-backed verification adapters and numeric-preserving fuzzy
-   matching.
-3. Add domain task emitters for the arena. Report-specific conclusion
-   heuristics remain an IC adapter until demonstrated elsewhere.
-4. Record engine, policy, playbook, input, and snapshot hashes in one run
-   manifest.
+Groundnut will be the basis for renewed IC work once its own contracts and
+measurements are tight. The reusable primitives already landed here; the next
+IC-facing work is to add domain task emitters and a complete run manifest while
+keeping report-specific conclusion heuristics outside the engine until they
+generalise.
 
 The IC repository remains read-only and paused. Groundnut receives reusable
 contracts; it does not absorb IC fixtures, private company material, credentials,
 or deployment policy.
+
+## Deferred consumers
+
+Existing product deployments, a future v2, an operating-system port, and an
+open-source release are possible consumers—not current milestones. Any future
+adapter must pass the generic semantic contract in `PARITY.md` before replacing
+a host path, but building such an adapter is deliberately not on the critical
+path.
 
 ## Evaluation work before qualification
 
