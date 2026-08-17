@@ -121,7 +121,9 @@ The canonical pilot workflow is executable but stops at the human boundary:
    reserves, emits immutable JSONL, and creates a TSV worksheet containing the
    exact review context and deterministic negation proposal.
 2. `scripts/render_support_review.py` optionally turns that private batch into
-   a self-contained offline reviewer which downloads the same TSV format.
+   a self-contained offline reviewer which downloads the same TSV format. An
+   optional `--suggestions` JSONL sidecar may prefill visibly agent-authored
+   drafts; it cannot alter the frozen rows or create a human decision.
 3. A human rules irrelevance, authors or reviews the paraphrase, and reviews
    the contradiction. Nothing pending is treated as accepted.
 4. `scripts/apply_support_reviews.py` rejects changed source text, questions,
@@ -130,6 +132,12 @@ The canonical pilot workflow is executable but stops at the human boundary:
    in the preregistered order and enforces the frozen lexical-overlap band.
 6. `scripts/freeze_support_plan.py` binds the completed probe to exact policy
    hashes before any learned run.
+
+The offline reviewer shows the 50 target rows first and hides reserves by
+default. Applying a suggestion copies its agent identity into paraphrase
+authorship while requiring a separate human reviewer ID. Human notes remain
+independent. Drafts outside the frozen lexical-overlap band or found verbatim
+in context become ambiguous rather than accepted.
 
 `run_support_bakeoff` then runs every frozen policy over those identical cases,
 writes complete run artifacts, recomputes each score, and produces one

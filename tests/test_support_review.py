@@ -179,3 +179,29 @@ def test_offline_reviewer_embeds_only_the_frozen_private_batch():
     assert "default-src 'none'" in html
     assert "https://" not in html
     assert "Download reviewed TSV" in html
+
+
+def test_offline_reviewer_keeps_agent_draft_separate_from_human_decision():
+    current = manifest()
+    row = current.rows[0]
+    suggestion = {
+        "schema": "groundnut-support-agent-suggestion/v1",
+        "input_sha256": row.input_sha256,
+        "agent": "local:test-model",
+        "irrelevant_decision": "accepted",
+        "irrelevant_note": "Different clause.",
+        "paraphrase_text": "A distinct supported restatement.",
+        "paraphrase_note": "Meaning retained.",
+        "paraphrase_lexical_overlap": 0.4,
+        "paraphrase_absent_from_context": True,
+        "contradiction_decision": "accepted",
+        "contradiction_note": "Polarity reversed.",
+        "requires_human_review": True,
+    }
+    html = render_support_review_html(
+        current, {row.input_sha256: suggestion}
+    )
+
+    assert "local:test-model" in html
+    assert "review, do not rubber-stamp" in html
+    assert 'irrelevant_decision: row.irrelevance_review.decision' in html
