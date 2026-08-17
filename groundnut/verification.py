@@ -24,6 +24,7 @@ class Claim:
     locator: str | None = None
     declared_analysis: bool = False
     question: str | None = None
+    location: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -38,6 +39,7 @@ class Claim:
             "locator": self.locator,
             "declared_analysis": self.declared_analysis,
             "question": self.question,
+            "location": self.location,
         }
 
 
