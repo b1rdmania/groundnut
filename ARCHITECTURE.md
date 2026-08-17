@@ -76,6 +76,19 @@ an explicit runtime operation whose normalized bytes should be snapshotted
 before downstream analysis. Model parity tests likewise replay recorded or
 synthetic responses rather than calling a live model.
 
+## Snapshot-first acquisition
+
+`SnapshotFirstResolver` makes live-network use a named orchestration choice.
+Replay-only runs never call a live resolver. Snapshot-preferred runs fetch only
+when no archive exists, then archive a successful response. A present but
+invalid snapshot fails closed rather than being hidden by fresh network bytes.
+Explicit refresh preserves the previous snapshot when the live attempt fails.
+
+`groundnut-source-acquisition/v1` records whether the result was replayed,
+fetched and archived, missing, invalid, or a failed live attempt, together with
+the snapshot and normalized source hashes. This receipt is suitable for a run
+manifest and separates deterministic replay from marked integration work.
+
 ## Artifact ingestion
 
 `groundnut-artifact-profile/v1` maps generic structured fields and rendered
@@ -148,6 +161,20 @@ source resolution, mechanical verification, and one frozen support policy. The
 result sorts claim identities, derives completeness and metrics from the rows,
 and rejects mixed policies or mismatched mechanical/semantic identities. Its
 self-hashed report is a first-class run-manifest artifact.
+
+## Evidence authority
+
+`groundnut-evidence-authority/v1` records whether evidence is independent
+primary, independent secondary, subject-provided, analyst-derived, or of
+unknown authority. The assignment and its policy/declaration hashes sit beside
+mechanical verification and semantic support; they never overwrite either.
+
+An exact or learned detector may therefore return `supported` for identical
+text under two different authority assessments. A downstream domain may treat
+those cases differently, but Groundnut does not convert authority plus support
+into truth or a product verdict. Missing authority remains
+`unknown_authority`, and explicit analyst derivation remains unassessed for
+semantic support unless separately checked.
 
 ## Arena task emission
 
