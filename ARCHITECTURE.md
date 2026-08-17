@@ -53,6 +53,12 @@ pack carries one of four evidence states:
 A pack may ship as experimental without a gold set. It must not inherit the
 measurements or acceptance bar of another domain.
 
+The shipped registry contains the three checklist configurations already
+exercised in the deployment: M&A due diligence, procurement compliance, and
+trust obligations. They remain explicitly experimental in Groundnut until
+each exact playbook has its own labelled set and frozen bar. Registry lookups
+never silently fall back to a different domain.
+
 ## Compatibility
 
 `pipeline/` remains the CLI used by the original CUAD evaluation. Its default

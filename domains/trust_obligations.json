@@ -1,0 +1,146 @@
+{
+  "categories": [
+    {
+      "description": "A distribution the trustee MUST make \u2014 fixed amounts, income distributions, or payments required at stated dates, ages, or events, with no discretion.",
+      "key": "mandatory_distribution",
+      "name": "Mandatory Distribution",
+      "severity": 5
+    },
+    {
+      "description": "A provision permitting or restricting transactions between the trustee and the trust \u2014 loans to trustees, purchases of trust property, or trustee interests in trust investments.",
+      "key": "self_dealing",
+      "name": "Self-Dealing / Conflict",
+      "severity": 5
+    },
+    {
+      "description": "A power exercisable only with the consent of a protector, co-trustee, beneficiary, or other third party \u2014 and the powers reserved to the protector.",
+      "key": "protector_consent",
+      "name": "Protector / Consent Requirement",
+      "severity": 4
+    },
+    {
+      "description": "A distribution or vesting triggered by a beneficiary reaching a stated age or by a stated event \u2014 staged distributions, contingent gifts, or postponement powers.",
+      "key": "age_contingency",
+      "name": "Age / Event Contingency",
+      "severity": 4
+    },
+    {
+      "description": "A power to distribute income or capital at the trustee's discretion \u2014 including any standard that guides it (health, education, maintenance, support) and the class it serves.",
+      "key": "discretionary_power",
+      "name": "Discretionary Distribution Power",
+      "severity": 4
+    },
+    {
+      "description": "A restriction or direction on how trust assets may be invested, a duty to diversify or retain, or limits on delegating investment decisions.",
+      "key": "investment_restriction",
+      "name": "Investment Power / Restriction",
+      "severity": 4
+    },
+    {
+      "description": "When and how the trust ends \u2014 perpetuity or vesting dates, termination powers, and the final distribution scheme.",
+      "key": "termination_vesting",
+      "name": "Termination / Vesting",
+      "severity": 4
+    },
+    {
+      "description": "A duty to account or report to beneficiaries or others \u2014 what must be provided, to whom, and how often.",
+      "key": "accounting_duty",
+      "name": "Accounting / Reporting Duty",
+      "severity": 3
+    },
+    {
+      "description": "A clause limiting trustee liability or indemnifying the trustee from trust assets, and its carve-outs.",
+      "key": "exculpation",
+      "name": "Trustee Exculpation / Indemnity",
+      "severity": 3
+    },
+    {
+      "description": "A power to appoint trust property among a class, add or remove beneficiaries, or vary the trusts.",
+      "key": "power_of_appointment",
+      "name": "Power of Appointment",
+      "severity": 3
+    },
+    {
+      "description": "The trustee's right to remuneration, charging clauses, or fee arrangements.",
+      "key": "trustee_fee",
+      "name": "Trustee Remuneration",
+      "severity": 2
+    },
+    {
+      "description": "A restraint on a beneficiary assigning or encumbering their interest, or protecting it from creditors.",
+      "key": "spendthrift",
+      "name": "Spendthrift / Anti-Alienation",
+      "severity": 2
+    },
+    {
+      "description": "The governing law of the trust and any power to change it or move the trust's situs.",
+      "key": "governing_law",
+      "name": "Governing Law",
+      "severity": 2
+    }
+  ],
+  "classify_context": "You are triaging one document from a trust administration file against a fiduciary document list. Read the excerpt and decide which single document type it is. England & Wales / US trust context.",
+  "document_noun": "document",
+  "document_types": [
+    {
+      "description": "The principal trust deed, declaration of trust, will trust, or settlement creating the trust.",
+      "key": "trust_instrument",
+      "name": "Trust Instrument / Deed"
+    },
+    {
+      "description": "Deeds of variation, amendment, or rectification altering the trust's terms.",
+      "key": "amendment",
+      "name": "Amendments / Variations"
+    },
+    {
+      "description": "Deeds appointing, removing, or retiring trustees, or accepting office.",
+      "key": "trustee_appointment",
+      "name": "Trustee Appointments / Retirements"
+    },
+    {
+      "description": "Deeds exercising a power of appointment or advancement over trust property.",
+      "key": "deed_of_appointment",
+      "name": "Deeds of Appointment / Advancement"
+    },
+    {
+      "description": "The settlor's letter of wishes or memorandum of guidance to the trustees.",
+      "key": "letter_of_wishes",
+      "name": "Letter of Wishes"
+    },
+    {
+      "description": "Trustee resolutions, minutes, or records approving or making distributions.",
+      "key": "distribution_record",
+      "name": "Distribution Resolutions / Records"
+    },
+    {
+      "description": "Investment policy statements, management agreements, or delegation instruments.",
+      "key": "investment_policy",
+      "name": "Investment Policy / Management"
+    },
+    {
+      "description": "Trust accounts, financial statements, or tax filings for the trust.",
+      "key": "trust_accounts",
+      "name": "Trust Accounts"
+    },
+    {
+      "description": "Letters, notices, or consents to or from beneficiaries.",
+      "key": "beneficiary_correspondence",
+      "name": "Beneficiary Correspondence"
+    },
+    {
+      "description": "Instruments appointing a protector or recording the exercise of protector powers.",
+      "key": "protector_document",
+      "name": "Protector Documents"
+    }
+  ],
+  "evidence": {
+    "dataset": null,
+    "disclosure": "Configuration and demo corpus only. No labelled evaluation or acceptance bar exists.",
+    "status": "experimental"
+  },
+  "extract_context": "You are performing an obligations review of one document from a trust administration file. Read the document and surface any clause that falls under the obligation categories listed below \u2014 the duties, powers, and restraints a trustee must track. England & Wales / US trust context.",
+  "key": "trust_obligations",
+  "name": "Trust instrument obligations",
+  "schema": "groundnut-domain/v1",
+  "version": "1.0.0"
+}

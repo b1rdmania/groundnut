@@ -24,6 +24,7 @@ from .arena import (
     Ruling,
     adjudicate,
 )
+from .registry import DomainRegistry
 
 __all__ = [
     "AnalysisResult",
@@ -37,6 +38,7 @@ __all__ = [
     "DocumentType",
     "DomainEvidence",
     "DomainPack",
+    "DomainRegistry",
     "FileResolver",
     "HttpResolver",
     "ResolvedSource",

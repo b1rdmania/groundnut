@@ -82,6 +82,7 @@ def analyse_text(
     chunk_results = []
     segment_checks: list[set[str] | None] = []
     errors = []
+    allowed_categories = set(domain.category_names)
     for chunk in chunks:
         prompt = build_prompt(domain.category_names, chunk, domain=domain)
         raw = backend.complete(prompt, doc_id=source_id)
@@ -92,6 +93,12 @@ def analyse_text(
             errors.append("invalid_response")
             continue
         parsed_findings, checked_categories = parsed
+        parsed_findings = {
+            category: quotes
+            for category, quotes in parsed_findings.items()
+            if category in allowed_categories
+        }
+        checked_categories &= allowed_categories
         chunk_results.append(filter_verbatim(parsed_findings, chunk))
         segment_checks.append(checked_categories)
 

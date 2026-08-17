@@ -1,0 +1,140 @@
+{
+  "categories": [
+    {
+      "description": "Pricing set as cost plus a percentage of cost, or a percentage of construction cost \u2014 a contracting method federal procurement rules prohibit outright.",
+      "key": "cost_plus_pricing",
+      "name": "Cost-Plus-Percentage Pricing",
+      "severity": 5
+    },
+    {
+      "description": "A clause limiting, conditioning, or charging for access to the vendor's records, or resisting audit by the district, state, or federal awarding agency.",
+      "key": "audit_access_restriction",
+      "name": "Audit / Records Access Restriction",
+      "severity": 5
+    },
+    {
+      "description": "A vendor right over student or district data \u2014 ownership claims, use for marketing or product development, sale or sharing with third parties, or survival of data rights after termination.",
+      "key": "student_data_rights",
+      "name": "Student Data Rights",
+      "severity": 4
+    },
+    {
+      "description": "A clause restricting the district's right to terminate \u2014 early termination fees, long notice periods, no termination for convenience, or penalties on exit.",
+      "key": "termination_restriction",
+      "name": "Termination Restriction",
+      "severity": 4
+    },
+    {
+      "description": "An obligation on the district to indemnify, defend, or hold harmless the vendor \u2014 public entities are rarely permitted to give open-ended indemnities.",
+      "key": "district_indemnity",
+      "name": "Indemnity Given by District",
+      "severity": 4
+    },
+    {
+      "description": "Language making the vendor an exclusive provider, restricting competitive procurement, or locking future purchases to this vendor.",
+      "key": "sole_source",
+      "name": "Sole-Source / Exclusivity",
+      "severity": 4
+    },
+    {
+      "description": "A contract term, minimum commitment, or payment obligation extending beyond a stated grant or budget period.",
+      "key": "term_beyond_grant",
+      "name": "Term Beyond Grant Period",
+      "severity": 3
+    },
+    {
+      "description": "An uncapped or formula-based price increase \u2014 annual uplifts, index-linked increases, or renegotiation rights on renewal.",
+      "key": "price_escalation",
+      "name": "Price Escalation",
+      "severity": 3
+    },
+    {
+      "description": "An evergreen or automatic renewal clause, and the notice window required to stop it.",
+      "key": "auto_renewal",
+      "name": "Automatic Renewal",
+      "severity": 3
+    },
+    {
+      "description": "A vendor disclaimer of warranties or exclusion of liability that leaves the district without remedy for non-performance.",
+      "key": "warranty_disclaimer",
+      "name": "Warranty / Liability Disclaimer",
+      "severity": 3
+    },
+    {
+      "description": "A vendor right to assign or subcontract the contract without the district's consent.",
+      "key": "free_assignment",
+      "name": "Unrestricted Assignment",
+      "severity": 2
+    },
+    {
+      "description": "The jurisdiction whose law governs the contract, and any venue or forum clause moving disputes away from the district's home jurisdiction.",
+      "key": "governing_law",
+      "name": "Governing Law",
+      "severity": 2
+    }
+  ],
+  "classify_context": "You are triaging one document from a school district's procurement file against a grant-compliance document list. Read the excerpt and decide which single document type it is. US public-sector procurement context.",
+  "document_noun": "contract",
+  "document_types": [
+    {
+      "description": "A request for proposals, invitation to bid, quote request, or other competitive solicitation document.",
+      "key": "solicitation",
+      "name": "Solicitation / RFP Documents"
+    },
+    {
+      "description": "The principal services or goods agreement with a vendor \u2014 master agreement, services contract, or supply agreement.",
+      "key": "vendor_agreement",
+      "name": "Vendor Services Agreement"
+    },
+    {
+      "description": "A software licence, SaaS subscription, or educational technology platform agreement, including click-through or order-form terms.",
+      "key": "saas_edtech",
+      "name": "Software / EdTech Agreement"
+    },
+    {
+      "description": "A student-data privacy agreement, data processing addendum, or privacy rider governing pupil or district data.",
+      "key": "data_privacy_addendum",
+      "name": "Data Privacy Agreement"
+    },
+    {
+      "description": "A purchase order, order form, or statement of work issued under a master agreement.",
+      "key": "purchase_order",
+      "name": "Purchase Orders"
+    },
+    {
+      "description": "Board minutes, resolutions, or consent agendas approving the procurement or contract award.",
+      "key": "board_approval",
+      "name": "Board Approval / Minutes"
+    },
+    {
+      "description": "A written justification for a noncompetitive or sole-source award.",
+      "key": "sole_source_justification",
+      "name": "Sole-Source Justification"
+    },
+    {
+      "description": "Certificates of insurance, coverage schedules, or bonding documents for a vendor.",
+      "key": "insurance_certificate",
+      "name": "Insurance Certificates"
+    },
+    {
+      "description": "Construction, renovation, maintenance, or facilities services agreements.",
+      "key": "facilities_construction",
+      "name": "Facilities / Construction Contracts"
+    },
+    {
+      "description": "Student transportation, food service, custodial, or other operational services agreements.",
+      "key": "services_operations",
+      "name": "Transportation / Food / Operations"
+    }
+  ],
+  "evidence": {
+    "dataset": null,
+    "disclosure": "Configuration and demo corpus only. No labelled evaluation or acceptance bar exists.",
+    "status": "experimental"
+  },
+  "extract_context": "You are performing a procurement-compliance review of one contract from a school district's grant-funded vendor contract estate. Read the contract and surface any clause that falls under the compliance red-flag categories listed below. US federal education grant (EDGAR / 2 CFR 200) context.",
+  "key": "grant_compliance",
+  "name": "Procurement compliance",
+  "schema": "groundnut-domain/v1",
+  "version": "1.0.0"
+}

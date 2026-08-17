@@ -1,0 +1,206 @@
+{
+  "categories": [
+    {
+      "description": "A right triggered when one party undergoes a change of ownership or control \u2014 consent requirements, termination rights, or accelerated obligations on a deal.",
+      "key": "change_of_control",
+      "name": "Change of Control",
+      "severity": 5
+    },
+    {
+      "description": "A restriction on assigning or transferring the contract or its rights, including on a merger or sale of the business, and any consent needed.",
+      "key": "anti_assignment",
+      "name": "Anti-Assignment",
+      "severity": 5
+    },
+    {
+      "description": "An obligation making one party the exclusive provider or purchaser, or barring dealings with third parties.",
+      "key": "exclusivity",
+      "name": "Exclusivity",
+      "severity": 4
+    },
+    {
+      "description": "A restriction on competing in a business, market, territory, or with a customer set.",
+      "key": "non_compete",
+      "name": "Non-Compete",
+      "severity": 4
+    },
+    {
+      "description": "A liability that is not subject to a cap, or that is carved out of an existing cap.",
+      "key": "uncapped_liability",
+      "name": "Uncapped Liability",
+      "severity": 5
+    },
+    {
+      "description": "A limit on the amount or type of liability a party bears under the contract.",
+      "key": "liability_cap",
+      "name": "Cap on Liability",
+      "severity": 3
+    },
+    {
+      "description": "A right to terminate \u2014 for convenience, for cause, on notice, or on an event.",
+      "key": "termination_rights",
+      "name": "Termination Rights",
+      "severity": 4
+    },
+    {
+      "description": "Who owns or is assigned intellectual property created or licensed under the contract, including missing or ambiguous assignment.",
+      "key": "ip_ownership",
+      "name": "IP Ownership / Assignment",
+      "severity": 5
+    },
+    {
+      "description": "A grant of a licence to intellectual property, its scope, and exclusivity.",
+      "key": "ip_license",
+      "name": "IP Licence Grant",
+      "severity": 3
+    },
+    {
+      "description": "A right to terms at least as favourable as those given to any third party.",
+      "key": "most_favored_nation",
+      "name": "Most Favoured Nation",
+      "severity": 4
+    },
+    {
+      "description": "The jurisdiction whose law governs the contract.",
+      "key": "governing_law",
+      "name": "Governing Law",
+      "severity": 2
+    },
+    {
+      "description": "An obligation to compensate the other party for specified losses or third-party claims.",
+      "key": "indemnification",
+      "name": "Indemnification",
+      "severity": 4
+    },
+    {
+      "description": "The survival period of representations and warranties, or a warranty's duration.",
+      "key": "warranty_duration",
+      "name": "Warranty / Rep Duration",
+      "severity": 3
+    },
+    {
+      "description": "A minimum purchase, volume, or spend obligation.",
+      "key": "minimum_commitment",
+      "name": "Minimum Commitment",
+      "severity": 3
+    },
+    {
+      "description": "A restriction or trigger on pricing \u2014 most-favoured pricing, renegotiation, or price adjustment rights.",
+      "key": "price_restriction",
+      "name": "Price / Renegotiation",
+      "severity": 3
+    },
+    {
+      "description": "A right for one party to audit the books, records, or performance of the other.",
+      "key": "audit_rights",
+      "name": "Audit Rights",
+      "severity": 2
+    },
+    {
+      "description": "An obligation of confidentiality or non-disclosure and its scope.",
+      "key": "confidentiality",
+      "name": "Confidentiality",
+      "severity": 2
+    },
+    {
+      "description": "The effective date, initial term, and any automatic renewal of the contract.",
+      "key": "effective_date",
+      "name": "Term / Effective Date",
+      "severity": 1
+    }
+  ],
+  "classify_context": "You are triaging one document from an M&A data room against a due-diligence information request list. Read the excerpt and decide which single document type it is. England & Wales / US commercial context.",
+  "document_noun": "contract",
+  "document_types": [
+    {
+      "description": "The principal transaction document \u2014 a share purchase agreement, asset purchase agreement, merger agreement, or term sheet / heads of terms for the deal itself.",
+      "key": "spa_apa",
+      "name": "Share / Asset Purchase Agreement"
+    },
+    {
+      "description": "Articles of association, certificate of incorporation, bylaws, charter, or other formation and governance documents of the target.",
+      "key": "constitutional",
+      "name": "Constitutional Documents"
+    },
+    {
+      "description": "Shareholders' agreements, investors' rights agreements, voting agreements, or subscription agreements among the target's owners.",
+      "key": "shareholder_agreement",
+      "name": "Shareholder / Investment Agreements"
+    },
+    {
+      "description": "The capitalisation table, share register, option ledger, or any schedule of the target's issued securities and their holders.",
+      "key": "cap_table",
+      "name": "Cap Table / Share Register"
+    },
+    {
+      "description": "Minutes of board or shareholder meetings, written resolutions, or consents of directors or members.",
+      "key": "board_minutes",
+      "name": "Board Minutes / Resolutions"
+    },
+    {
+      "description": "Revenue-side agreements \u2014 master service agreements, sales or subscription agreements, statements of work with customers.",
+      "key": "customer_contract",
+      "name": "Customer Contracts"
+    },
+    {
+      "description": "Cost-side agreements \u2014 supply, procurement, distribution, reseller, or outsourcing agreements with vendors.",
+      "key": "supplier_contract",
+      "name": "Supplier / Vendor Contracts"
+    },
+    {
+      "description": "Employment contracts, offer letters, consulting or contractor agreements, and severance or separation agreements.",
+      "key": "employment",
+      "name": "Employment Agreements"
+    },
+    {
+      "description": "Share option plans, RSU or bonus schemes, phantom equity, or other employee incentive arrangements and their grant documents.",
+      "key": "incentive_plan",
+      "name": "Incentive / Equity Plans"
+    },
+    {
+      "description": "Assignments of intellectual property to the target \u2014 invention assignments, work-for-hire confirmations, or IP transfer deeds.",
+      "key": "ip_assignment",
+      "name": "IP Assignments"
+    },
+    {
+      "description": "Licences of intellectual property granted to or by the target \u2014 software licences, patent or trademark licences, technology agreements.",
+      "key": "ip_license",
+      "name": "IP Licences (In / Out)"
+    },
+    {
+      "description": "Leases, subleases, or licences of real property occupied or owned by the target.",
+      "key": "lease",
+      "name": "Real Property Leases"
+    },
+    {
+      "description": "Insurance policies, schedules, certificates of coverage, or broker summaries.",
+      "key": "insurance",
+      "name": "Insurance Policies"
+    },
+    {
+      "description": "Pleadings, claim letters, settlement agreements, regulatory correspondence, or any document evidencing an actual or threatened dispute.",
+      "key": "litigation",
+      "name": "Litigation / Disputes"
+    },
+    {
+      "description": "Audited or management accounts \u2014 balance sheets, income statements, cash-flow statements, or auditor reports.",
+      "key": "financial_statements",
+      "name": "Financial Statements"
+    },
+    {
+      "description": "Tax returns, assessments, clearances, rulings, or correspondence with tax authorities.",
+      "key": "tax",
+      "name": "Tax Documents"
+    }
+  ],
+  "evidence": {
+    "dataset": null,
+    "disclosure": "Ported from the deployed checklist. The existing 41-category Groundnut evaluation is a different playbook; canonical quality is not yet established.",
+    "status": "experimental"
+  },
+  "extract_context": "You are performing a first-pass legal due-diligence review of one contract from an M&A data room. Read the contract and surface any clause that falls under the red-flag categories listed below. England & Wales / US commercial context.",
+  "key": "ma_dd",
+  "name": "M&A due diligence",
+  "schema": "groundnut-domain/v1",
+  "version": "1.0.0"
+}

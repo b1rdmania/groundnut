@@ -52,7 +52,10 @@ class RecordingBackend:
                 "findings": {
                     "Mandatory Distribution": [
                         "The Trustee shall distribute the income annually."
-                    ]
+                    ],
+                    "Invented Category": [
+                        "The Trustee shall distribute the income annually."
+                    ],
                 }
             }
         )

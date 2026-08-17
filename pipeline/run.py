@@ -9,6 +9,7 @@ from pipeline.extract import filter_verbatim, merge_findings, parse_response
 from pipeline.prompt import build_prompt
 from groundnut.domain import DomainPack
 from groundnut.engine import analyse_text
+from groundnut.registry import DomainRegistry
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -43,11 +44,23 @@ def build_argparser():
     ap.add_argument("--sample", type=int, default=None)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--backend", default=None)
-    ap.add_argument(
+    domains = ap.add_mutually_exclusive_group()
+    domains.add_argument(
         "--domain-pack",
         type=Path,
         default=None,
         help="versioned Groundnut domain-pack JSON; default keeps the legacy evaluation job",
+    )
+    domains.add_argument(
+        "--domain",
+        default=None,
+        help="key from the built-in domains/ registry",
+    )
+    ap.add_argument(
+        "--domains-dir",
+        type=Path,
+        default=REPO / "domains",
+        help="domain registry directory used with --domain",
     )
     return ap
 
@@ -64,7 +77,12 @@ def main(argv=None):
         rng = random.Random(args.seed)
         files = sorted(rng.sample(files, min(args.sample, len(files))))
 
-    domain = DomainPack.from_json(args.domain_pack) if args.domain_pack else None
+    if args.domain_pack:
+        domain = DomainPack.from_json(args.domain_pack)
+    elif args.domain:
+        domain = DomainRegistry.from_directory(args.domains_dir).get(args.domain)
+    else:
+        domain = None
     categories = domain.category_names if domain else load_categories()
     backend = get_backend(args.backend)
 
