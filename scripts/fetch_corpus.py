@@ -10,14 +10,13 @@ to its Groundnut filename and verify it byte-for-byte.
     python3 scripts/fetch_corpus.py --cuad /path/to/CUADv1.json
     python3 harness/probe.py
 
-Verification is on whitespace-normalised sha256, because the manifest records
-the contract's identity rather than one particular serialisation. Exit 0 means
-every contract in the manifest was written and matched.
+Verification is against the manifest's raw sha256. Exit 0 means every supplied
+contract exactly matches the corpus version the manifest was built from and
+the written files are byte-identical to it.
 """
 import argparse
 import hashlib
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -25,12 +24,8 @@ REPO = Path(__file__).resolve().parent.parent
 MANIFEST = REPO / "eval" / "CORPUS-MANIFEST.json"
 
 
-def norm(text):
-    return re.sub(r"\s+", " ", text).strip()
-
-
 def digest(text):
-    return hashlib.sha256(norm(text).encode()).hexdigest()
+    return hashlib.sha256(text.encode()).hexdigest()
 
 
 def main():
@@ -60,8 +55,14 @@ def main():
             missing += 1
             continue
 
+        expected = entry.get("sha256_raw")
+        if not expected or digest(text) != expected:
+            print(f"  HASH MISMATCH  {entry['split']}/{stem}  ({title})")
+            mismatched += 1
+            continue
+
         dest = REPO / "eval" / entry["split"] / "contracts" / f"{stem}.txt"
-        if dest.exists() and digest(dest.read_text(errors="replace")) == digest(text):
+        if dest.exists() and digest(dest.read_text(errors="replace")) == expected:
             written += 1
             continue
 
@@ -72,7 +73,7 @@ def main():
 
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(text, encoding="utf-8")
-        if digest(dest.read_text(errors="replace")) != digest(text):
+        if digest(dest.read_text(errors="replace")) != expected:
             print(f"  MISMATCH {dest.relative_to(REPO)}")
             mismatched += 1
         else:

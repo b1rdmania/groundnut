@@ -1,0 +1,45 @@
+# Groundnut canonical engine
+
+Groundnut is the reusable, checklist-driven document-intelligence method. A
+host gives it source documents, a versioned domain pack, and a model backend.
+Groundnut returns source-anchored findings plus the evidence disclosure carried
+by that pack.
+
+## Boundary
+
+Groundnut owns:
+
+- domain-pack validation and versioned playbook hashes;
+- document normalization, segmentation, classification, and extraction;
+- backend interfaces and deterministic source anchoring;
+- coverage and report primitives that do not depend on an application database;
+- evaluation and arena interfaces, including frozen policies and provenance.
+
+Hosts own authentication, persistence, credentials, user interfaces, and the
+decision to sign or publish an output. Source connectors implement Groundnut's
+acquisition interface; uploaded files and live web sources enter the same
+normalized source record after acquisition.
+
+## Evidence maturity
+
+Changing configuration demonstrates portability, not quality. Every domain
+pack carries one of four evidence states:
+
+- `experimental` — configuration or demo only;
+- `development` — measured on a labelled development set;
+- `holdout_qualified` — passed a frozen bar on an unspent holdout;
+- `production_approved` — separately approved for a named deployment.
+
+A pack may ship as experimental without a gold set. It must not inherit the
+measurements or acceptance bar of another domain.
+
+## Compatibility
+
+`pipeline/` remains the CLI used by the original CUAD evaluation. Its default
+prompt and output stay unchanged. Supplying `--domain-pack path.json` activates
+the canonical `groundnut-analysis/v1` result with domain identity, playbook
+hash, source hash, and exact character anchors.
+
+The playbook hash covers executable job configuration only. The separate
+manifest hash also covers evidence status and disclosure, so improving or
+withdrawing a quality claim never pretends the extraction job itself changed.
