@@ -1,11 +1,19 @@
 # Groundnut 🥜
 
-Contract in, red flags out — every one carrying a quote you can find in the source.
+Sources and a checklist in; anchored findings and an honest coverage record out.
 
-Groundnut is the extraction engine and its eval harness. Two halves:
+Groundnut is a checklist-driven document-intelligence engine plus the machinery
+that tests its claims. Change the domain pack and the same method can review
+contracts, procurement files, trust instruments, or another document set:
 
-- **🥜 Shell** — `pipeline/`. Reads a contract, returns findings by category, each with a verbatim quote.
-- **🌰 Kernel** — `harness/`. Scores the findings. Deterministic, four criteria, one exit code. No LLM anywhere on the pass/fail path.
+- **Canonical engine** — `groundnut/`. Domain packs, exact source anchors,
+  fail-closed coverage, source snapshots, and the adversarial arena.
+- **Domain packs** — `domains/`. Versioned checklists with explicit evidence
+  maturity; configuration portability never implies measured quality.
+- **Compatibility pipeline** — `pipeline/`. The original contract-extraction
+  CLI and backend adapters.
+- **Evaluation kernel** — `harness/`. Deterministic scoring and gates; no LLM
+  on the pass/fail path.
 
 The name is the job: everything here is about whether a finding is *grounded* — whether the quote it rests on actually exists in the document.
 
@@ -28,6 +36,9 @@ Gold answers are **not** in this repo at all — they live in `~/.dd-eval-privat
 python3 -m pytest tests/          # inner loop — keep green
 harness/gate.sh dev               # four-criteria gate, 80 docs
 harness/gate.sh dev --pred-root runs/predictions-claude-opus-4.8-agent
+
+# canonical domain-pack run
+python3 -m pipeline.run --domain trust_obligations --in contracts --out results
 ```
 
 Holdout is rate-limited to one run per 6 hours and is **currently unspent**. Don't spend it until something passes dev.
@@ -59,28 +70,49 @@ Best recorded run (`runs/predictions-claude-opus-4.8-agent`, dev-80):
 
 Filtered runs score 1.0000 on quote-grounding, and that figure is **worth nothing on its own** — `pipeline/extract.py` drops any span that isn't an exact substring of its source before findings are recorded. On a filtered run, grounding is 1.0 by construction. It measures the filter.
 
-The number that means something comes from the runs with **no** verbatim filter: **0.9744** (Opus 4.8) and **0.9665** (Sonnet 5). So there are two separate claims, and they should never be merged:
+The unfiltered agent runs score **0.9744** (Opus 4.8) and **0.9665**
+(Sonnet 5) under the judge's *normalised* substring rule. Exact substring rates
+are lower: **0.9283** and **0.9070**. These claims must remain separate:
 
 - **Architectural** — the pipeline cannot emit an ungrounded quote. Unmatched spans are dropped at extraction. A design guarantee, not evidence about the model.
-- **Empirical** — unfiltered, frontier models return verbatim quotes **~97%** of the time. The remaining ~3% is what the filter exists for.
+- **Empirical** — unfiltered agent outputs are grounded about **97% under the
+  normalised judge**, but exactly verbatim about **91–93%** of the time.
 
 Both are provenance claims, not truth claims: retrieval can be incomplete, a source can be wrong, and a correctly-quoted span can still be the wrong span.
 
-Caveat on the ~97%: it comes from agent runs (whole-document context, no temperature pinning, non-API protocol) that `LOG.md` calls *indicative, not API-reproducible*. It has not been established under a reproducible API run.
+Caveat: both rates come from agent runs (whole-document context, no temperature
+pinning, non-API protocol) that `LOG.md` calls *indicative, not
+API-reproducible*. Neither has been established under a reproducible API run.
 
-Full measurement notes, including two corrected results and what to attack: [`FINDINGS.md`](./FINDINGS.md).
+Full measurement notes, including the independent-review corrections and what
+to attack: [`FINDINGS.md`](./FINDINGS.md).
 
 ## Open questions 🔍
 
-**Is criterion 1 measuring the right thing?** The matcher is a symmetric token-set Jaccard at 0.5, which punishes a correct extraction for choosing different span boundaries than the annotator. Swapping it for containment moves the best run 0.4916 → 0.6415 **and raises precision 0.630 → 0.824** — the sign that the "false positives" were mostly boundary mismatches, not errors. Containment is also what LegalBench-RAG uses to score spans.
+**Is criterion 1 measuring the right thing?** The matcher is a symmetric
+token-set Jaccard at 0.5, which may punish different span boundaries. An early
+containment sweep reported `0.6415`, but the scorer does not enforce one-to-one
+prediction/gold matching. Enforcing one-to-one matching reduces that result to
+`0.5661`. The earlier precision increase is not evidence of correctness: a
+more permissive matcher applied to fixed predictions necessarily converts some
+false positives into true positives.
 
 ⚠️ Not adopted yet, and not adoptable casually: an eval whose owner swaps the metric until it passes has destroyed the only thing that made it worth having. If containment is adopted, the 0.55 bar must be **re-derived under the new matcher and written down before re-scoring**. Passing an old bar with a new metric is not a result.
 
-**When should the chunker fire?** Cycle 7 measured the same model at 0.4067 chunked vs 0.5721 whole-document — chunking costs more precision than the gap between model tiers. The chunker exists as a tail safety net for contracts longer than the context window (p90 ≈ 30K tokens, max seen ≈ 85K). Against a 1M-context model it should essentially never fire. Raise the threshold; don't delete the path. Its merge behaviour on the largest real contracts is still unverified.
+**When should the chunker fire?** It currently fires on `347/510` contracts
+and `56/80` working-set contracts, producing a mean `3.18` and maximum `18`
+chunks. The observed precision gap between a chunked API run and a
+whole-document agent run is suggestive but confounded by protocol and coverage.
+Run the same backend and cohort with only the threshold changed before making a
+causal claim. Keep the long-document path; its merge behaviour on the largest
+real contracts remains unverified.
 
 ## Layout 🗂️
 
 ```
+groundnut/     🥜 canonical domain engine, coverage, provenance, sources, arena
+domains/       🧭 versioned checklists and evidence disclosures
+policies/      🧊 frozen arena policy
 pipeline/     🥜 the extractor — CLI, backends, chunker, prompt, verbatim filter
 harness/      🌰 the gate — gate.py, judges.py, score.py, severity.json
 eval/         📚 41 categories, dev / holdout / probe splits
@@ -98,7 +130,8 @@ Groundnut is the engine. Things built on it live elsewhere and call in:
 - **Legalise** — the governance layer: human sign-off and a tamper-evident audit trail. Groundnut's extraction plumbing is ported into its `modules/diligence/`.
 - **Atlas**, **dealroom** — Legalise deployments.
 
-Groundnut has no auth, no database, no UI, and should never grow one. It reads a contract and scores the result. 🥜
+Groundnut has no auth, application database, or UI. Hosts own those concerns;
+Groundnut owns the portable method, provenance, and evaluation contracts. 🥜
 
 ## Licence & attribution ⚖️
 
