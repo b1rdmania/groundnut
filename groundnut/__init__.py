@@ -37,6 +37,7 @@ from .support import (
     assess_claim_support,
 )
 from .support_eval import SupportGold, score_support
+from .support_cases import SupportCase, SupportProbe
 from .verification import (
     Claim,
     MatchOutcome,
@@ -76,8 +77,10 @@ __all__ = [
     "SourceRecord",
     "SourceResolution",
     "SupportAssessment",
+    "SupportCase",
     "SupportGold",
     "SupportPolicy",
+    "SupportProbe",
     "SupportSpan",
     "VerifiedClaim",
     "analyse_text",

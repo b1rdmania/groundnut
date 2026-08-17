@@ -1,0 +1,233 @@
+"""Paired, source-anchored cases for detector-transfer measurement.
+
+The case format makes two validity requirements structural: every class in a
+group uses the same original source span and therefore the same context window;
+and both supported/unsupported classes contain one present and one absent claim,
+so exact substring matching cannot separate the labels perfectly.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+import hashlib
+import json
+from pathlib import Path
+import re
+from typing import Any, Iterable, Mapping
+
+from .provenance import sha256_text
+from .support_eval import SupportGold
+
+
+CASE_SCHEMA = "groundnut-support-case/v1"
+CASE_KINDS = {
+    "verbatim_supported": "supported",
+    "paraphrase_supported": "supported",
+    "contradicted": "contradicted",
+    "present_irrelevant": "insufficient",
+}
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+
+
+@dataclass(frozen=True)
+class SupportCase:
+    case_id: str
+    group_id: str
+    kind: str
+    expected_status: str
+    source_id: str
+    source_sha256: str
+    original_start: int
+    original_end: int
+    original_text: str
+    question: str
+    claim_text: str
+    schema: str = CASE_SCHEMA
+
+    def __post_init__(self) -> None:
+        if self.schema != CASE_SCHEMA:
+            raise ValueError(f"unsupported support-case schema: {self.schema}")
+        if not all(
+            value.strip()
+            for value in (
+                self.case_id,
+                self.group_id,
+                self.source_id,
+                self.original_text,
+                self.question,
+                self.claim_text,
+            )
+        ):
+            raise ValueError("support-case identity and text fields are required")
+        expected = CASE_KINDS.get(self.kind)
+        if expected is None:
+            raise ValueError(f"unknown support-case kind: {self.kind}")
+        if self.expected_status != expected:
+            raise ValueError(
+                f"{self.kind} case must expect {expected}, not {self.expected_status}"
+            )
+        if not _SHA256.fullmatch(self.source_sha256):
+            raise ValueError("support-case source_sha256 must be lowercase SHA-256")
+        if self.original_start < 0 or self.original_end <= self.original_start:
+            raise ValueError("support-case original offsets must be non-empty")
+        if len(self.original_text) != self.original_end - self.original_start:
+            raise ValueError("support-case original text length does not match offsets")
+        if self.kind == "verbatim_supported" and self.claim_text != self.original_text:
+            raise ValueError("verbatim_supported claim must equal the original span")
+
+    def canonical_payload(self) -> dict[str, Any]:
+        return {
+            "schema": self.schema,
+            "case_id": self.case_id,
+            "group_id": self.group_id,
+            "kind": self.kind,
+            "expected_status": self.expected_status,
+            "source_id": self.source_id,
+            "source_sha256": self.source_sha256,
+            "original_start": self.original_start,
+            "original_end": self.original_end,
+            "original_text": self.original_text,
+            "question": self.question,
+            "claim_text": self.claim_text,
+        }
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> "SupportCase":
+        return cls(
+            schema=str(value.get("schema", CASE_SCHEMA)),
+            case_id=str(value["case_id"]),
+            group_id=str(value["group_id"]),
+            kind=str(value["kind"]),
+            expected_status=str(value["expected_status"]),
+            source_id=str(value["source_id"]),
+            source_sha256=str(value["source_sha256"]),
+            original_start=int(value["original_start"]),
+            original_end=int(value["original_end"]),
+            original_text=str(value["original_text"]),
+            question=str(value["question"]),
+            claim_text=str(value["claim_text"]),
+        )
+
+    def validate_source(self, source_text: str) -> None:
+        if sha256_text(source_text) != self.source_sha256:
+            raise ValueError(f"source hash mismatch for case {self.case_id}")
+        if source_text[self.original_start : self.original_end] != self.original_text:
+            raise ValueError(f"original span mismatch for case {self.case_id}")
+        claim_present = self.claim_text in source_text
+        should_be_present = self.kind in {
+            "verbatim_supported",
+            "present_irrelevant",
+        }
+        if claim_present != should_be_present:
+            expectation = "present" if should_be_present else "absent"
+            raise ValueError(
+                f"{self.kind} claim must be {expectation} in source: {self.case_id}"
+            )
+        if self.kind == "present_irrelevant" and self.claim_text == self.original_text:
+            raise ValueError("present_irrelevant claim cannot equal the original span")
+
+    def context_window(self, source_text: str, max_characters: int) -> str:
+        self.validate_source(source_text)
+        span_length = self.original_end - self.original_start
+        if max_characters < span_length:
+            raise ValueError("context window cannot be shorter than original span")
+        if len(source_text) <= max_characters:
+            return source_text
+        spare = max_characters - span_length
+        start = max(0, self.original_start - spare // 2)
+        end = min(len(source_text), start + max_characters)
+        start = max(0, end - max_characters)
+        return source_text[start:end]
+
+
+@dataclass(frozen=True)
+class SupportProbe:
+    cases: tuple[SupportCase, ...]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "cases", tuple(self.cases))
+        if not self.cases:
+            raise ValueError("support probe must contain at least one case group")
+        _require_unique("case", [case.case_id for case in self.cases])
+        groups: dict[str, list[SupportCase]] = {}
+        for case in self.cases:
+            groups.setdefault(case.group_id, []).append(case)
+        for group_id, cases in groups.items():
+            kinds = {case.kind for case in cases}
+            if kinds != set(CASE_KINDS):
+                missing = sorted(set(CASE_KINDS) - kinds)
+                extra = sorted(kinds - set(CASE_KINDS))
+                raise ValueError(
+                    f"support group {group_id} must contain exactly four kinds; "
+                    f"missing={missing}, extra={extra}"
+                )
+            if len(cases) != len(CASE_KINDS):
+                raise ValueError(f"support group {group_id} contains duplicate kinds")
+            origin = _origin(cases[0])
+            if any(_origin(case) != origin for case in cases[1:]):
+                raise ValueError(
+                    f"support group {group_id} does not share one source span and question"
+                )
+
+    @property
+    def sha256(self) -> str:
+        payload = [
+            case.canonical_payload() for case in sorted(self.cases, key=lambda row: row.case_id)
+        ]
+        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        return hashlib.sha256(encoded).hexdigest()
+
+    @classmethod
+    def from_jsonl(cls, path: str | Path) -> "SupportProbe":
+        cases = []
+        for number, line in enumerate(Path(path).read_text().splitlines(), 1):
+            if not line.strip():
+                continue
+            try:
+                value = json.loads(line)
+                if not isinstance(value, dict):
+                    raise TypeError("expected object")
+                cases.append(SupportCase.from_mapping(value))
+            except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
+                raise ValueError(f"{path}:{number}: invalid support case: {error}") from error
+        return cls(tuple(cases))
+
+    def validate_sources(self, sources: Mapping[str, str]) -> None:
+        for case in self.cases:
+            try:
+                source_text = sources[case.source_id]
+            except KeyError as error:
+                raise ValueError(f"missing source for case {case.case_id}") from error
+            case.validate_source(source_text)
+
+    def contexts(
+        self, sources: Mapping[str, str], max_characters: int
+    ) -> dict[str, str]:
+        self.validate_sources(sources)
+        return {
+            case.case_id: case.context_window(sources[case.source_id], max_characters)
+            for case in self.cases
+        }
+
+    def gold(self) -> tuple[SupportGold, ...]:
+        return tuple(
+            SupportGold(case.case_id, case.expected_status, case.kind)
+            for case in self.cases
+        )
+
+
+def _origin(case: SupportCase) -> tuple[Any, ...]:
+    return (
+        case.source_id,
+        case.source_sha256,
+        case.original_start,
+        case.original_end,
+        case.original_text,
+        case.question,
+    )
+
+
+def _require_unique(label: str, values: Iterable[str]) -> None:
+    values = tuple(values)
+    if len(values) != len(set(values)):
+        raise ValueError(f"duplicate support {label} id")

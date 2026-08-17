@@ -113,9 +113,10 @@ Thresholds are fixed before holdout scoring.
 | Fail-closed per-segment coverage | Landed |
 | Mechanical citation and excerpt verification | Landed |
 | Frozen semantic-support contract and exact baseline | Landed |
+| Paired four-cell detector-transfer probe contract | Landed |
 | Frozen-policy arena and offline adjudication CLI | Landed |
 | Learned detector adapters | Next build tranche, after valid transfer measurement |
-| Valid detector-transfer probe and domain support dataset | Next measurement tranche |
+| Labelled domain support cases | Next measurement tranche |
 | Controlled chunking and largest-document merge comparison | Required before changing chunking |
 | IC research integration and product/OS ports | Deferred consumers |
 
@@ -124,6 +125,11 @@ support layer can then report `supported`, `contradicted`, `insufficient`,
 `source_unavailable`, or `not_assessed` in a separate artifact, without
 allowing a model score to overwrite mechanical provenance. The shipped exact
 policy is a baseline, not a learned support claim.
+
+The detector admission protocol and paired case schema are specified in
+[`SUPPORT.md`](./SUPPORT.md). Every transfer-probe group contains both present
+and absent claims on both sides of the label boundary, and every case receives
+a context window derived from the same original source span.
 
 ## Corpus 📚
 
@@ -237,6 +243,7 @@ LOG.md        📓 one entry per cycle — question, result, findings
 ARCHITECTURE.md 🏗️ scope, invariants, boundaries, and deterministic contracts
 MIGRATION.md  🧭 canonical-engine priorities and deferred consumers
 PARITY.md     🟰 semantic equivalence contract for any future host adapter
+SUPPORT.md    🧪 semantic outcomes, paired probes, and detector admission
 ```
 
 ## Relationship to downstream work 🔌

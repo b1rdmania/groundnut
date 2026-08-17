@@ -20,6 +20,8 @@ until they deliberately adopt a stable Groundnut contract.
 - Raw corpus-manifest hash enforcement.
 - Frozen semantic-support contracts with exact detector identity, immutable
   mechanical verification, and one-to-one development scoring.
+- Paired four-cell transfer probes whose shared source origin and crossed
+  substring labels prevent the invalid detector comparison from recurring.
 
 The widened method-layer scope is a dated decision in `ARCHITECTURE.md`. It
 does not move the stop line: no auth, application persistence, credential

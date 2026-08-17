@@ -96,6 +96,11 @@ quality claim. It reports a normalized substring as supported and every absent
 claim as insufficient—never contradicted. Optional learned adapters must beat
 that baseline on a frozen, domain-relevant development set before adoption.
 
+Detector-transfer cases use the paired contract in `SUPPORT.md`. Each group
+crosses support status with substring presence and shares one source origin and
+question. Consequently neither substring presence nor class-specific context
+selection can produce a valid-looking semantic result.
+
 ## Evidence maturity
 
 Changing configuration demonstrates portability, not quality. Every domain
