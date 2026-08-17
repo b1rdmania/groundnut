@@ -242,6 +242,7 @@ class SnapshotStore:
 
 @dataclass(frozen=True)
 class SourceAcquisition:
+    reference: SourceReference
     resolution: SourceResolution
     mode: str
     strategy: str
@@ -264,8 +265,8 @@ class SourceAcquisition:
             "live_attempted": self.live_attempted,
             "result": {
                 "ok": self.resolution.ok,
-                "source_id": source.reference.source_id if source else None,
-                "uri": source.reference.uri if source else None,
+                "source_id": self.reference.source_id,
+                "uri": self.reference.uri,
                 "source_sha256": source.record.sha256 if source else None,
                 "failure": self.resolution.failure,
                 "detail": self.resolution.detail,
@@ -305,6 +306,7 @@ class SnapshotFirstResolver:
         if self.mode != "refresh" and exists:
             resolution = self.snapshots.load(reference)
             return SourceAcquisition(
+                reference=reference,
                 resolution=resolution,
                 mode=self.mode,
                 strategy="snapshot" if resolution.ok else "snapshot_invalid",
@@ -313,6 +315,7 @@ class SnapshotFirstResolver:
             )
         if self.mode == "replay_only":
             return SourceAcquisition(
+                reference=reference,
                 resolution=SourceResolution(
                     source=None,
                     failure="source_unreachable",
@@ -327,6 +330,7 @@ class SnapshotFirstResolver:
         resolution = self.live.resolve(reference)
         if not resolution.ok:
             return SourceAcquisition(
+                reference=reference,
                 resolution=resolution,
                 mode=self.mode,
                 strategy="live_failed",
@@ -339,6 +343,7 @@ class SnapshotFirstResolver:
             )
         path = self.snapshots.archive(resolution.source)
         return SourceAcquisition(
+            reference=reference,
             resolution=resolution,
             mode=self.mode,
             strategy="live_archived",
