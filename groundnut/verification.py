@@ -13,6 +13,7 @@ import re
 from typing import Any
 
 from .metrics import MetricEnvelope
+from .provenance import sha256_text
 from .sources import SourceReference, SourceResolution
 
 
@@ -26,11 +27,67 @@ CLAIM_PROVENANCE_CLASSES = {
     "unclassified",
 }
 ANALYTICAL_PROVENANCE_SCHEMA = "groundnut-analytical-provenance/v1"
+CALCULATION_LINEAGE_SCHEMA = "groundnut-calculation-lineage/v1"
 ANALYST_PROVENANCE_CLASSES = {
     "analyst_calculation",
     "analyst_inference",
     "recommendation",
 }
+
+
+@dataclass(frozen=True)
+class CalculationInput:
+    name: str
+    value: str
+    source_claim_ids: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "source_claim_ids", tuple(sorted(self.source_claim_ids))
+        )
+        if not self.name.strip() or not self.value.strip():
+            raise ValueError("calculation input name and value are required")
+        if any(not claim_id.strip() for claim_id in self.source_claim_ids):
+            raise ValueError("calculation input source claim ids must not be empty")
+        if len(self.source_claim_ids) != len(set(self.source_claim_ids)):
+            raise ValueError("calculation input source claim ids must be unique")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "value": self.value,
+            "source_claim_ids": list(self.source_claim_ids),
+        }
+
+
+@dataclass(frozen=True)
+class CalculationLineage:
+    formula: str
+    inputs: tuple[CalculationInput, ...]
+    note: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "inputs", tuple(sorted(self.inputs, key=lambda row: row.name)))
+        if not self.formula.strip() or not self.inputs:
+            raise ValueError("calculation formula and at least one named input are required")
+        names = [row.name for row in self.inputs]
+        if len(names) != len(set(names)):
+            raise ValueError("calculation input names must be unique")
+        if self.note is not None and not self.note.strip():
+            raise ValueError("calculation lineage note must not be empty")
+
+    @property
+    def formula_sha256(self) -> str:
+        return sha256_text(self.formula)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": CALCULATION_LINEAGE_SCHEMA,
+            "formula": self.formula,
+            "formula_sha256": self.formula_sha256,
+            "inputs": [row.to_dict() for row in self.inputs],
+            "note": self.note,
+        }
 
 
 @dataclass(frozen=True)
@@ -44,6 +101,7 @@ class Claim:
     provenance_class: str = "unclassified"
     question: str | None = None
     location: str | None = None
+    calculation_lineage: CalculationLineage | None = None
 
     def __post_init__(self) -> None:
         if not self.claim_id.strip() or not self.text.strip():
@@ -56,6 +114,13 @@ class Claim:
             raise ValueError("declared analysis conflicts with provenance class")
         elif self.provenance_class in ANALYST_PROVENANCE_CLASSES:
             object.__setattr__(self, "declared_analysis", True)
+        if (
+            self.calculation_lineage is not None
+            and self.provenance_class != "analyst_calculation"
+        ):
+            raise ValueError(
+                "calculation lineage requires analyst_calculation provenance"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -72,6 +137,18 @@ class Claim:
             "analytical_provenance": {
                 "schema": ANALYTICAL_PROVENANCE_SCHEMA,
                 "class": self.provenance_class,
+                "calculation_lineage_status": (
+                    "declared"
+                    if self.calculation_lineage is not None
+                    else "missing"
+                    if self.provenance_class == "analyst_calculation"
+                    else "not_applicable"
+                ),
+                "calculation_lineage": (
+                    self.calculation_lineage.to_dict()
+                    if self.calculation_lineage is not None
+                    else None
+                ),
             },
             "question": self.question,
             "location": self.location,
@@ -239,6 +316,12 @@ def verification_metrics(rows: list[VerifiedClaim]) -> dict[str, Any]:
     anchored = [row for row in excerpts if row.anchor == "found"]
     exact_anchored = [row for row in anchored if row.method == "exact"]
     fuzzy_anchored = [row for row in anchored if row.method == "fuzzy"]
+    calculations = [
+        row for row in rows if row.claim.provenance_class == "analyst_calculation"
+    ]
+    calculations_with_lineage = [
+        row for row in calculations if row.claim.calculation_lineage is not None
+    ]
     anchor_outcomes = {
         "exact_found": len(exact_anchored),
         "fuzzy_found": len(fuzzy_anchored),
@@ -290,6 +373,13 @@ def verification_metrics(rows: list[VerifiedClaim]) -> dict[str, Any]:
             len(anchored),
             "anchored excerpts",
         ),
+        MetricEnvelope(
+            "calculation_lineage_coverage",
+            "provenance_completeness",
+            len(calculations_with_lineage),
+            len(calculations),
+            "claims declared analyst_calculation",
+        ),
     )
     per_provenance = {}
     for provenance_class in sorted({row.claim.provenance_class for row in rows}):
@@ -326,6 +416,8 @@ def verification_metrics(rows: list[VerifiedClaim]) -> dict[str, Any]:
             "anchored_excerpts": len(anchored),
             "exact_anchored_excerpts": len(exact_anchored),
             "fuzzy_anchored_excerpts": len(fuzzy_anchored),
+            "analyst_calculations": len(calculations),
+            "calculations_with_lineage": len(calculations_with_lineage),
         },
         "anchor_outcome_counts": anchor_outcomes,
         "by_provenance_class": per_provenance,

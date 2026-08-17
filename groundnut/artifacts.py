@@ -16,7 +16,13 @@ from typing import Any, Mapping
 
 from .provenance import sha256_text
 from .sources import SourceReference
-from .verification import ANALYST_PROVENANCE_CLASSES, CLAIM_PROVENANCE_CLASSES, Claim
+from .verification import (
+    ANALYST_PROVENANCE_CLASSES,
+    CLAIM_PROVENANCE_CLASSES,
+    CalculationInput,
+    CalculationLineage,
+    Claim,
+)
 
 
 _LINK = re.compile(r'\[([^\]]+)\]\((https?://[^\s)"]+)(?:\s+"([^"]*)")?\)')
@@ -108,6 +114,7 @@ class ArtifactProfile:
     locator_key: str = "source_locator"
     declared_analysis_key: str = "declared_analysis"
     provenance_class_key: str = "provenance_class"
+    calculation_key: str = "calculation"
     evidence_comment_prefix: str = "groundnut-source"
     declared_analysis_classes: tuple[str, ...] = ("groundnut-declared-analysis",)
     provenance_class_markers: tuple[tuple[str, str], ...] = DEFAULT_PROVENANCE_CLASS_MARKERS
@@ -137,6 +144,7 @@ class ArtifactProfile:
             self.locator_key,
             self.declared_analysis_key,
             self.provenance_class_key,
+            self.calculation_key,
             self.evidence_comment_prefix,
         )
         if not all(value.strip() for value in values):
@@ -168,6 +176,7 @@ class ArtifactProfile:
                 "locator": self.locator_key,
                 "declared_analysis": self.declared_analysis_key,
                 "provenance_class": self.provenance_class_key,
+                "calculation": self.calculation_key,
             },
             "html": {
                 "evidence_comment_prefix": self.evidence_comment_prefix,
@@ -215,6 +224,7 @@ class ArtifactProfile:
             provenance_class_key=str(
                 structured.get("provenance_class", "provenance_class")
             ),
+            calculation_key=str(structured.get("calculation", "calculation")),
             evidence_comment_prefix=str(
                 html.get("evidence_comment_prefix", "groundnut-source")
             ),
@@ -321,9 +331,31 @@ def _structured_claims(value: Any, profile: ArtifactProfile) -> list[Claim]:
                     )
                     or "unclassified"
                 ),
+                calculation_lineage=_calculation_lineage(
+                    row.get(profile.calculation_key),
+                    f"{profile.claims_key}[{index}].{profile.calculation_key}",
+                ),
                 location=f"{profile.claims_key}[{index}]",
             )
         )
+    claim_ids = {claim.claim_id for claim in claims}
+    if len(claim_ids) != len(claims):
+        raise ValueError("structured artifact claim ids must be unique")
+    for claim in claims:
+        if claim.calculation_lineage is None:
+            continue
+        referenced = {
+            claim_id
+            for row in claim.calculation_lineage.inputs
+            for claim_id in row.source_claim_ids
+        }
+        unknown = referenced - claim_ids
+        if unknown:
+            raise ValueError(
+                f"calculation lineage references unknown claims: {sorted(unknown)}"
+            )
+        if claim.claim_id in referenced:
+            raise ValueError("calculation lineage cannot reference its own claim")
     return claims
 
 
@@ -559,6 +591,42 @@ def _optional_bool(value: Any, label: str) -> bool:
     if not isinstance(value, bool):
         raise ValueError(f"{label} must be boolean")
     return value
+
+
+def _calculation_lineage(value: Any, label: str) -> CalculationLineage | None:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise ValueError(f"{label} must be an object or null")
+    formula = _optional_string(value.get("formula"), f"{label}.formula")
+    rows = value.get("inputs")
+    if formula is None or not isinstance(rows, list) or not rows:
+        raise ValueError(f"{label} requires a formula and non-empty inputs array")
+    inputs = []
+    for index, row in enumerate(rows):
+        if not isinstance(row, Mapping):
+            raise ValueError(f"{label}.inputs[{index}] must be an object")
+        name = _optional_string(row.get("name"), f"{label}.inputs[{index}].name")
+        input_value = _optional_string(
+            row.get("value"), f"{label}.inputs[{index}].value"
+        )
+        source_claim_ids = row.get("source_claim_ids", [])
+        if not isinstance(source_claim_ids, list) or any(
+            not isinstance(claim_id, str) for claim_id in source_claim_ids
+        ):
+            raise ValueError(
+                f"{label}.inputs[{index}].source_claim_ids must be a string array"
+            )
+        if name is None or input_value is None:
+            raise ValueError(f"{label}.inputs[{index}] requires name and value")
+        inputs.append(
+            CalculationInput(name, input_value, tuple(source_claim_ids))
+        )
+    return CalculationLineage(
+        formula=formula,
+        inputs=tuple(inputs),
+        note=_optional_string(value.get("note"), f"{label}.note"),
+    )
 
 
 def _encode(value: str) -> str:

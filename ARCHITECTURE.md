@@ -164,6 +164,11 @@ also grouped by analytical-provenance class, preventing an uncited analyst
 inference from being silently counted as the same failure as an uncited
 external fact.
 
+An `analyst_calculation` may additionally carry
+`groundnut-calculation-lineage/v1`: an exact formula hash, unique named input
+values, and optional references to other claims in the same artifact. Missing
+lineage is an explicit state. Formula declaration never upgrades support.
+
 Semantic support is a separate, versioned artifact. A support policy pins the
 detector adapter, model, revision, package version, confidence threshold, and
 policy hash before a run. Its result is one of `supported`, `contradicted`,

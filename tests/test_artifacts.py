@@ -24,6 +24,21 @@ def test_structured_json_maps_claims_and_binds_profile_and_input(tmp_path):
                         "source_excerpt": None,
                         "declared_analysis": True,
                         "provenance_class": "analyst_calculation",
+                        "calculation": {
+                            "formula": "cost = licences * price_per_licence",
+                            "inputs": [
+                                {
+                                    "name": "licences",
+                                    "value": "10",
+                                    "source_claim_ids": ["revenue"],
+                                },
+                                {
+                                    "name": "price_per_licence",
+                                    "value": "$170,000",
+                                },
+                            ],
+                            "note": "Illustrative reconstruction.",
+                        },
                     },
                 ]
             }
@@ -41,6 +56,27 @@ def test_structured_json_maps_claims_and_binds_profile_and_input(tmp_path):
     assert result.claims[1].to_dict()["analytical_provenance"] == {
         "schema": "groundnut-analytical-provenance/v1",
         "class": "analyst_calculation",
+        "calculation_lineage_status": "declared",
+        "calculation_lineage": {
+            "schema": "groundnut-calculation-lineage/v1",
+            "formula": "cost = licences * price_per_licence",
+            "formula_sha256": sha256_text(
+                "cost = licences * price_per_licence"
+            ),
+            "inputs": [
+                {
+                    "name": "licences",
+                    "value": "10",
+                    "source_claim_ids": ["revenue"],
+                },
+                {
+                    "name": "price_per_licence",
+                    "value": "$170,000",
+                    "source_claim_ids": [],
+                },
+            ],
+            "note": "Illustrative reconstruction.",
+        },
     }
     assert result.to_dict()["schema"] == "groundnut-artifact-extraction/v2"
     assert result.to_dict()["claim_count"] == 2
@@ -187,3 +223,47 @@ def test_profile_rejects_non_object_provenance_markers():
                 "html": {"provenance_class_markers": ["not", "a", "mapping"]},
             }
         )
+
+
+def test_calculation_lineage_fails_closed_on_wrong_class_or_reference(tmp_path):
+    path = tmp_path / "bad-calculation.json"
+    calculation = {
+        "formula": "result = input",
+        "inputs": [
+            {"name": "input", "value": "1", "source_claim_ids": ["missing"]}
+        ],
+    }
+    path.write_text(
+        json.dumps(
+            {
+                "claims": [
+                    {
+                        "claim_id": "result",
+                        "claim_text": "Result is one.",
+                        "provenance_class": "analyst_calculation",
+                        "calculation": calculation,
+                    }
+                ]
+            }
+        )
+    )
+    with pytest.raises(ValueError, match="unknown claims"):
+        extract_artifact(path)
+
+    calculation["inputs"][0]["source_claim_ids"] = []
+    path.write_text(
+        json.dumps(
+            {
+                "claims": [
+                    {
+                        "claim_id": "result",
+                        "claim_text": "Result is one.",
+                        "provenance_class": "recommendation",
+                        "calculation": calculation,
+                    }
+                ]
+            }
+        )
+    )
+    with pytest.raises(ValueError, match="requires analyst_calculation"):
+        extract_artifact(path)

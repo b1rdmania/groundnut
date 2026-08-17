@@ -26,6 +26,31 @@ explicit independent authority declaration may still describe the source used
 to check it, but the claim remains a company assertion. Provenance, authority,
 mechanical anchoring, semantic support, and truth are separate fields.
 
+### Calculation lineage
+
+An `analyst_calculation` may carry `groundnut-calculation-lineage/v1`. It binds
+the exact formula and its SHA-256, a unique set of named input values, optional
+source-claim IDs for each input, and an optional method note. Structured
+artifacts provide it under `calculation`:
+
+```json
+{
+  "formula": "arr = customers * annual_price",
+  "inputs": [
+    {"name": "customers", "value": "5", "source_claim_ids": ["customers"]},
+    {"name": "annual_price", "value": "£12,000", "source_claim_ids": ["price"]}
+  ]
+}
+```
+
+Source-claim references must resolve inside the same structured artifact and
+cannot point back to the calculation itself. Missing lineage remains visible as
+`calculation_lineage_status: missing`; Groundnut does not invent it from prose.
+Declared lineage makes a calculation replayable, not correct. Its support stays
+`not_assessed` until a separate policy checks the inputs and operation.
+Mechanical reports expose lineage coverage as its own metric envelope over the
+population of claims declared `analyst_calculation`.
+
 ## Artifact conventions
 
 Structured JSON uses `provenance_class` on each claim. HTML and Markdown may

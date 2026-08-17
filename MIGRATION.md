@@ -27,6 +27,8 @@ until they deliberately adopt a stable Groundnut contract.
 - Typed analytical provenance for external evidence, company assertions,
   analyst calculations, analyst inferences, recommendations, and open
   questions, kept independent from support and authority.
+- Hash-bound calculation formulas, unique named inputs, and checked
+  source-claim references, without upgrading declared arithmetic to support.
 - Denominator-safe mechanical metric envelopes with exact and fuzzy anchor
   populations kept separate.
 - Explicit segmenter identity bound into artifact extraction and canonical run

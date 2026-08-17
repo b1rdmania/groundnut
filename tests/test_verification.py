@@ -1,5 +1,14 @@
 from groundnut.sources import ResolvedSource, SourceReference, SourceResolution
-from groundnut.verification import Claim, anchor_excerpt, verification_metrics, verify_claim
+import pytest
+
+from groundnut.verification import (
+    CalculationInput,
+    CalculationLineage,
+    Claim,
+    anchor_excerpt,
+    verification_metrics,
+    verify_claim,
+)
 
 
 def resolved(reference, text):
@@ -44,6 +53,44 @@ def test_anchor_presence_never_becomes_support():
     assert result.anchor == "found"
     assert result.support == "not_assessed"
     assert "support has not been assessed" in result.note
+
+
+def test_calculation_lineage_is_hash_bound_but_never_becomes_support():
+    lineage = CalculationLineage(
+        formula="arr = customers * annual_price",
+        inputs=(
+            CalculationInput("annual_price", "£12,000", ("price",)),
+            CalculationInput("customers", "5", ("customers",)),
+        ),
+    )
+    claim = Claim(
+        "arr",
+        "Modelled ARR is £60,000.",
+        provenance_class="analyst_calculation",
+        calculation_lineage=lineage,
+    )
+    result = verify_claim(claim, None)
+    payload = result.to_dict()["claim"]["analytical_provenance"]
+
+    assert payload["calculation_lineage_status"] == "declared"
+    assert payload["calculation_lineage"]["formula_sha256"] == lineage.formula_sha256
+    assert [row["name"] for row in payload["calculation_lineage"]["inputs"]] == [
+        "annual_price",
+        "customers",
+    ]
+    assert result.support == "not_assessed"
+
+    metrics = verification_metrics([result])
+    lineage_rate = metrics["rates"]["calculation_lineage_coverage"]
+    assert (lineage_rate["numerator"], lineage_rate["denominator"]) == (1, 1)
+
+    with pytest.raises(ValueError, match="requires analyst_calculation"):
+        Claim(
+            "wrong",
+            "Do this.",
+            provenance_class="recommendation",
+            calculation_lineage=lineage,
+        )
 
 
 def test_fetch_failure_is_not_scored_as_fabrication():

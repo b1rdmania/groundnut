@@ -112,6 +112,9 @@ stages:
 - **Typed analytical provenance** — external evidence, company assertions,
   analyst calculations, analyst inferences, recommendations, and open questions
   remain distinct without changing semantic support.
+- **Hash-bound calculation lineage** — calculations can retain an exact formula,
+  named inputs, and source-claim references while remaining semantically
+  unassessed until the arithmetic and inputs are checked.
 - **Denominator-safe metrics** — every mechanical verification rate carries its
   numerator, denominator, population, and metric class. Exact and fuzzy anchors
   are never collapsed into one validation bucket.
@@ -177,6 +180,7 @@ Thresholds are fixed before holdout scoring.
 | Canonical artifact-to-evidence runner | Landed |
 | Versioned JSON process boundary for non-Python consumers | Landed |
 | Typed analytical provenance across artifact, support and authority layers | Landed |
+| Hash-bound formula and named-input lineage for analyst calculations | Landed |
 | Metric envelopes and separate fuzzy-anchor population | Landed |
 | Explicit segmenter identity in extraction and run manifest | Landed |
 | Frozen-policy arena and offline adjudication CLI | Landed |
