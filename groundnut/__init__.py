@@ -30,6 +30,12 @@ from .arena import (
     Ruling,
     adjudicate,
 )
+from .arena_emission import (
+    ArenaEmissionProfile,
+    ArenaTaskEmission,
+    DEFAULT_ARENA_EMISSION_PROFILE,
+    emit_arena_tasks,
+)
 from .registry import DomainRegistry
 from .parity import ParityComparison, compare_analysis, semantic_projection
 from .support import (
@@ -101,8 +107,10 @@ __all__ = [
     "ArtifactProfile",
     "AttestedSpanSeed",
     "ArenaPolicy",
+    "ArenaEmissionProfile",
     "ArenaReport",
     "ArenaTask",
+    "ArenaTaskEmission",
     "Attack",
     "Category",
     "CaseProvenance",
@@ -113,6 +121,7 @@ __all__ = [
     "CoverageManifest",
     "DocumentType",
     "DEFAULT_ARTIFACT_PROFILE",
+    "DEFAULT_ARENA_EMISSION_PROFILE",
     "DomainDigest",
     "DetectorDecision",
     "DetectorIdentity",
@@ -169,6 +178,7 @@ __all__ = [
     "build_pilot_probe",
     "import_legalbenchrag",
     "evaluate_support_admission",
+    "emit_arena_tasks",
     "extract_artifact",
     "load_support_seeds",
     "prepare_review_manifest",

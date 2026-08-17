@@ -81,6 +81,21 @@ class ArenaTask:
     assertion: str
     context: str
     location: str
+    trigger: str | None = None
+    section: int | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        value: dict[str, Any] = {
+            "task_id": self.task_id,
+            "assertion": self.assertion,
+            "context": self.context,
+            "location": self.location,
+        }
+        if self.trigger is not None:
+            value["trigger"] = self.trigger
+        if self.section is not None:
+            value["section"] = self.section
+        return value
 
 
 @dataclass(frozen=True)
@@ -150,12 +165,7 @@ class ArenaReport:
             "totals": {"tasks": len(self.findings), **totals},
             "findings": [
                 {
-                    "task": {
-                        "task_id": row.task.task_id,
-                        "assertion": row.task.assertion,
-                        "context": row.task.context,
-                        "location": row.task.location,
-                    },
+                    "task": row.task.to_dict(),
                     "verdict": row.verdict,
                     "attacks": [
                         {

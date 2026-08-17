@@ -149,6 +149,19 @@ result sorts claim identities, derives completeness and metrics from the rows,
 and rejects mixed policies or mismatched mechanical/semantic identities. Its
 self-hashed report is a first-class run-manifest artifact.
 
+## Arena task emission
+
+`groundnut-arena-emission-profile/v1` freezes the mechanical rules that turn
+inferential, derived, and absence-based conclusions into adversarial-review
+tasks. Emission binds the input and profile hashes, gives each task a stable
+order-derived identity, and draws context only from the same rendered section.
+This prevents evidence from a neighbouring slide or heading from silently
+supporting a conclusion.
+
+Emission and adjudication are separate. The emitter proposes what should be
+attacked; `groundnut-arena-report/v1` still decides attacks and rulings under a
+different frozen policy and retains unattacked, unruled, and withheld states.
+
 ## Gate roles
 
 The original four-criterion CUAD gate is the compatibility pipeline's
