@@ -40,6 +40,16 @@ Missing work fails closed, family disagreement is `withheld`, and a report
 passes only when every task `stands`. The frozen policy hash travels with the
 report so thresholds and lenses cannot be selected after seeing the outcome.
 
+## Claim verification
+
+Mechanical verification reports citation coverage, source accessibility, and
+excerpt anchoring separately. Exact/normalised matching is followed by a fuzzy
+bigram window with a numeric guard, so `$14.2M` cannot pass against `$4.2M`
+through character similarity alone. An anchored excerpt always carries
+`support: not_assessed`; presence is not entailment or truth. Semantic judges
+may consume that record through an adapter but cannot rewrite its mechanical
+provenance.
+
 ## Evidence maturity
 
 Changing configuration demonstrates portability, not quality. Every domain

@@ -25,6 +25,14 @@ from .arena import (
     adjudicate,
 )
 from .registry import DomainRegistry
+from .verification import (
+    Claim,
+    MatchOutcome,
+    VerifiedClaim,
+    anchor_excerpt,
+    verification_metrics,
+    verify_claim,
+)
 
 __all__ = [
     "AnalysisResult",
@@ -33,6 +41,7 @@ __all__ = [
     "ArenaTask",
     "Attack",
     "Category",
+    "Claim",
     "CheckCoverage",
     "CoverageManifest",
     "DocumentType",
@@ -41,6 +50,7 @@ __all__ = [
     "DomainRegistry",
     "FileResolver",
     "HttpResolver",
+    "MatchOutcome",
     "ResolvedSource",
     "Ruling",
     "SnapshotStore",
@@ -48,7 +58,11 @@ __all__ = [
     "SourceReference",
     "SourceRecord",
     "SourceResolution",
+    "VerifiedClaim",
     "analyse_text",
     "adjudicate",
     "anchor_quote",
+    "anchor_excerpt",
+    "verification_metrics",
+    "verify_claim",
 ]
