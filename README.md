@@ -55,7 +55,18 @@ Best recorded run (`runs/predictions-claude-opus-4.8-agent`, dev-80):
 
 **GATE: FAIL.** That is the honest state and it stays in the README until it isn't.
 
-The one number that has never wavered: **quote-grounding is 1.0000 across 5,101 predictions**, spanning two pipelines and two corpora. Every quote the engine has ever returned exists verbatim in its source document. That is a provenance guarantee — the quote is real — not a truth guarantee: retrieval can be incomplete, a source can be wrong, and a correctly-quoted span can still be the wrong span.
+### On the grounding number ⚠️
+
+Filtered runs score 1.0000 on quote-grounding, and that figure is **worth nothing on its own** — `pipeline/extract.py` drops any span that isn't an exact substring of its source before findings are recorded. On a filtered run, grounding is 1.0 by construction. It measures the filter.
+
+The number that means something comes from the runs with **no** verbatim filter: **0.9744** (Opus 4.8) and **0.9665** (Sonnet 5). So there are two separate claims, and they should never be merged:
+
+- **Architectural** — the pipeline cannot emit an ungrounded quote. Unmatched spans are dropped at extraction. A design guarantee, not evidence about the model.
+- **Empirical** — unfiltered, frontier models return verbatim quotes **~97%** of the time. The remaining ~3% is what the filter exists for.
+
+Both are provenance claims, not truth claims: retrieval can be incomplete, a source can be wrong, and a correctly-quoted span can still be the wrong span.
+
+Caveat on the ~97%: it comes from agent runs (whole-document context, no temperature pinning, non-API protocol) that `LOG.md` calls *indicative, not API-reproducible*. It has not been established under a reproducible API run.
 
 ## Open questions 🔍
 
