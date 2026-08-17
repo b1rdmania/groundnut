@@ -25,6 +25,7 @@ from .arena import (
     adjudicate,
 )
 from .registry import DomainRegistry
+from .parity import ParityComparison, compare_analysis, semantic_projection
 from .verification import (
     Claim,
     MatchOutcome,
@@ -51,6 +52,7 @@ __all__ = [
     "FileResolver",
     "HttpResolver",
     "MatchOutcome",
+    "ParityComparison",
     "ResolvedSource",
     "Ruling",
     "SnapshotStore",
@@ -63,6 +65,8 @@ __all__ = [
     "adjudicate",
     "anchor_quote",
     "anchor_excerpt",
+    "compare_analysis",
+    "semantic_projection",
     "verification_metrics",
     "verify_claim",
 ]

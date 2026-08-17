@@ -15,7 +15,14 @@ until they deliberately adopt a stable Groundnut contract.
 - Local/HTTP source resolvers with honest failure states and verified snapshots.
 - Frozen-policy adversarial arena with distinct-family/session rulings,
   withheld disagreement, and fail-closed incomplete work.
+- Offline arena consumer with CI-safe exit semantics; hosts decide what to do
+  with its immutable report.
 - Raw corpus-manifest hash enforcement.
+
+The widened method-layer scope is a dated decision in `ARCHITECTURE.md`. It
+does not move the stop line: no auth, application persistence, credential
+custody, UI, deployment policy, or sign-off authority belongs here. Tests are
+offline by contract and acquisition adapters are always invoked explicitly.
 
 ## Next extraction from the deployment
 
@@ -26,7 +33,8 @@ until they deliberately adopt a stable Groundnut contract.
 4. Define a host gateway protocol for model invocation, retries, usage, and
    privilege decisions without importing application sessions or users.
 5. Replace the deployment's copied diligence modules with an adapter over the
-   released Groundnut package; pin output parity before deleting either path.
+   released Groundnut package only after the pre-adapter contract in
+   `PARITY.md` passes; pin semantic output parity before deleting either path.
 
 Authentication, database models, audit-chain persistence, sign-off workflow,
 and UI remain host concerns. Groundnut may produce hashable artifacts for those

@@ -39,6 +39,11 @@ harness/gate.sh dev --pred-root runs/predictions-claude-opus-4.8-agent
 
 # canonical domain-pack run
 python3 -m pipeline.run --domain trust_obligations --in contracts --out results
+
+# offline adversarial adjudication: 0 pass, 1 reviewed/non-pass, 2 bad input
+python3 -m groundnut.arena_cli --policy policies/canonical-arena-v1.json \
+  --tasks tasks.jsonl --attacks attacks.jsonl --rulings rulings.jsonl \
+  --out arena-report.json
 ```
 
 Holdout is rate-limited to one run per 6 hours and is **currently unspent**. Don't spend it until something passes dev.
@@ -131,7 +136,10 @@ Groundnut is the engine. Things built on it live elsewhere and call in:
 - **Atlas**, **dealroom** — Legalise deployments.
 
 Groundnut has no auth, application database, or UI. Hosts own those concerns;
-Groundnut owns the portable method, provenance, and evaluation contracts. 🥜
+Groundnut owns the portable method, provenance, and evaluation contracts. The
+wider method-layer boundary and its hard stop are recorded in
+[`ARCHITECTURE.md`](./ARCHITECTURE.md); the pre-adapter Atlas equivalence gate
+is frozen in [`PARITY.md`](./PARITY.md). 🥜
 
 ## Licence & attribution ⚖️
 

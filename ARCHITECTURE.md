@@ -12,6 +12,14 @@ result is `incomplete`.
 
 ## Boundary
 
+### Scope decision — 17 August 2026
+
+Groundnut's remit is deliberately wider than extraction alone. It is the
+canonical, reusable method layer: pure analysis and verification functions,
+versioned domain and policy inputs, deterministic artifacts, and explicit
+adapters that acquire source material. This is a recorded scope decision, not
+permission for the engine to absorb deployment concerns.
+
 Groundnut owns:
 
 - domain-pack validation and versioned playbook hashes;
@@ -24,6 +32,12 @@ Hosts own authentication, persistence, credentials, user interfaces, and the
 decision to sign or publish an output. Source connectors implement Groundnut's
 acquisition interface; uploaded files and live web sources enter the same
 normalized source record after acquisition.
+
+The stop line is identity and authorization, application databases, credential
+custody, UI, deployment-specific policy, and human-signature authority.
+Groundnut may produce a hashable artifact for those systems to store or sign;
+it never decides who can do either. Adapters are opt-in edges: importing or
+running analysis never performs an implicit network request.
 
 The built-in adapters cover local text and simple HTTP text/HTML. Paywalls,
 unreachable sources, and unsupported PDFs remain explicit failure states.
@@ -39,6 +53,20 @@ per frozen policy lens and rulings from distinct families and sessions.
 Missing work fails closed, family disagreement is `withheld`, and a report
 passes only when every task `stands`. The frozen policy hash travels with the
 report so thresholds and lenses cannot be selected after seeing the outcome.
+
+Its concrete consumer is the offline `python -m groundnut.arena_cli` command.
+The command consumes frozen JSON/JSONL artifacts, writes a deterministic report,
+and exits 0 only when every task stands, 1 for a valid non-passing report, and 2
+for invalid input. A host or CI job may act on that status; Groundnut does not
+publish, approve, or mutate host workflow state.
+
+## Determinism
+
+The test suite must never touch the network. Network access is blocked by an
+autouse test fixture; resolver tests inject a fake opener. Live acquisition is
+an explicit runtime operation whose normalized bytes should be snapshotted
+before downstream analysis. Model parity tests likewise replay recorded or
+synthetic responses rather than calling a live model.
 
 ## Claim verification
 
