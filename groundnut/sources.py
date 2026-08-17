@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 import json
+import hashlib
 from pathlib import Path
 from typing import Callable, Protocol
 import urllib.error
@@ -188,6 +189,9 @@ class SnapshotStore:
     def path_for(self, uri: str) -> Path:
         return self.directory / f"{self.key(uri)}.json"
 
+    def contains(self, reference: SourceReference) -> bool:
+        return self.path_for(reference.uri).is_file()
+
     def archive(self, source: ResolvedSource) -> Path:
         self.directory.mkdir(parents=True, exist_ok=True)
         path = self.path_for(source.reference.uri)
@@ -234,3 +238,117 @@ class SnapshotStore:
                 media_type=value.get("media_type"),
             )
         )
+
+
+@dataclass(frozen=True)
+class SourceAcquisition:
+    resolution: SourceResolution
+    mode: str
+    strategy: str
+    snapshot_sha256: str | None
+    live_attempted: bool
+
+    def __post_init__(self) -> None:
+        if self.mode not in SnapshotFirstResolver.MODES:
+            raise ValueError(f"unknown source acquisition mode: {self.mode}")
+        if self.strategy not in {"snapshot", "live_archived", "live_failed", "snapshot_missing", "snapshot_invalid"}:
+            raise ValueError(f"unknown source acquisition strategy: {self.strategy}")
+
+    def to_dict(self) -> dict:
+        source = self.resolution.source
+        return {
+            "schema": "groundnut-source-acquisition/v1",
+            "mode": self.mode,
+            "strategy": self.strategy,
+            "snapshot_sha256": self.snapshot_sha256,
+            "live_attempted": self.live_attempted,
+            "result": {
+                "ok": self.resolution.ok,
+                "source_id": source.reference.source_id if source else None,
+                "uri": source.reference.uri if source else None,
+                "source_sha256": source.record.sha256 if source else None,
+                "failure": self.resolution.failure,
+                "detail": self.resolution.detail,
+            },
+        }
+
+
+class SnapshotFirstResolver:
+    """Explicit replay-first orchestration over a snapshot store and resolver.
+
+    `replay_only` never invokes the live resolver. `snapshot_preferred` invokes
+    it only when no snapshot exists and archives a successful result. A present
+    but invalid snapshot fails closed instead of being hidden by a live fetch.
+    `refresh` explicitly bypasses an existing snapshot and replaces it only
+    after a successful live resolution.
+    """
+
+    MODES = {"replay_only", "snapshot_preferred", "refresh"}
+
+    def __init__(
+        self,
+        snapshots: SnapshotStore,
+        live: SourceResolver | None = None,
+        *,
+        mode: str = "replay_only",
+    ) -> None:
+        if mode not in self.MODES:
+            raise ValueError(f"unknown snapshot-first mode: {mode}")
+        if mode != "replay_only" and live is None:
+            raise ValueError(f"{mode} mode requires a live resolver")
+        self.snapshots = snapshots
+        self.live = live
+        self.mode = mode
+
+    def acquire(self, reference: SourceReference) -> SourceAcquisition:
+        exists = self.snapshots.contains(reference)
+        if self.mode != "refresh" and exists:
+            resolution = self.snapshots.load(reference)
+            return SourceAcquisition(
+                resolution=resolution,
+                mode=self.mode,
+                strategy="snapshot" if resolution.ok else "snapshot_invalid",
+                snapshot_sha256=_file_sha256(self.snapshots.path_for(reference.uri)),
+                live_attempted=False,
+            )
+        if self.mode == "replay_only":
+            return SourceAcquisition(
+                resolution=SourceResolution(
+                    source=None,
+                    failure="source_unreachable",
+                    detail="snapshot_missing",
+                ),
+                mode=self.mode,
+                strategy="snapshot_missing",
+                snapshot_sha256=None,
+                live_attempted=False,
+            )
+        assert self.live is not None
+        resolution = self.live.resolve(reference)
+        if not resolution.ok:
+            return SourceAcquisition(
+                resolution=resolution,
+                mode=self.mode,
+                strategy="live_failed",
+                snapshot_sha256=(
+                    _file_sha256(self.snapshots.path_for(reference.uri))
+                    if exists
+                    else None
+                ),
+                live_attempted=True,
+            )
+        path = self.snapshots.archive(resolution.source)
+        return SourceAcquisition(
+            resolution=resolution,
+            mode=self.mode,
+            strategy="live_archived",
+            snapshot_sha256=_file_sha256(path),
+            live_attempted=True,
+        )
+
+    def resolve(self, reference: SourceReference) -> SourceResolution:
+        return self.acquire(reference).resolution
+
+
+def _file_sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()

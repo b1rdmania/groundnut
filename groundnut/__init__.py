@@ -13,12 +13,24 @@ from .artifacts import (
 )
 from .engine import AnalysisResult, analyse_text
 from .coverage import CheckCoverage, CoverageManifest
+from .authority import (
+    AUTHORITY_KINDS,
+    AuthorityAssessment,
+    AuthorityDeclaration,
+    AuthorityPolicy,
+    ClaimEvidenceAccount,
+    ClaimEvidenceReport,
+    account_for_claim_check,
+    assess_evidence_authority,
+)
 from .provenance import SourceAnchor, SourceRecord, anchor_quote
 from .sources import (
     FileResolver,
     HttpResolver,
     ResolvedSource,
     SnapshotStore,
+    SnapshotFirstResolver,
+    SourceAcquisition,
     SourceReference,
     SourceResolution,
 )
@@ -101,10 +113,14 @@ from .verification import (
 
 __all__ = [
     "AnalysisResult",
+    "AUTHORITY_KINDS",
     "AnnotationBundle",
     "ArtifactDigest",
     "ArtifactExtraction",
     "ArtifactProfile",
+    "AuthorityAssessment",
+    "AuthorityDeclaration",
+    "AuthorityPolicy",
     "AttestedSpanSeed",
     "ArenaPolicy",
     "ArenaEmissionProfile",
@@ -117,6 +133,8 @@ __all__ = [
     "Claim",
     "ClaimAssessment",
     "ClaimCheckReport",
+    "ClaimEvidenceAccount",
+    "ClaimEvidenceReport",
     "CheckCoverage",
     "CoverageManifest",
     "DocumentType",
@@ -147,6 +165,8 @@ __all__ = [
     "RunManifest",
     "RuntimeComponent",
     "SnapshotStore",
+    "SnapshotFirstResolver",
+    "SourceAcquisition",
     "SourceAnchor",
     "SourceDigest",
     "source_tree_sha256",
@@ -167,8 +187,10 @@ __all__ = [
     "VerifiedClaim",
     "LettuceDetectAdapter",
     "analyse_text",
+    "account_for_claim_check",
     "adjudicate",
     "assess_claim_support",
+    "assess_evidence_authority",
     "anchor_quote",
     "apply_review_decisions_tsv",
     "anchor_excerpt",
