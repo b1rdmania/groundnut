@@ -64,18 +64,55 @@ requires every group member to share the source ID/hash, original offsets and
 text, and question. Context windows are computed from that shared original
 span, never by searching for a derived claim that may be absent.
 
-Case files are JSONL using `groundnut-support-case/v1`. The loader verifies
-schema, group completeness, source hashes, original offsets, presence/absence
-conditions, unique IDs, and a stable order-independent manifest hash. Gold rows
-feed the one-to-one `score_support` scorer, where missing predictions count as
-wrong and extra predictions are rejected.
+Case files are JSONL using `groundnut-support-case/v2`. Every row carries
+`attested`, `derived`, `authored`, or `model_authored` provenance, including
+its source record, construction method, parents, reviewers, and disclosure.
+Model-authored rows cannot enter a probe without a recorded human reviewer;
+contradictions require derived provenance; and supported verbatim rows require
+attestation. Paraphrase token overlap is recorded deterministically so a
+generated positive class cannot be made trivially easy without showing it.
 
-`run_support_probe` executes any frozen detector over those cases. It derives
+The loader verifies schema, group completeness, source hashes, original
+offsets, presence/absence conditions, unique IDs, and a stable
+order-independent manifest hash. Gold rows feed the one-to-one `score_support`
+scorer, where missing predictions count as wrong and extra predictions are
+rejected.
+
+## Benchmark construction and review
+
+`scripts/import_legalbenchrag.py` imports the upstream LegalBench-RAG shape
+(`tests[].query`, `tests[].snippets[].file_path`, and character `span`) into
+`groundnut-support-seed/v1`. It checks every offset against the actual source
+text and excludes any document whose text SHA-256 occurs in Groundnut's holdout
+manifest. The resulting source-pool and excluded-pool hashes become inputs to
+the frozen probe plan.
+
+Imported spans remain seeds, not automatic four-cell gold. The upstream span
+link is expert-derived while some query wording is generated, and that
+distinction stays in provenance. A different-query span from the same document
+is a useful `present_irrelevant` candidate, but it requires adjudication because
+one legal clause can answer more than one question.
+
+`groundnut-evidence-annotation/v1` is the workbench interchange. It preserves
+source hashes and offsets, creator kind (`human`, `dataset`, `analyzer`, or
+`agent`), review state, reviewers, and relationships. This maps cleanly onto
+OpenContracts' document/annotation/relationship model without requiring the
+Groundnut engine to run its Django stack. Only accepted annotations can become
+attested support seeds, and accepted non-human annotations require a human
+reviewer. See [`ANNOTATION.md`](./ANNOTATION.md).
+
+`run_support_probe` executes any frozen detector over those cases only under a
+`groundnut-support-probe-plan/v1`. The plan freezes N, sampling seed, the exact
+probe hash, source and exclusion pool hashes, context size, baseline and
+detector policy keys, primary metric, minimum meaningful improvement, and
+permitted paraphrase-overlap band
+before a learned detector runs. The runner derives
 every context from the original offsets, records a hash and length for each
 window, binds detector and policy identity to every assessment, computes the
-one-to-one score, and emits a self-hashed `groundnut-support-probe-run/v1`
+one-to-one score, and emits a self-hashed `groundnut-support-probe-run/v2`
 artifact. Mixed policies, mismatched context hashes, source tampering, missing
-case IDs, and duplicate IDs fail before a result can be accepted.
+case IDs, duplicate IDs, post-hoc sample-size changes, and unregistered policies
+fail before a result can be accepted.
 
 ## Adapter admission
 

@@ -9,6 +9,7 @@ import re
 from typing import Any, Mapping
 
 from .provenance import sha256_text
+from .probe_plan import SupportProbePlan
 from .sources import ResolvedSource, SourceReference, SourceResolution
 from .support import (
     DETECTOR_LABELS,
@@ -48,6 +49,8 @@ class ProbeContextDigest:
 
 @dataclass(frozen=True)
 class SupportProbeRun:
+    plan_key: str
+    plan_sha256: str
     probe_sha256: str
     max_context_characters: int
     policy_key: str
@@ -71,12 +74,13 @@ class SupportProbeRun:
         )
         if self.max_context_characters < 1:
             raise ValueError("probe context size must be positive")
-        if not _SHA256.fullmatch(self.probe_sha256) or not _SHA256.fullmatch(
-            self.policy_sha256
+        if not all(
+            _SHA256.fullmatch(value)
+            for value in (self.plan_sha256, self.probe_sha256, self.policy_sha256)
         ):
-            raise ValueError("probe and policy hashes must be lowercase SHA-256")
-        if not self.policy_key.strip():
-            raise ValueError("probe run policy key is required")
+            raise ValueError("plan, probe, and policy hashes must be lowercase SHA-256")
+        if not self.plan_key.strip() or not self.policy_key.strip():
+            raise ValueError("probe run plan and policy keys are required")
         expected = [row.case_id for row in self.gold]
         contexts = [row.case_id for row in self.contexts]
         actual = [row.support.claim_id for row in self.assessments]
@@ -112,7 +116,8 @@ class SupportProbeRun:
 
     def canonical_payload(self) -> dict[str, Any]:
         return {
-            "schema": "groundnut-support-probe-run/v1",
+            "schema": "groundnut-support-probe-run/v2",
+            "plan": {"key": self.plan_key, "sha256": self.plan_sha256},
             "probe_sha256": self.probe_sha256,
             "max_context_characters": self.max_context_characters,
             "policy": {"key": self.policy_key, "sha256": self.policy_sha256},
@@ -147,8 +152,15 @@ def run_support_probe(
     max_context_characters: int,
     detector: SupportDetector,
     policy: SupportPolicy,
+    plan: SupportProbePlan,
 ) -> SupportProbeRun:
     """Run one frozen detector over source-identical paired probe windows."""
+    plan.validate_probe(probe.sha256, probe.group_count)
+    if max_context_characters != plan.max_context_characters:
+        raise ValueError("probe context size differs from frozen plan")
+    admitted_policies = set(plan.baseline_policy_keys) | set(plan.detector_policy_keys)
+    if policy.key not in admitted_policies:
+        raise ValueError(f"policy is not frozen in probe plan: {policy.key}")
     contexts = probe.contexts(sources, max_context_characters)
     context_digests = []
     assessments = []
@@ -188,6 +200,8 @@ def run_support_probe(
         )
         assessments.append(assessment)
     return SupportProbeRun(
+        plan_key=plan.key,
+        plan_sha256=plan.sha256,
         probe_sha256=probe.sha256,
         max_context_characters=max_context_characters,
         policy_key=policy.key,

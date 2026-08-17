@@ -81,15 +81,17 @@ experimental domain pack can be portable without being accurate. Reports keep
 those uncertainties visible instead of compressing them into one confidence
 score.
 
-Groundnut also does not own authentication, application databases, credential
-custody, UI, publishing, or human sign-off. Hosts may store or sign its hashable
-artifacts, but the engine never decides who is authorised to do so.
+Groundnut is not constrained to a small library. It may grow first-party corpus,
+annotation, adjudication, persistence, and operator surfaces when they make the
+checking system materially more reliable. Deployment identity, credential
+custody, publication authority, and final human sign-off remain explicit
+boundaries rather than conclusions the checker can manufacture.
 
-## Lean core, optional detectors
+## Measured components, optional detectors
 
 Groundnut should not train or vendor a new hallucination model when a maintained
-permissively licensed component can satisfy a measured interface. The core
-remains deterministic and lightweight; model-backed checkers belong behind
+permissively licensed component can satisfy a measured interface. The canonical
+decision path remains deterministic; model-backed checkers belong behind
 optional adapters whose raw outputs, model revision, package version, input
 hashes, and thresholds are recorded.
 
@@ -126,7 +128,10 @@ Thresholds are fixed before holdout scoring.
 | Frozen-policy arena and offline adjudication CLI | Landed |
 | Benchmark-only LettuceDetect and MiniCheck adapters | Landed; no model adopted |
 | Reproducible paired-probe runner and score artifact | Landed |
-| Labelled domain support cases | Next measurement tranche |
+| Provenance-rich case and frozen preregistration contracts | Landed |
+| LegalBench-RAG seed importer with source-hash holdout exclusion | Landed |
+| OpenContracts-compatible annotation interchange | Landed |
+| Adjudicated four-cell support cases | Next measurement tranche |
 | Controlled chunking and largest-document merge comparison | Required before changing chunking |
 | IC research integration and product/OS ports | Deferred consumers |
 
@@ -254,6 +259,7 @@ ARCHITECTURE.md 🏗️ scope, invariants, boundaries, and deterministic contrac
 MIGRATION.md  🧭 canonical-engine priorities and deferred consumers
 PARITY.md     🟰 semantic equivalence contract for any future host adapter
 SUPPORT.md    🧪 semantic outcomes, paired probes, and detector admission
+ANNOTATION.md 🖍️ LegalBench-RAG seeds and OpenContracts review interchange
 ```
 
 ## Relationship to downstream work 🔌
@@ -263,10 +269,12 @@ IC research is a future proving ground once the core is tight. Product v2s,
 operating-system ports, and open-source packaging are optional later decisions,
 not present milestones.
 
-Groundnut has no auth, application database, or UI. Hosts own those concerns;
-Groundnut owns the portable method, provenance, and evaluation contracts. Its
-boundary is recorded in [`ARCHITECTURE.md`](./ARCHITECTURE.md), and any future
-host replacement must first satisfy [`PARITY.md`](./PARITY.md). 🥜
+Groundnut may grow an annotation workbench, corpus store, or operator UI where
+that closes a measured reliability gap; size is not a design constraint.
+Groundnut owns the portable checking method, provenance, and evaluation
+contracts. Identity, secret custody, publication authority, and final sign-off
+must remain explicit. The boundary is recorded in
+[`ARCHITECTURE.md`](./ARCHITECTURE.md). 🥜
 
 ## Licence & attribution ⚖️
 

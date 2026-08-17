@@ -19,14 +19,76 @@ from .provenance import sha256_text
 from .support_eval import SupportGold
 
 
-CASE_SCHEMA = "groundnut-support-case/v1"
+CASE_SCHEMA = "groundnut-support-case/v2"
 CASE_KINDS = {
     "verbatim_supported": "supported",
     "paraphrase_supported": "supported",
     "contradicted": "contradicted",
     "present_irrelevant": "insufficient",
 }
+PROVENANCE_KINDS = {
+    "attested",
+    "derived",
+    "authored",
+    "model_authored",
+}
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+
+
+@dataclass(frozen=True)
+class CaseProvenance:
+    """Why a support-case label exists and who has accepted it.
+
+    `attested` covers imported expert annotations, `derived` covers a recorded
+    deterministic transform, and authored cases distinguish human and model
+    authorship. Model-authored cases cannot enter a probe without a human
+    reviewer recorded here.
+    """
+
+    kind: str
+    source: str
+    source_record_id: str
+    method: str
+    parent_case_ids: tuple[str, ...] = ()
+    reviewed_by: tuple[str, ...] = ()
+    note: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "parent_case_ids", tuple(self.parent_case_ids))
+        object.__setattr__(self, "reviewed_by", tuple(self.reviewed_by))
+        if self.kind not in PROVENANCE_KINDS:
+            raise ValueError(f"unknown support-case provenance kind: {self.kind}")
+        if not all(value.strip() for value in (self.source, self.source_record_id, self.method)):
+            raise ValueError("support-case provenance source, record, and method are required")
+        if any(not value.strip() for value in self.parent_case_ids + self.reviewed_by):
+            raise ValueError("support-case provenance identifiers cannot be blank")
+        if self.kind == "derived" and not self.parent_case_ids:
+            raise ValueError("derived support cases require at least one parent case")
+        if self.kind == "model_authored" and not self.reviewed_by:
+            raise ValueError("model-authored support cases require human review")
+
+    def canonical_payload(self) -> dict[str, Any]:
+        return {
+            "kind": self.kind,
+            "source": self.source,
+            "source_record_id": self.source_record_id,
+            "method": self.method,
+            "parent_case_ids": list(self.parent_case_ids),
+            "reviewed_by": list(self.reviewed_by),
+            "note": self.note,
+        }
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> "CaseProvenance":
+        return cls(
+            kind=str(value["kind"]),
+            source=str(value["source"]),
+            source_record_id=str(value["source_record_id"]),
+            method=str(value["method"]),
+            parent_case_ids=tuple(str(item) for item in value.get("parent_case_ids", ())),
+            reviewed_by=tuple(str(item) for item in value.get("reviewed_by", ())),
+            note=None if value.get("note") is None else str(value["note"]),
+        )
 
 
 @dataclass(frozen=True)
@@ -42,6 +104,7 @@ class SupportCase:
     original_text: str
     question: str
     claim_text: str
+    provenance: CaseProvenance
     schema: str = CASE_SCHEMA
 
     def __post_init__(self) -> None:
@@ -74,6 +137,15 @@ class SupportCase:
             raise ValueError("support-case original text length does not match offsets")
         if self.kind == "verbatim_supported" and self.claim_text != self.original_text:
             raise ValueError("verbatim_supported claim must equal the original span")
+        if self.kind == "verbatim_supported" and self.provenance.kind != "attested":
+            raise ValueError("verbatim_supported cases require attested provenance")
+        if self.kind == "contradicted" and self.provenance.kind != "derived":
+            raise ValueError("contradicted cases require derived provenance")
+        if self.kind == "paraphrase_supported" and self.provenance.kind not in {
+            "authored",
+            "model_authored",
+        }:
+            raise ValueError("paraphrase_supported cases require authored provenance")
 
     def canonical_payload(self) -> dict[str, Any]:
         return {
@@ -89,7 +161,17 @@ class SupportCase:
             "original_text": self.original_text,
             "question": self.question,
             "claim_text": self.claim_text,
+            "provenance": self.provenance.canonical_payload(),
+            "lexical_overlap": self.lexical_overlap,
         }
+
+    @property
+    def lexical_overlap(self) -> float:
+        """Order-insensitive token Jaccard, recorded to expose easy paraphrases."""
+        original = set(re.findall(r"\w+", self.original_text.casefold()))
+        claim = set(re.findall(r"\w+", self.claim_text.casefold()))
+        union = original | claim
+        return 1.0 if not union else round(len(original & claim) / len(union), 6)
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> "SupportCase":
@@ -106,6 +188,7 @@ class SupportCase:
             original_text=str(value["original_text"]),
             question=str(value["question"]),
             claim_text=str(value["claim_text"]),
+            provenance=CaseProvenance.from_mapping(value["provenance"]),
         )
 
     def validate_source(self, source_text: str) -> None:
@@ -176,6 +259,10 @@ class SupportProbe:
         ]
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
         return hashlib.sha256(encoded).hexdigest()
+
+    @property
+    def group_count(self) -> int:
+        return len({case.group_id for case in self.cases})
 
     @classmethod
     def from_jsonl(cls, path: str | Path) -> "SupportProbe":

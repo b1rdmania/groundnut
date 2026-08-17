@@ -5,7 +5,12 @@ import pytest
 from groundnut.provenance import sha256_text
 from groundnut.sources import ResolvedSource, SourceReference, SourceResolution
 from groundnut.support import ExactSupportDetector, SupportPolicy, assess_claim_support
-from groundnut.support_cases import CASE_KINDS, SupportCase, SupportProbe
+from groundnut.support_cases import (
+    CASE_KINDS,
+    CaseProvenance,
+    SupportCase,
+    SupportProbe,
+)
 from groundnut.support_eval import score_support
 from groundnut.verification import Claim, verify_claim
 
@@ -31,6 +36,12 @@ CLAIMS = {
 
 def case(kind, *, group="g1", question=QUESTION, start=START):
     original = SOURCE[start : start + len(ORIGINAL)]
+    provenance_kind = {
+        "verbatim_supported": "attested",
+        "paraphrase_supported": "authored",
+        "contradicted": "derived",
+        "present_irrelevant": "attested",
+    }[kind]
     return SupportCase(
         case_id=f"{group}-{kind}",
         group_id=group,
@@ -43,6 +54,16 @@ def case(kind, *, group="g1", question=QUESTION, start=START):
         original_text=original,
         question=question,
         claim_text=CLAIMS[kind],
+        provenance=CaseProvenance(
+            kind=provenance_kind,
+            source="test-fixture",
+            source_record_id=f"{group}:{kind}",
+            method="test construction",
+            parent_case_ids=(f"{group}-verbatim_supported",)
+            if provenance_kind == "derived"
+            else (),
+            reviewed_by=("test-reviewer",) if provenance_kind == "model_authored" else (),
+        ),
     )
 
 
@@ -75,12 +96,10 @@ def test_source_validation_makes_substring_baseline_non_trivial():
 
 def test_source_validation_rejects_circular_or_tampered_cases():
     bad_paraphrase = case("paraphrase_supported")
-    bad_paraphrase = SupportCase(
-        **{
-            **bad_paraphrase.canonical_payload(),
-            "claim_text": ORIGINAL,
-        }
-    )
+    bad_payload = bad_paraphrase.canonical_payload()
+    bad_payload.pop("lexical_overlap")
+    bad_payload["claim_text"] = ORIGINAL
+    bad_paraphrase = SupportCase.from_mapping(bad_payload)
     with pytest.raises(ValueError, match="must be absent"):
         bad_paraphrase.validate_source(SOURCE)
 
@@ -101,6 +120,24 @@ def test_manifest_hash_is_order_independent_and_gold_keeps_kinds():
 
     assert first.sha256 == second.sha256
     assert {row.kind for row in first.gold()} == set(CASE_KINDS)
+    paraphrase = next(row for row in first.cases if row.kind == "paraphrase_supported")
+    assert 0 < paraphrase.lexical_overlap < 1
+
+
+def test_provenance_prevents_unreviewed_or_mislabelled_cases():
+    with pytest.raises(ValueError, match="human review"):
+        CaseProvenance(
+            kind="model_authored",
+            source="generator",
+            source_record_id="p1",
+            method="prompt-v1",
+        )
+
+    payload = case("contradicted").canonical_payload()
+    payload.pop("lexical_overlap")
+    payload["provenance"] = case("verbatim_supported").provenance.canonical_payload()
+    with pytest.raises(ValueError, match="derived provenance"):
+        SupportCase.from_mapping(payload)
 
 
 def test_exact_baseline_cannot_solve_the_four_cell_probe():

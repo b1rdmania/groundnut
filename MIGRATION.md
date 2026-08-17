@@ -30,11 +30,18 @@ until they deliberately adopt a stable Groundnut contract.
   configuration identity and conservative non-truth mappings.
 - Reproducible paired-probe execution with per-context hashes, one-to-one
   scoring, strict identity checks, and a self-hashed benchmark artifact.
+- Provenance-rich support cases, contamination-safe LegalBench-RAG seed
+  import, and an OpenContracts-compatible annotation/review interchange.
+- Frozen support-probe preregistration binding N, the exact probe, sample
+  pools, context, policies, metric, meaningful difference, and paraphrase-
+  overlap bounds.
 
-The widened method-layer scope is a dated decision in `ARCHITECTURE.md`. It
-does not move the stop line: no auth, application persistence, credential
-custody, UI, deployment policy, or sign-off authority belongs here. Tests are
-offline by contract and acquisition adapters are always invoked explicitly.
+The widened system scope is a dated decision in `ARCHITECTURE.md`. Groundnut
+may grow persistence and operator/review surfaces where they close a measured
+checking gap; size is not a constraint. The stop line is authority: identity,
+credential use, publication, and sign-off require explicit deployment or human
+policy. Tests are offline by contract and acquisition adapters are always
+invoked explicitly.
 
 ## Canonical-engine priority
 
@@ -51,9 +58,9 @@ offline by contract and acquisition adapters are always invoked explicitly.
 5. Keep the compatibility pipeline stable while the canonical API earns its
    own gate.
 
-Authentication, database models, audit-chain persistence, sign-off workflow,
-and UI remain host concerns. Groundnut may produce hashable artifacts for those
-systems to store and sign, but it does not decide who is authorised to do so.
+Groundnut can own database models, audit-chain persistence, and review UI when
+they are part of the canonical checking system. It does not silently exercise
+authentication, credentials, publication, or sign-off authority.
 
 ## Future proving ground: IC research
 

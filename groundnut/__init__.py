@@ -37,7 +37,15 @@ from .support import (
     assess_claim_support,
 )
 from .support_eval import SupportGold, score_support
-from .support_cases import SupportCase, SupportProbe
+from .support_cases import CaseProvenance, SupportCase, SupportProbe
+from .support_seeds import (
+    AttestedSpanSeed,
+    SeedImport,
+    import_legalbenchrag,
+    load_support_seeds,
+)
+from .annotations import AnnotationBundle, EvidenceAnnotation
+from .probe_plan import SupportProbePlan
 from .run_manifest import (
     ArtifactDigest,
     DomainDigest,
@@ -61,12 +69,15 @@ from .verification import (
 
 __all__ = [
     "AnalysisResult",
+    "AnnotationBundle",
     "ArtifactDigest",
+    "AttestedSpanSeed",
     "ArenaPolicy",
     "ArenaReport",
     "ArenaTask",
     "Attack",
     "Category",
+    "CaseProvenance",
     "Claim",
     "ClaimAssessment",
     "ClaimCheckReport",
@@ -82,6 +93,7 @@ __all__ = [
     "FileResolver",
     "ExactSupportDetector",
     "EngineIdentity",
+    "EvidenceAnnotation",
     "HttpResolver",
     "MatchOutcome",
     "MiniCheckAdapter",
@@ -98,11 +110,13 @@ __all__ = [
     "SourceReference",
     "SourceRecord",
     "SourceResolution",
+    "SeedImport",
     "SupportAssessment",
     "SupportCase",
     "SupportGold",
     "SupportPolicy",
     "SupportProbe",
+    "SupportProbePlan",
     "SupportProbeRun",
     "SupportSpan",
     "VerifiedClaim",
@@ -114,6 +128,8 @@ __all__ = [
     "anchor_excerpt",
     "compare_analysis",
     "check_claims",
+    "import_legalbenchrag",
+    "load_support_seeds",
     "semantic_projection",
     "score_support",
     "run_support_probe",
