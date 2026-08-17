@@ -7,6 +7,9 @@ from pipeline.backends import get_backend
 from pipeline.chunking import chunk_text
 from pipeline.extract import filter_verbatim, merge_findings, parse_response
 from pipeline.prompt import build_prompt
+from groundnut.domain import DomainPack
+from groundnut.engine import analyse_text
+from groundnut.registry import DomainRegistry
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -15,7 +18,14 @@ def load_categories():
     return json.loads((REPO / "eval" / "categories.json").read_text())
 
 
-def process_contract(path, categories, backend):
+def process_contract(path, categories, backend, domain=None):
+    if domain is not None:
+        return analyse_text(
+            path.read_text(errors="ignore"),
+            source_id=path.stem,
+            domain=domain,
+            backend=backend,
+        ).findings
     text = path.read_text(errors="ignore")
     doc_id = path.stem
     chunk_results = []
@@ -34,6 +44,24 @@ def build_argparser():
     ap.add_argument("--sample", type=int, default=None)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--backend", default=None)
+    domains = ap.add_mutually_exclusive_group()
+    domains.add_argument(
+        "--domain-pack",
+        type=Path,
+        default=None,
+        help="versioned Groundnut domain-pack JSON; default keeps the legacy evaluation job",
+    )
+    domains.add_argument(
+        "--domain",
+        default=None,
+        help="key from the built-in domains/ registry",
+    )
+    ap.add_argument(
+        "--domains-dir",
+        type=Path,
+        default=REPO / "domains",
+        help="domain registry directory used with --domain",
+    )
     return ap
 
 
@@ -49,15 +77,30 @@ def main(argv=None):
         rng = random.Random(args.seed)
         files = sorted(rng.sample(files, min(args.sample, len(files))))
 
-    categories = load_categories()
+    if args.domain_pack:
+        domain = DomainPack.from_json(args.domain_pack)
+    elif args.domain:
+        domain = DomainRegistry.from_directory(args.domains_dir).get(args.domain)
+    else:
+        domain = None
+    categories = domain.category_names if domain else load_categories()
     backend = get_backend(args.backend)
 
     for f in files:
         outp = out_dir / (f.stem + ".json")
         if outp.exists():
             continue
-        findings = process_contract(f, categories, backend)
-        (out_dir / (f.stem + ".json")).write_text(json.dumps({"findings": findings}))
+        if domain is None:
+            payload = {"findings": process_contract(f, categories, backend)}
+        else:
+            result = analyse_text(
+                f.read_text(errors="ignore"),
+                source_id=f.stem,
+                domain=domain,
+                backend=backend,
+            )
+            payload = result.to_dict()
+        (out_dir / (f.stem + ".json")).write_text(json.dumps(payload))
 
     return 0
 

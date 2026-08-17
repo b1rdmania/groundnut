@@ -6,7 +6,7 @@ from .base import Backend, log_usage, approx_tokens
 # Deterministic canned extractor used only by the test suite: pulls a
 # "Name (\"Short\")" style party definition out of the chunk, if present.
 QUOTE_PATTERN = re.compile(r"([A-Z][A-Za-z0-9&.,' ]{3,60}\(\"[A-Za-z0-9 ]+\"\))")
-MARKER = "CONTRACT TEXT:\n"
+TEXT_MARKER = re.compile(r"(?:^|\n)[A-Z][A-Z ]* TEXT:\n")
 
 
 class StubBackend(Backend):
@@ -14,8 +14,8 @@ class StubBackend(Backend):
     model = "stub-deterministic"
 
     def complete(self, prompt, doc_id=None):
-        idx = prompt.find(MARKER)
-        chunk = prompt[idx + len(MARKER):] if idx != -1 else prompt
+        markers = list(TEXT_MARKER.finditer(prompt))
+        chunk = prompt[markers[-1].end():] if markers else prompt
         findings = {}
         m = QUOTE_PATTERN.search(chunk)
         if m:

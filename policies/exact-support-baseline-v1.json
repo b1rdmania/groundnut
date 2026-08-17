@@ -1,0 +1,14 @@
+{
+  "schema": "groundnut-support-policy/v1",
+  "key": "exact_support_baseline",
+  "version": "1",
+  "frozen_at": "2026-08-17T00:00:00Z",
+  "detector": {
+    "adapter": "groundnut.exact",
+    "model": "normalised_substring",
+    "revision": "1",
+    "package": "groundnut",
+    "package_version": "1"
+  },
+  "min_confidence": 1.0
+}

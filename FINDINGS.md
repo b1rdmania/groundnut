@@ -13,8 +13,9 @@ Status marks are the confidence level, not the prose around them:
 | `ESTIMATED` | Arithmetic, or a source read but not independently checked. |
 | `UNTESTED` | A hypothesis. No evidence either way. |
 
-**Two results from this session were wrong and are corrected below** (§1, §4).
-A reader who finds a third should assume there is a fourth.
+**Later independent review found additional errors in the first correction
+pass.** They are corrected in §§1–3; the original measurements remain visible
+where useful, but their invalid interpretations do not.
 
 ---
 
@@ -36,23 +37,24 @@ def filter_verbatim(findings, source_text):
 On a filtered run, grounding is 1.0000 **by construction**. `LOG.md` said as
 much in cycle 7 — *"grounding 1.0000 (filter working)"* — and it was read past.
 
-| Run | Verbatim filter | Grounding | Measures |
+| Run | Filter | Normalised judge | Exact substring |
 |---|---|---|---|
-| Filtered pipeline runs (5,101 quotes across two corpora) | Yes | 1.0000 | the filter |
-| `runs/predictions-claude-opus-4.8-agent` | **No** | **0.9744** | model behaviour |
-| `runs/predictions-claude-sonnet-5-agent` | **No** | **0.9665** | model behaviour |
+| Filtered pipeline runs | Yes | 1.0000 | 1.0000 by construction |
+| `runs/predictions-claude-opus-4.8-agent` | No | 0.9744 | **0.9283** |
+| `runs/predictions-claude-sonnet-5-agent` | No | 0.9665 | **0.9070** |
 
 **Two claims. Never merge them.**
 
 - **Architectural** — the pipeline cannot emit an ungrounded quote. Unmatched
   spans are dropped at extraction. A design guarantee, *not* evidence about the
   model.
-- **Empirical** — unfiltered, frontier models return verbatim quotes **~97%** of
-  the time. The remaining ~3% is what the filter exists for.
+- **Empirical** — unfiltered agent outputs are grounded **~97% under the
+  normalised judge**, but exactly verbatim only **~91–93%** of the time. The
+  judge folds case, whitespace, quotes, dashes, and non-breaking spaces.
 
-**Caveat on the ~97%:** it rests on two agent runs `LOG.md` calls *"indicative,
-not API-reproducible"* — whole-document context, no temperature pinning,
-non-API protocol. It has not been established under a reproducible API run.
+**Caveat:** both rates rest on two agent runs `LOG.md` calls *"indicative, not
+API-reproducible"* — whole-document context, no temperature pinning, non-API
+protocol. Neither has been established under a reproducible API run.
 
 **Framing:** this is a *provenance* guarantee, not a *truth* guarantee.
 Retrieval can be incomplete, a source can be wrong, and a correctly-quoted span
@@ -68,19 +70,21 @@ The most actionable finding here, and the cheapest to act on.
 |---|---|
 | `CHUNK_CHARS` in `pipeline/chunking.py` | 20,000 |
 | Median contract | 33,143 chars |
-| p90 / max contract | 122,688 / 338,211 |
+| p90 / max contract | 122,054 / 338,211 (nearest-rank p90) |
 | **Contracts that get chunked** | **347/510 (68%)** |
 | **Of the dev-80 working set** | **56/80 (70%)** |
-| Chunks per contract | mean 3.1, max 17 |
+| Chunks per contract | mean **3.18**, max **18** |
 
-Cycle 7 measured chunking costing more precision than the gap between model
-tiers — 0.4067 chunked vs 0.5721 whole-document, same model. `LOG.md` describes
-the chunker as something that "mostly stays a safety net rather than the common
-path."
+Cycle 7 observed 0.4067 High-severity precision on a 45-document chunked API
+run and 0.5721 on an 80-document whole-document agent run of the same named
+model. That is **not a controlled chunking experiment**: protocol, filtering,
+temperature control, and document coverage also changed. On the shared
+45-document cohort the gap remains (0.4067 vs 0.5606), making chunking a strong
+hypothesis rather than an established cause.
 
-**It is not a safety net. It is the common path for 70% of the eval set.** The
-headline macro-F1 is therefore measured under conditions the log itself
-identified as harmful, on most of the corpus.
+**It is not a safety net. It is the common path for 70% of the eval set.** Run
+the same backend and cohort with only the threshold changed before claiming
+how much that costs.
 
 **Fix:** raise `CHUNK_CHARS` above 338,211 and it never fires on this corpus.
 Cost per request rises accordingly.
@@ -108,18 +112,24 @@ logged 0.4916 exactly, which validates the sweep.
 | `gold-covered@0.8` | 0.5310 | 0.725 | 0.500 | FAIL |
 
 The current matcher (`harness/score.py`) is symmetric token-set Jaccard at 0.5.
-It penalises a correct extraction for choosing different span boundaries than
-the annotator.
+It may penalise a correct extraction for choosing different span boundaries,
+but the table above does not establish that.
 
-Three properties suggest a matcher artefact rather than a loosened bar:
+**Independent-review correction:** the scorer matches predictions and gold
+spans independently rather than one-to-one. Under containment, 381 predictions
+match multiple gold spans and 282 gold spans match multiple predictions.
+Maximum one-to-one matching changes:
 
-1. **Precision rises** (0.630 → 0.824). A merely laxer matcher would admit junk
-   and precision would fall. Rising precision means the Jaccard "false
-   positives" were mostly correct extractions with different boundaries.
-2. **Model ordering survives** under every matcher, with similar gaps — the
-   change does not destroy discriminative power.
-3. **Not knife-edge** — `containment@0.8` also passes. A band of defensible
-   thresholds, not one lucky setting.
+| Matcher | macro-F1 | Precision | Recall |
+|---|---|---|---|
+| `jaccard@0.5`, one-to-one | 0.4832 | 0.623 | 0.373 |
+| `containment@0.5`, one-to-one | **0.5661** | 0.791 | 0.474 |
+
+The earlier precision argument was also mathematically wrong. Applied to a
+fixed prediction set, a more permissive matcher can only reclassify false
+positives as true positives, so measured precision must rise or stay flat.
+That increase says nothing about whether a human would accept the new matches.
+Containment remains a candidate, not a validated replacement.
 
 > ⚠️ **This has not been adopted, and should not be adopted casually.**
 >
@@ -198,19 +208,19 @@ The sweep imports `harness/score.py`, monkeypatches `score.match`, and re-runs
 
 Ordered by how much damage a wrong answer does.
 
-1. **Reproduce the matcher sweep from scratch.** If `containment@0.5` does not
-   land at 0.6415 with precision 0.824, §3 is wrong.
-2. **Attack the containment result specifically.** The claim is that rising
-   precision proves boundary mismatch rather than a lax bar. Find
-   prediction/gold pairs where containment matches but a human would call it
-   wrong. A handful of hand-checked examples settles this better than the
-   aggregate.
-3. **Re-run the chunking census** and confirm 68% / 70%, then decide whether
-   raising `CHUNK_CHARS` is safe given the unverified merge path.
-4. **Check whether ~97% survives a reproducible API run.**
-5. **Verify the corpus round-trip properly** — delete `eval/*/contracts/`,
-   rebuild from a fresh `CUADv1.json`, regenerate probe, confirm `gate.sh dev`
-   is byte-identical. It was only verified against the already-present corpus.
+1. **Repair the scorer under an audited evaluator change.** Add one-to-one
+   matching and regression tests before comparing Jaccard and containment.
+2. **Human-audit containment-only dev matches.** Aggregate precision cannot
+   decide whether they are legitimate boundary variants. Do not inspect or
+   spend holdout while designing the rule.
+3. **Run a controlled chunking comparison.** Same backend, prompt, cohort, and
+   temperature; change only the chunk threshold. Exercise the largest-contract
+   merge path first.
+4. **Reproduce both empirical grounding rates through an API:** exact substring
+   and the separately named normalised judge.
+5. **Corpus round-trip — completed.** An isolated rebuild produced all 510 files
+   byte-for-byte, and `fetch_corpus.py` now enforces `sha256_raw` from the
+   manifest with a tamper regression test.
 6. **Re-derive the 31% figure** and decide whether category alignment rescues it
    or it should be dropped as uninformative.
 
