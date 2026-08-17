@@ -1,0 +1,8 @@
+runs/
+predictions/
+__pycache__/
+
+# eval corpus is CUAD (CC BY 4.0) — not redistributed; see eval/CORPUS-MANIFEST.json
+eval/dev/contracts/
+eval/holdout/contracts/
+eval/probe/contracts/

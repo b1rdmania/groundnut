@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(~/.dd-eval-private/**)",
+      "Edit(~/.dd-eval-private/**)",
+      "Write(~/.dd-eval-private/**)",
+      "Edit(./harness/**)",
+      "Write(./harness/**)",
+      "Edit(./eval/**)",
+      "Write(./eval/**)",
+      "Edit(./goal.md)",
+      "Write(./goal.md)",
+      "Edit(./spec.md)",
+      "Write(./spec.md)",
+      "Bash(*dd-eval-private*)",
+      "WebSearch",
+      "WebFetch",
+      "Bash(curl *)",
+      "Bash(wget *)"
+    ]
+  }
+}
