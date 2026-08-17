@@ -164,6 +164,7 @@ Thresholds are fixed before holdout scoring.
 | Canonical run manifest and artifact digests | Landed |
 | End-to-end batch claim checker and hashable report | Landed |
 | Frozen-policy arena and offline adjudication CLI | Landed |
+| Profile-hashed arena task emission with section-contained context | Landed |
 | Benchmark-only LettuceDetect and MiniCheck adapters | Landed; no model adopted |
 | Reproducible paired-probe runner and score artifact | Landed |
 | Provenance-rich case and frozen preregistration contracts | Landed |
