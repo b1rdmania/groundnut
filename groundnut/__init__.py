@@ -100,6 +100,7 @@ from .run_manifest import (
     source_tree_sha256,
 )
 from .checker import ClaimCheckReport, check_claims
+from .runner import CanonicalRun, run_canonical_check
 from .adapters import LettuceDetectAdapter, MiniCheckAdapter
 from .support_runner import ProbeContextDigest, SupportProbeRun, run_support_probe
 from .verification import (
@@ -129,6 +130,7 @@ __all__ = [
     "ArenaTaskEmission",
     "Attack",
     "Category",
+    "CanonicalRun",
     "CaseProvenance",
     "Claim",
     "ClaimAssessment",
@@ -212,6 +214,7 @@ __all__ = [
     "semantic_projection",
     "score_support",
     "run_support_probe",
+    "run_canonical_check",
     "verification_metrics",
     "verify_claim",
 ]

@@ -76,6 +76,15 @@ an explicit runtime operation whose normalized bytes should be snapshotted
 before downstream analysis. Model parity tests likewise replay recorded or
 synthetic responses rather than calling a live model.
 
+## Canonical runner
+
+`run_canonical_check` is the product-facing offline composition surface. One
+call ingests an artifact, acquires each unique cited source under an explicit
+snapshot mode, performs mechanical and semantic checks, applies independently
+declared evidence authority, and optionally emits arena tasks from the same
+artifact. `groundnut-canonical-run/v1` binds every nested receipt and carries a
+self-hash; it still does not turn support or authority into truth.
+
 ## Snapshot-first acquisition
 
 `SnapshotFirstResolver` makes live-network use a named orchestration choice.
