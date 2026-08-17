@@ -70,6 +70,13 @@ conditions, unique IDs, and a stable order-independent manifest hash. Gold rows
 feed the one-to-one `score_support` scorer, where missing predictions count as
 wrong and extra predictions are rejected.
 
+`run_support_probe` executes any frozen detector over those cases. It derives
+every context from the original offsets, records a hash and length for each
+window, binds detector and policy identity to every assessment, computes the
+one-to-one score, and emits a self-hashed `groundnut-support-probe-run/v1`
+artifact. Mixed policies, mismatched context hashes, source tampering, missing
+case IDs, and duplicate IDs fail before a result can be accepted.
+
 ## Adapter admission
 
 Groundnut includes benchmark-only adapters for LettuceDetect and MiniCheck, but

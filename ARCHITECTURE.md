@@ -119,6 +119,11 @@ runtime endorsements. They load no dependency at import time, pin immutable
 model/package/configuration identity, and map outputs conservatively. Binary or
 untyped unsupported output is insufficient evidence, not contradiction.
 
+`run_support_probe` is the deterministic experiment runner. It feeds every
+detector source-identical windows derived from the paired original offsets and
+binds context, detector, policy, normalized decisions, scores, and probe
+manifest into one self-hashed artifact suitable for the run manifest.
+
 `check_claims` is the end-to-end engine surface for claim batches. It composes
 source resolution, mechanical verification, and one frozen support policy. The
 result sorts claim identities, derives completeness and metrics from the rows,

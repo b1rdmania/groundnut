@@ -125,6 +125,7 @@ Thresholds are fixed before holdout scoring.
 | End-to-end batch claim checker and hashable report | Landed |
 | Frozen-policy arena and offline adjudication CLI | Landed |
 | Benchmark-only LettuceDetect and MiniCheck adapters | Landed; no model adopted |
+| Reproducible paired-probe runner and score artifact | Landed |
 | Labelled domain support cases | Next measurement tranche |
 | Controlled chunking and largest-document merge comparison | Required before changing chunking |
 | IC research integration and product/OS ports | Deferred consumers |

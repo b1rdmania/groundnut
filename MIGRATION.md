@@ -28,6 +28,8 @@ until they deliberately adopt a stable Groundnut contract.
   reporting, and manifest-ready self-hashed output.
 - Offline-testable LettuceDetect and MiniCheck benchmark adapters with pinned
   configuration identity and conservative non-truth mappings.
+- Reproducible paired-probe execution with per-context hashes, one-to-one
+  scoring, strict identity checks, and a self-hashed benchmark artifact.
 
 The widened method-layer scope is a dated decision in `ARCHITECTURE.md`. It
 does not move the stop line: no auth, application persistence, credential

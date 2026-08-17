@@ -49,6 +49,7 @@ from .run_manifest import (
 )
 from .checker import ClaimCheckReport, check_claims
 from .adapters import LettuceDetectAdapter, MiniCheckAdapter
+from .support_runner import ProbeContextDigest, SupportProbeRun, run_support_probe
 from .verification import (
     Claim,
     MatchOutcome,
@@ -86,6 +87,7 @@ __all__ = [
     "MiniCheckAdapter",
     "ParityComparison",
     "PolicyDigest",
+    "ProbeContextDigest",
     "ResolvedSource",
     "Ruling",
     "RunManifest",
@@ -101,6 +103,7 @@ __all__ = [
     "SupportGold",
     "SupportPolicy",
     "SupportProbe",
+    "SupportProbeRun",
     "SupportSpan",
     "VerifiedClaim",
     "LettuceDetectAdapter",
@@ -113,6 +116,7 @@ __all__ = [
     "check_claims",
     "semantic_projection",
     "score_support",
+    "run_support_probe",
     "verification_metrics",
     "verify_claim",
 ]
