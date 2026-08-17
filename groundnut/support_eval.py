@@ -22,6 +22,13 @@ class SupportGold:
                 f"unknown expected support status: {self.expected_status}"
             )
 
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "case_id": self.case_id,
+            "expected_status": self.expected_status,
+            "kind": self.kind,
+        }
+
 
 def score_support(
     gold: Iterable[SupportGold], predictions: Iterable[SupportAssessment]

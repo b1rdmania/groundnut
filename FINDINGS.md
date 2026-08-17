@@ -159,8 +159,12 @@ purely to be scoreable.
 categories, a fixed 80-doc stratified working set (every category ≥5 positives),
 dev-full 306, rate-limited holdout, and a bar set against published baselines.
 
-**Do not add a new benchmark to this repo.** If coverage across chunks looks
-like a recall leak, the existing `answer_start` ground truth answers it in-repo.
+**Scope correction — 17 August 2026.** This conclusion applies to retrieval or
+replacement extraction benchmarks for the compatibility pipeline. Groundnut's
+canonical remit now includes semantic claim support, which the 41-category
+span-extraction gate does not measure. The new four-cell support benchmark is a
+separate product measurement, not a substitute score for the old extractor.
+Both gates and the unchanged historical failure are retained; see `GATES.md`.
 
 ---
 

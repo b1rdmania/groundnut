@@ -28,6 +28,12 @@ SUPPORT_STATUSES = {
 }
 DETECTOR_LABELS = {"supported", "contradicted", "insufficient"}
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+EMPTY_CONFIGURATION_SHA256 = hashlib.sha256(b"{}").hexdigest()
+
+
+def configuration_sha256(value: Mapping[str, Any]) -> str:
+    """Hash adapter configuration without including credentials or secrets."""
+    return _sha256_json(value)
 
 
 @dataclass(frozen=True)
@@ -37,6 +43,7 @@ class DetectorIdentity:
     revision: str
     package: str
     package_version: str
+    configuration_sha256: str = EMPTY_CONFIGURATION_SHA256
 
     def __post_init__(self) -> None:
         if not all(
@@ -52,6 +59,8 @@ class DetectorIdentity:
             raise ValueError("detector identity fields must not be empty")
         if self.revision.casefold() in {"main", "master", "latest", "head"}:
             raise ValueError("detector revision must be immutable, not a moving ref")
+        if not _SHA256.fullmatch(self.configuration_sha256):
+            raise ValueError("detector configuration_sha256 must be lowercase SHA-256")
 
     def canonical_payload(self) -> dict[str, str]:
         return {
@@ -60,6 +69,7 @@ class DetectorIdentity:
             "revision": self.revision,
             "package": self.package,
             "package_version": self.package_version,
+            "configuration_sha256": self.configuration_sha256,
         }
 
     @property
@@ -74,6 +84,9 @@ class DetectorIdentity:
             revision=str(value["revision"]),
             package=str(value["package"]),
             package_version=str(value["package_version"]),
+            configuration_sha256=str(
+                value.get("configuration_sha256", EMPTY_CONFIGURATION_SHA256)
+            ),
         )
 
 

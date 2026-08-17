@@ -37,7 +37,34 @@ from .support import (
     assess_claim_support,
 )
 from .support_eval import SupportGold, score_support
-from .support_cases import SupportCase, SupportProbe
+from .support_cases import CaseProvenance, SupportCase, SupportProbe
+from .support_seeds import (
+    AttestedSpanSeed,
+    PresentIrrelevantCandidate,
+    SeedImport,
+    build_present_irrelevant_candidates,
+    import_legalbenchrag,
+    load_support_seeds,
+    sample_present_irrelevant_candidates,
+)
+from .annotations import AnnotationBundle, EvidenceAnnotation
+from .probe_plan import SupportProbePlan
+from .support_admission import (
+    RecordedProbeRun,
+    SupportAdmissionReport,
+    evaluate_support_admission,
+)
+from .support_bakeoff import SupportBakeoff, run_support_bakeoff
+from .support_review import (
+    PilotReviewManifest,
+    PilotReviewRow,
+    apply_review_decisions_tsv,
+    build_pilot_probe,
+    prepare_review_manifest,
+    propose_negation_flip,
+    review_decisions_tsv,
+)
+from .support_review_html import render_support_review_html
 from .run_manifest import (
     ArtifactDigest,
     DomainDigest,
@@ -46,7 +73,11 @@ from .run_manifest import (
     RunManifest,
     RuntimeComponent,
     SourceDigest,
+    source_tree_sha256,
 )
+from .checker import ClaimCheckReport, check_claims
+from .adapters import LettuceDetectAdapter, MiniCheckAdapter
+from .support_runner import ProbeContextDigest, SupportProbeRun, run_support_probe
 from .verification import (
     Claim,
     MatchOutcome,
@@ -58,14 +89,18 @@ from .verification import (
 
 __all__ = [
     "AnalysisResult",
+    "AnnotationBundle",
     "ArtifactDigest",
+    "AttestedSpanSeed",
     "ArenaPolicy",
     "ArenaReport",
     "ArenaTask",
     "Attack",
     "Category",
+    "CaseProvenance",
     "Claim",
     "ClaimAssessment",
+    "ClaimCheckReport",
     "CheckCoverage",
     "CoverageManifest",
     "DocumentType",
@@ -78,35 +113,63 @@ __all__ = [
     "FileResolver",
     "ExactSupportDetector",
     "EngineIdentity",
+    "EvidenceAnnotation",
     "HttpResolver",
     "MatchOutcome",
+    "MiniCheckAdapter",
     "ParityComparison",
+    "PresentIrrelevantCandidate",
     "PolicyDigest",
+    "PilotReviewManifest",
+    "PilotReviewRow",
+    "ProbeContextDigest",
     "ResolvedSource",
+    "RecordedProbeRun",
     "Ruling",
     "RunManifest",
     "RuntimeComponent",
     "SnapshotStore",
     "SourceAnchor",
     "SourceDigest",
+    "source_tree_sha256",
     "SourceReference",
     "SourceRecord",
     "SourceResolution",
+    "SeedImport",
     "SupportAssessment",
+    "SupportAdmissionReport",
+    "SupportBakeoff",
     "SupportCase",
     "SupportGold",
     "SupportPolicy",
     "SupportProbe",
+    "SupportProbePlan",
+    "SupportProbeRun",
     "SupportSpan",
     "VerifiedClaim",
+    "LettuceDetectAdapter",
     "analyse_text",
     "adjudicate",
     "assess_claim_support",
     "anchor_quote",
+    "apply_review_decisions_tsv",
     "anchor_excerpt",
     "compare_analysis",
+    "check_claims",
+    "build_present_irrelevant_candidates",
+    "build_pilot_probe",
+    "import_legalbenchrag",
+    "evaluate_support_admission",
+    "load_support_seeds",
+    "prepare_review_manifest",
+    "propose_negation_flip",
+    "review_decisions_tsv",
+    "render_support_review_html",
+    "run_support_bakeoff",
+    "sample_present_irrelevant_candidates",
     "semantic_projection",
     "score_support",
+    "run_support_probe",
     "verification_metrics",
     "verify_claim",
 ]

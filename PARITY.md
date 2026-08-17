@@ -13,7 +13,8 @@ projection includes the exact 18-category playbook identity, source hash and
 length, segmentation count, fail-closed coverage, findings, severities, quotes,
 and exact anchor properties and offsets. Array order remains significant.
 
-The only exclusions are printed in every parity comparison:
+The only exclusions are printed with individual reasons in every parity
+comparison:
 
 - evidence disclosure/status and manifest hash, which the legacy path never
   produced;
@@ -24,6 +25,11 @@ and UI-only ordering must stay outside the mapped analysis artifact. No new
 exclusion may be added in response to a failing fixture: change this contract
 and review the rationale first. The comparator rejects unknown fields, so a
 future schema addition cannot disappear from parity silently.
+
+The exact exclusion paths and reasons have their own pinned contract hash.
+Changing either moves that hash and fails the regression fixture until the
+contract change is reviewed explicitly. Callers cannot supply per-run
+exclusions.
 
 ## Fixture matrix
 

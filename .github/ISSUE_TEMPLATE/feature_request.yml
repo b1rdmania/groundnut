@@ -1,0 +1,35 @@
+name: Capability proposal
+description: Propose a measured addition to the canonical engine.
+title: "capability: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: gap
+    attributes:
+      label: Measured engine gap
+      description: What cannot Groundnut currently represent or decide?
+    validations:
+      required: true
+  - type: textarea
+    id: fixture
+    attributes:
+      label: Frozen fixture or evidence
+      description: Name the public/synthetic case that demonstrates the gap.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance condition
+      description: State the deterministic test or preregistered measurement that would close the gap.
+    validations:
+      required: true
+  - type: checkboxes
+    id: boundaries
+    attributes:
+      label: Boundary check
+      options:
+        - label: This does not silently replace a metric, gate, policy, or protected holdout.
+          required: true
+        - label: Product-specific workflow and presentation remain outside the generic engine unless the fixture proves otherwise.
+          required: true

@@ -1,25 +1,60 @@
 # Groundnut 🥜
 
-Sources and a checking policy in; evidence-linked findings and an honest account
-of what could not be established out.
+**The evidence engine for AI systems that must show their work.**
 
-Groundnut is a canonical anti-hallucination and checking engine. It combines
-document acquisition, source snapshots, checklist-driven analysis, exact
-provenance, claim verification, fail-closed coverage, adversarial review, and
-reproducible evaluation behind portable contracts.
+Groundnut turns claims, sources, and a checking policy into a replayable,
+source-bound account of what is supported, contradicted, incomplete,
+inaccessible, or still unassessed. Every material decision retains the evidence
+and identity needed to inspect it later.
 
-It is deliberately domain-configurable. Change the domain pack and the same
-method can review contracts, procurement files, trust instruments, research
-claims, or another evidence-backed document set:
+The north star is a canonical anti-hallucination and claim-checking engine that
+can sit beneath research agents, diligence systems, document intelligence,
+monitoring, and other high-consequence AI workflows. It owns the portable
+method: acquisition, snapshots, structured extraction, exact provenance,
+semantic support, fail-closed coverage, adversarial review, and reproducible
+evaluation. Products provide their domain policy and presentation layer; they
+should not rebuild the checking engine.
+
+## North star
+
+```text
+claims + evidence universe + frozen policy
+                    ↓
+       canonical, source-bound decisions
+                    ↓
+ support · contradiction · insufficiency · access failure · unassessed
+                    ↓
+     hashes · offsets · provenance · replay · explicit uncertainty
+```
+
+Groundnut is intended to become the trust/control plane between model-generated
+work and consequential use. It is not a truth oracle and it never upgrades
+“a matching quote exists” into “the claim is true.” Instead, it makes the
+evidence chain inspectable, distinguishes absence from exoneration, and refuses
+to hide unfinished checks behind a confidence score.
+
+Four design commitments follow:
+
+- **Evidence before confidence.** Presence, support, authority, completeness,
+  and truth are different questions and remain different fields.
+- **Fail closed.** Inaccessible sources, missing checks, judge disagreement,
+  and absent attacks stay visible as unresolved outcomes.
+- **Replay everything.** Sources, policies, components, engine builds, and
+  outputs are hash-bound so the same run can be reconstructed and challenged.
+- **Earn every quality claim.** Domain configuration is portable; credibility
+  is not. Learned components and new domains require their own frozen gates.
+
+Groundnut is deliberately domain-configurable. Change the domain pack and the
+same method can review contracts, procurement files, trust instruments,
+research claims, or another evidence-backed corpus:
 
 - **Canonical engine** — `groundnut/`. Domain packs, exact source anchors,
   fail-closed coverage, source snapshots, and the adversarial arena.
 - **Domain packs** — `domains/`. Versioned checklists with explicit evidence
   maturity; configuration portability never implies measured quality.
-- **Compatibility pipeline** — `pipeline/`. The original contract-extraction
-  CLI and backend adapters.
-- **Evaluation kernel** — `harness/`. Deterministic scoring and gates; no LLM
-  on the pass/fail path.
+- **Compatibility lineage** — `pipeline/` and `harness/`. The original contract
+  extraction system and its deterministic gate, preserved as a regression net
+  rather than mistaken for the whole product.
 
 The name is the job, but *grounded* has several layers. Groundnut keeps them
 separate: whether a source was retrieved, whether an excerpt occurs in it,
@@ -56,6 +91,10 @@ stages:
   measured independently. Numeric-preserving fuzzy matching may locate an
   excerpt, but an anchored quote still reports `support: not_assessed` until a
   separate support checker evaluates it.
+- **Batch checking** — `check_claims` composes resolution, mechanical
+  verification, and one frozen support policy into a deterministic report. Its
+  completeness and metrics are derived from the claim rows, not supplied by a
+  caller, and the report can be bound directly into the run manifest.
 - **Coverage** — no finding is not the same as a clear check. `checked_clear`
   requires every source segment to complete and acknowledge the category;
   otherwise the result is `incomplete`.
@@ -66,8 +105,10 @@ stages:
   gates, replayable model outputs, and explicit comparator semantics prevent a
   passing number from being manufactured after the run.
 - **Run provenance** — one order-stable manifest binds the engine revision,
-  domain playbook and evidence manifest, normalized sources and snapshots,
-  frozen policies, runtime component configurations, and output artifacts.
+  path-bound source-tree digest and dirty state, domain playbook and evidence
+  manifest, normalized sources and snapshots, frozen policies, runtime
+  component configurations, and output artifacts. Dirty builds remain usable
+  for development but cannot pass `require_publishable()`.
 
 ### What it does not claim
 
@@ -77,15 +118,17 @@ experimental domain pack can be portable without being accurate. Reports keep
 those uncertainties visible instead of compressing them into one confidence
 score.
 
-Groundnut also does not own authentication, application databases, credential
-custody, UI, publishing, or human sign-off. Hosts may store or sign its hashable
-artifacts, but the engine never decides who is authorised to do so.
+Groundnut is not constrained to a small library. It may grow first-party corpus,
+annotation, adjudication, persistence, and operator surfaces when they make the
+checking system materially more reliable. Deployment identity, credential
+custody, publication authority, and final human sign-off remain explicit
+boundaries rather than conclusions the checker can manufacture.
 
-## Lean core, optional detectors
+## Measured components, optional detectors
 
 Groundnut should not train or vendor a new hallucination model when a maintained
-permissively licensed component can satisfy a measured interface. The core
-remains deterministic and lightweight; model-backed checkers belong behind
+permissively licensed component can satisfy a measured interface. The canonical
+decision path remains deterministic; model-backed checkers belong behind
 optional adapters whose raw outputs, model revision, package version, input
 hashes, and thresholds are recorded.
 
@@ -118,9 +161,16 @@ Thresholds are fixed before holdout scoring.
 | Frozen semantic-support contract and exact baseline | Landed |
 | Paired four-cell detector-transfer probe contract | Landed |
 | Canonical run manifest and artifact digests | Landed |
+| End-to-end batch claim checker and hashable report | Landed |
 | Frozen-policy arena and offline adjudication CLI | Landed |
-| Learned detector adapters | Next build tranche, after valid transfer measurement |
-| Labelled domain support cases | Next measurement tranche |
+| Benchmark-only LettuceDetect and MiniCheck adapters | Landed; no model adopted |
+| Reproducible paired-probe runner and score artifact | Landed |
+| Provenance-rich case and frozen preregistration contracts | Landed |
+| LegalBench-RAG seed importer with source-hash holdout exclusion | Landed |
+| OpenContracts-compatible annotation interchange | Landed |
+| Offline semantic-support admission gate | Landed; awaiting adjudicated cases |
+| Frozen 50-group review pack plus 25 reserves | Landed; awaiting human rulings |
+| Adjudicated four-cell support cases | Blocked only on bounded human review |
 | Controlled chunking and largest-document merge comparison | Required before changing chunking |
 | IC research integration and product/OS ports | Deferred consumers |
 
@@ -133,9 +183,11 @@ policy is a baseline, not a learned support claim.
 The detector admission protocol and paired case schema are specified in
 [`SUPPORT.md`](./SUPPORT.md). Every transfer-probe group contains both present
 and absent claims on both sides of the label boundary, and every case receives
-a context window derived from the same original source span.
+a context window derived from explicit source offsets that contains both
+present claims. A clause elsewhere in the document cannot masquerade as
+present evidence when it is absent from the detector input.
 
-## Corpus 📚
+## Compatibility corpus 📚
 
 **Groundnut does not ship contract text.** The eval corpus is [CUAD v1](https://github.com/TheAtticusProject/cuad) (The Atticus Project, CC BY 4.0) — 510 contracts across dev and holdout. Rebuild it locally:
 
@@ -151,8 +203,8 @@ Gold answers are **not** in this repo at all — they live in `~/.dd-eval-privat
 ## Run it
 
 ```bash
-python3 -m pytest tests/          # inner loop — keep green
-harness/gate.sh dev               # four-criteria gate, 80 docs
+python3.12 -m pytest tests/        # canonical engine conformance
+harness/gate.sh dev               # compatibility extractor gate, 80 docs
 harness/gate.sh dev --pred-root runs/predictions-claude-opus-4.8-agent
 
 # canonical domain-pack run
@@ -166,7 +218,11 @@ python3 -m groundnut.arena_cli --policy policies/canonical-arena-v1.json \
 
 Holdout is rate-limited to one run per 6 hours and is **currently unspent**. Don't spend it until something passes dev.
 
-## The gate 🚦
+## Compatibility extraction gate 🚦
+
+This four-criterion CUAD gate qualifies the original 41-category extraction
+pipeline. It is retained unchanged as a regression net and historical record;
+it is not the acceptance gate for Groundnut's canonical claim-checking product.
 
 | # | Criterion | Bar | Judge |
 |---|---|---|---|
@@ -177,7 +233,7 @@ Holdout is rate-limited to one run per 6 hours and is **currently unspent**. Don
 
 All four are deterministic. A model never decides whether a run passes.
 
-## Where it stands 📊
+## Compatibility lineage: where it stands 📊
 
 Best recorded run (`runs/predictions-claude-opus-4.8-agent`, dev-80):
 
@@ -187,9 +243,25 @@ Best recorded run (`runs/predictions-claude-opus-4.8-agent`, dev-80):
 | quote-grounding | 0.9744 | ✅ |
 | High-severity precision | 0.6834 | ❌ (8 findings short) |
 
-**GATE: FAIL.** That is the honest state and it stays in the README until it isn't.
+**COMPATIBILITY EXTRACTION GATE: FAIL.** That is the honest state of the
+original extractor and it stays in the README until that exact gate passes.
 
-### On the grounding number ⚠️
+## Canonical claim-checking gate
+
+**SUPPORT GATE: NOT MEASURED.** The adjudicated four-cell support set does not
+exist yet, so Groundnut makes no semantic-support quality claim. The gate roles
+were separated explicitly on 17 August 2026; no score or threshold was removed,
+reinterpreted, or selected after seeing a result.
+
+The support gate will compare each frozen detector with the exact baseline on
+the exact probe named by `groundnut-support-probe-plan/v2`. The plan binds the
+case count and hash, source and exclusion pools, exact policy hashes, context,
+primary metric, minimum meaningful improvement, and paraphrase-overlap bounds
+before a learned detector runs. Admission also forbids regression on a material
+failure kind. Domain packs require their own labelled gates in addition to this
+generic detector gate. See [`GATES.md`](./GATES.md).
+
+## Compatibility grounding caveat ⚠️
 
 Filtered runs score 1.0000 on quote-grounding, and that figure is **worth nothing on its own** — `pipeline/extract.py` drops any span that isn't an exact substring of its source before findings are recorded. On a filtered run, grounding is 1.0 by construction. It measures the filter.
 
@@ -248,6 +320,8 @@ ARCHITECTURE.md 🏗️ scope, invariants, boundaries, and deterministic contrac
 MIGRATION.md  🧭 canonical-engine priorities and deferred consumers
 PARITY.md     🟰 semantic equivalence contract for any future host adapter
 SUPPORT.md    🧪 semantic outcomes, paired probes, and detector admission
+ANNOTATION.md 🖍️ LegalBench-RAG seeds and OpenContracts review interchange
+GATES.md      🚦 compatibility, support-admission, and domain gate roles
 ```
 
 ## Relationship to downstream work 🔌
@@ -257,10 +331,12 @@ IC research is a future proving ground once the core is tight. Product v2s,
 operating-system ports, and open-source packaging are optional later decisions,
 not present milestones.
 
-Groundnut has no auth, application database, or UI. Hosts own those concerns;
-Groundnut owns the portable method, provenance, and evaluation contracts. Its
-boundary is recorded in [`ARCHITECTURE.md`](./ARCHITECTURE.md), and any future
-host replacement must first satisfy [`PARITY.md`](./PARITY.md). 🥜
+Groundnut may grow an annotation workbench, corpus store, or operator UI where
+that closes a measured reliability gap; size is not a design constraint.
+Groundnut owns the portable checking method, provenance, and evaluation
+contracts. Identity, secret custody, publication authority, and final sign-off
+must remain explicit. The boundary is recorded in
+[`ARCHITECTURE.md`](./ARCHITECTURE.md). 🥜
 
 ## Licence & attribution ⚖️
 

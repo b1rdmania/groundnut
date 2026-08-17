@@ -1,0 +1,38 @@
+name: Bug report
+description: Report reproducible incorrect, unsafe, or non-deterministic behaviour.
+title: "bug: "
+labels: [bug]
+body:
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behaviour
+      description: Include the exact result and why it is wrong or unsafe.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Provide commands and synthetic/public inputs only. Do not attach protected corpus data or credentials.
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: Groundnut revision or source SHA-256
+    validations:
+      required: true
+  - type: checkboxes
+    id: disclosure
+    attributes:
+      label: Disclosure check
+      options:
+        - label: I removed credentials, private source text, protected holdout data, and local filesystem paths.
+          required: true

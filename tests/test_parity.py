@@ -2,7 +2,13 @@ from copy import deepcopy
 
 import pytest
 
-from groundnut.parity import EXCLUDED_PATHS, compare_analysis
+from groundnut.parity import (
+    EXCLUSIONS,
+    EXCLUDED_PATHS,
+    EXCLUSION_CONTRACT_SHA256,
+    PINNED_EXCLUSION_CONTRACT_SHA256,
+    compare_analysis,
+)
 
 
 def artifact():
@@ -38,6 +44,8 @@ def test_parity_is_canonical_and_ignores_only_named_host_metadata():
     assert comparison.equal is True
     assert comparison.expected_sha256 == comparison.actual_sha256
     assert comparison.excluded_paths == EXCLUDED_PATHS
+    assert comparison.to_dict()["exclusions"] == [row.to_dict() for row in EXCLUSIONS]
+    assert comparison.to_dict()["exclusion_contract_sha256"] == EXCLUSION_CONTRACT_SHA256
 
 
 def test_parity_detects_semantic_drift():
@@ -58,3 +66,11 @@ def test_parity_rejects_unreviewed_schema_growth():
 
     with pytest.raises(ValueError, match="unknown.*new_semantic_result"):
         compare_analysis(expected, actual)
+
+
+def test_every_exclusion_is_individually_justified_and_contract_hashed():
+    assert len(EXCLUSIONS) == 5
+    assert len({row.path for row in EXCLUSIONS}) == len(EXCLUSIONS)
+    assert all(len(row.reason) >= 40 for row in EXCLUSIONS)
+    assert len(EXCLUSION_CONTRACT_SHA256) == 64
+    assert EXCLUSION_CONTRACT_SHA256 == PINNED_EXCLUSION_CONTRACT_SHA256

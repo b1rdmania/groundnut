@@ -16,10 +16,10 @@ result is `incomplete`.
 ### Scope decision — 17 August 2026
 
 Groundnut's remit is deliberately wider than extraction alone. It is the
-canonical, reusable method layer: pure analysis and verification functions,
-versioned domain and policy inputs, deterministic artifacts, and explicit
-adapters that acquire source material. This is a recorded scope decision, not
-permission for the engine to absorb deployment concerns.
+canonical anti-hallucination system: analysis and verification functions,
+versioned domain and policy inputs, deterministic artifacts, source
+acquisition, evaluation, annotation and adjudication machinery. This is a
+capability boundary, not a size limit.
 
 The current priority is to make those checking guarantees tight and measured.
 IC research is a future proving ground and consumer once the engine clears its
@@ -31,19 +31,21 @@ Groundnut owns:
 - domain-pack validation and versioned playbook hashes;
 - document normalization, segmentation, classification, and extraction;
 - backend interfaces and deterministic source anchoring;
-- coverage and report primitives that do not depend on an application database;
+- coverage, report, corpus, annotation, and adjudication primitives;
 - evaluation and arena interfaces, including frozen policies and provenance.
 
-Hosts own authentication, persistence, credentials, user interfaces, and the
-decision to sign or publish an output. Source connectors implement Groundnut's
-acquisition interface; uploaded files and live web sources enter the same
-normalized source record after acquisition.
+Groundnut may ship persistence and user interfaces when they directly support
+those capabilities—for example a review workbench for benchmark adjudication.
+Hosts still own deployment identity, secret custody, and the authority to sign
+or publish an output. Source connectors implement Groundnut's acquisition
+interface; uploaded files and live web sources enter the same normalized source
+record after acquisition.
 
-The stop line is identity and authorization, application databases, credential
-custody, UI, deployment-specific policy, and human-signature authority.
-Groundnut may produce a hashable artifact for those systems to store or sign;
-it never decides who can do either. Adapters are opt-in edges: importing or
-running analysis never performs an implicit network request.
+The stop line is authority, not application shape: Groundnut never infers who
+may see data, spend credentials, approve a legal conclusion, or publish an
+artifact. Those actions require explicit deployment policy or human authority.
+Adapters are opt-in edges: importing or running analysis never performs an
+implicit network request.
 
 The built-in adapters cover local text and simple HTTP text/HTML. Paywalls,
 unreachable sources, and unsupported PDFs remain explicit failure states.
@@ -76,8 +78,9 @@ synthetic responses rather than calling a live model.
 
 ## Run manifest
 
-`groundnut-run-manifest/v1` is the portable receipt for one run. It binds an
-immutable engine revision; exact playbook and evidence-manifest hashes; source
+`groundnut-run-manifest/v2` is the portable receipt for one run. It binds an
+immutable engine revision; path-bound shipped-source digest; explicit dirty
+state; exact playbook and evidence-manifest hashes; source
 and optional snapshot hashes; frozen support/arena policies; runtime component
 revisions and configuration hashes; and schema-tagged output artifact hashes.
 Collection order is canonicalized, duplicate identities are rejected, and the
@@ -113,6 +116,39 @@ Detector-transfer cases use the paired contract in `SUPPORT.md`. Each group
 crosses support status with substring presence and shares one source origin and
 question. Consequently neither substring presence nor class-specific context
 selection can produce a valid-looking semantic result.
+
+Optional LettuceDetect and MiniCheck adapters are benchmark surfaces, not
+runtime endorsements. They load no dependency at import time, pin immutable
+model/package/configuration identity, and map outputs conservatively. Binary or
+untyped unsupported output is insufficient evidence, not contradiction.
+
+`run_support_probe` is the deterministic experiment runner. It requires a
+`groundnut-support-probe-plan/v2` preregistration, feeds every
+detector source-identical windows derived from the paired original offsets and
+binds the plan, context, detector, exact policy hash, normalized decisions,
+scores, and probe manifest into one self-hashed artifact suitable for the run
+manifest.
+
+`check_claims` is the end-to-end engine surface for claim batches. It composes
+source resolution, mechanical verification, and one frozen support policy. The
+result sorts claim identities, derives completeness and metrics from the rows,
+and rejects mixed policies or mismatched mechanical/semantic identities. Its
+self-hashed report is a first-class run-manifest artifact.
+
+## Gate roles
+
+The original four-criterion CUAD gate is the compatibility pipeline's
+extraction gate. Its 41-category macro-F1, grounding, high-severity precision,
+probe-gap bars, historical results, and protected holdout remain unchanged. It
+does not accept or reject the canonical claim checker.
+
+The canonical checker has a separate semantic-support admission gate. That
+gate is currently unmeasured and cannot pass until an adjudicated support probe
+is frozen. A detector run must match the preregistered plan and beat the exact
+baseline by its prespecified difference without regressing on a material case
+kind. Finally, each domain pack needs its own labelled quality gate; generic
+support competence cannot establish domain extraction coverage. The dated
+decision and non-swap rules are in `GATES.md`.
 
 ## Evidence maturity
 

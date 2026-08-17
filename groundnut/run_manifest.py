@@ -5,14 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
+from pathlib import Path
 import re
+import subprocess
 from typing import Any, Mapping
 
 from .domain import DomainPack
 from .provenance import SourceRecord
 
 
-RUN_SCHEMA = "groundnut-run-manifest/v1"
+RUN_SCHEMA = "groundnut-run-manifest/v2"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _MOVING_REVISIONS = {"main", "master", "latest", "head"}
 
@@ -21,17 +23,86 @@ _MOVING_REVISIONS = {"main", "master", "latest", "head"}
 class EngineIdentity:
     version: str
     revision: str
+    source_sha256: str
+    dirty: bool
     package: str = "groundnut"
 
     def __post_init__(self) -> None:
         _require_text(self.package, self.version, self.revision)
         _require_immutable_revision(self.revision)
+        _require_sha256(self.source_sha256, "engine source_sha256")
+        if not isinstance(self.dirty, bool):
+            raise ValueError("engine dirty state must be boolean")
 
-    def to_dict(self) -> dict[str, str]:
+    @classmethod
+    def from_source_tree(
+        cls,
+        *,
+        version: str,
+        revision: str,
+        source_root: str | Path,
+        dirty: bool,
+        package: str = "groundnut",
+    ) -> "EngineIdentity":
+        return cls(
+            package=package,
+            version=version,
+            revision=revision,
+            source_sha256=source_tree_sha256(source_root),
+            dirty=dirty,
+        )
+
+    @classmethod
+    def from_repository(
+        cls,
+        *,
+        version: str,
+        repository: str | Path,
+        source_directory: str = "groundnut",
+        package: str = "groundnut",
+    ) -> "EngineIdentity":
+        root = Path(repository).resolve()
+        source_root = (root / source_directory).resolve()
+        try:
+            source_root.relative_to(root)
+        except ValueError as exc:
+            raise ValueError("engine source directory must be inside repository") from exc
+        revision = _git(root, "rev-parse", "HEAD")
+        relative_source = source_root.relative_to(root).as_posix()
+        dirty = bool(
+            _git(
+                root,
+                "status",
+                "--porcelain",
+                "--untracked-files=all",
+                "--",
+                relative_source,
+            )
+        )
+        return cls.from_source_tree(
+            package=package,
+            version=version,
+            revision=revision,
+            source_root=source_root,
+            dirty=dirty,
+        )
+
+    @property
+    def publishable(self) -> bool:
+        return not self.dirty
+
+    def require_publishable(self) -> None:
+        if self.dirty:
+            raise ValueError("publication-grade runs require a clean engine build")
+
+    def to_dict(self) -> dict[str, Any]:
         return {
             "package": self.package,
             "version": self.version,
             "revision": self.revision,
+            "source_sha256": self.source_sha256,
+            "dirty": self.dirty,
+            "publishable": self.publishable,
         }
 
 
@@ -258,6 +329,45 @@ def _canonical_json(value: Mapping[str, Any]) -> bytes:
         separators=(",", ":"),
         allow_nan=False,
     ).encode()
+
+
+def source_tree_sha256(source_root: str | Path) -> str:
+    """Hash shipped Python sources with path and length framing."""
+    root = Path(source_root)
+    if not root.is_dir():
+        raise ValueError("engine source root must be a directory")
+    files = sorted(
+        (
+            path
+            for path in root.rglob("*.py")
+            if path.is_file() and "__pycache__" not in path.parts
+        ),
+        key=lambda path: path.relative_to(root).as_posix(),
+    )
+    if not files:
+        raise ValueError("engine source root contains no Python sources")
+    digest = hashlib.sha256(b"groundnut-source-tree/v1\0")
+    for path in files:
+        name = path.relative_to(root).as_posix().encode()
+        content = path.read_bytes()
+        digest.update(len(name).to_bytes(8, "big"))
+        digest.update(name)
+        digest.update(len(content).to_bytes(8, "big"))
+        digest.update(content)
+    return digest.hexdigest()
+
+
+def _git(repository: Path, *args: str) -> str:
+    try:
+        return subprocess.run(
+            ["git", *args],
+            cwd=repository,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise ValueError("engine repository identity is unavailable") from exc
 
 
 def _sha256_json(value: Mapping[str, Any]) -> str:

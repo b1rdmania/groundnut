@@ -24,11 +24,24 @@ until they deliberately adopt a stable Groundnut contract.
   substring labels prevent the invalid detector comparison from recurring.
 - Canonical run manifests binding engine, playbook, evidence, source/snapshot,
   policy, runtime-component, and output-artifact hashes.
+- End-to-end batch claim checking with derived completeness, mixed-state
+  reporting, and manifest-ready self-hashed output.
+- Offline-testable LettuceDetect and MiniCheck benchmark adapters with pinned
+  configuration identity and conservative non-truth mappings.
+- Reproducible paired-probe execution with per-context hashes, one-to-one
+  scoring, strict identity checks, and a self-hashed benchmark artifact.
+- Provenance-rich support cases, contamination-safe LegalBench-RAG seed
+  import, and an OpenContracts-compatible annotation/review interchange.
+- Frozen support-probe preregistration binding N, the exact probe, sample
+  pools, context, policies, metric, meaningful difference, and paraphrase-
+  overlap bounds.
 
-The widened method-layer scope is a dated decision in `ARCHITECTURE.md`. It
-does not move the stop line: no auth, application persistence, credential
-custody, UI, deployment policy, or sign-off authority belongs here. Tests are
-offline by contract and acquisition adapters are always invoked explicitly.
+The widened system scope is a dated decision in `ARCHITECTURE.md`. Groundnut
+may grow persistence and operator/review surfaces where they close a measured
+checking gap; size is not a constraint. The stop line is authority: identity,
+credential use, publication, and sign-off require explicit deployment or human
+policy. Tests are offline by contract and acquisition adapters are always
+invoked explicitly.
 
 ## Canonical-engine priority
 
@@ -45,9 +58,9 @@ offline by contract and acquisition adapters are always invoked explicitly.
 5. Keep the compatibility pipeline stable while the canonical API earns its
    own gate.
 
-Authentication, database models, audit-chain persistence, sign-off workflow,
-and UI remain host concerns. Groundnut may produce hashable artifacts for those
-systems to store and sign, but it does not decide who is authorised to do so.
+Groundnut can own database models, audit-chain persistence, and review UI when
+they are part of the canonical checking system. It does not silently exercise
+authentication, credentials, publication, or sign-off authority.
 
 ## Future proving ground: IC research
 
@@ -69,6 +82,12 @@ a host path, but building such an adapter is deliberately not on the critical
 path.
 
 ## Evaluation work before qualification
+
+The legacy four-criterion CUAD gate is retained unchanged as the compatibility
+extractor gate, not Groundnut's product acceptance bar. Its current failure is
+still published. The canonical semantic-support gate is explicitly
+`NOT MEASURED` until the adjudicated probe is frozen; this is a documented gate
+split, not a quiet metric replacement. See `GATES.md`.
 
 - Fix prediction/gold scoring to enforce one-to-one matches under a reviewed
   harness change.
