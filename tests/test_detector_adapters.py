@@ -1,0 +1,166 @@
+import pytest
+
+from groundnut.adapters import LettuceDetectAdapter, MiniCheckAdapter
+from groundnut.sources import ResolvedSource, SourceReference, SourceResolution
+from groundnut.support import SupportPolicy, assess_claim_support
+from groundnut.verification import Claim, verify_claim
+
+
+SOURCE = "Revenue was $14.2M."
+CLAIM = "Revenue was $14.2M."
+REFERENCE = SourceReference("s1", "memory://s1")
+
+
+def resolution():
+    return SourceResolution(
+        source=ResolvedSource(
+            reference=REFERENCE,
+            text=SOURCE,
+            fetched_at="2026-08-17T00:00:00Z",
+            media_type="text/plain",
+        )
+    )
+
+
+def checked(detector, threshold=None, question=None):
+    claim = Claim("c1", CLAIM, source=REFERENCE, question=question)
+    mechanical = verify_claim(claim, resolution())
+    policy = SupportPolicy(
+        key="adapter-test",
+        version="1",
+        frozen_at="2026-08-17T00:00:00Z",
+        detector=detector.identity,
+        min_confidence=threshold,
+    )
+    return assess_claim_support(
+        mechanical,
+        resolution(),
+        detector=detector,
+        policy=policy,
+    )
+
+
+class FakeLettuce:
+    def __init__(self, spans):
+        self.spans = spans
+        self.calls = []
+
+    def predict(self, **kwargs):
+        self.calls.append(kwargs)
+        return self.spans
+
+
+def lettuce(spans, threshold=0.5):
+    backend = FakeLettuce(spans)
+    adapter = LettuceDetectAdapter(
+        model="KRLabsOrg/lettucedect-v2-mmbert-base",
+        revision="0123456789abcdef",
+        span_threshold=threshold,
+        backend=backend,
+        installed_package_version="0.2.2",
+    )
+    return adapter, backend
+
+
+def test_lettuce_clean_output_is_unscored_support_under_explicit_policy():
+    adapter, backend = lettuce([])
+    result = checked(adapter, threshold=None, question="What was revenue?")
+
+    assert result.support.status == "supported"
+    assert result.support.decision.confidence is None
+    assert backend.calls[0]["question"] == "What was revenue?"
+    assert backend.calls[0]["min_confidence"] == 0.5
+    assert len(result.support.decision.raw_output_sha256) == 64
+
+
+def test_lettuce_only_maps_explicit_typed_contradiction_to_contradicted():
+    adapter, _ = lettuce([
+        {
+            "start": 12,
+            "end": 18,
+            "text": "$14.2M",
+            "confidence": 0.93,
+            "category": "contradiction",
+            "subcategory": "numerical",
+        }
+    ])
+    result = checked(adapter, threshold=0.8)
+
+    assert result.support.status == "contradicted"
+    assert result.support.decision.spans[0].label == "contradiction/numerical"
+
+
+def test_lettuce_untyped_unsupported_span_is_insufficient_not_contradicted():
+    adapter, _ = lettuce([
+        {"start": 12, "end": 18, "text": "$14.2M", "confidence": 0.91}
+    ])
+    result = checked(adapter, threshold=0.8)
+
+    assert result.support.status == "insufficient"
+    assert result.support.decision.spans[0].label == "unsupported"
+
+
+def test_lettuce_configuration_hash_pins_threshold():
+    first, _ = lettuce([], threshold=0.5)
+    second, _ = lettuce([], threshold=0.8)
+
+    assert first.identity.configuration_sha256 != second.identity.configuration_sha256
+    assert first.identity.sha256 != second.identity.sha256
+
+
+class FakeMiniCheck:
+    def __init__(self, label, probability):
+        self.label = label
+        self.probability = probability
+        self.calls = []
+
+    def score(self, **kwargs):
+        self.calls.append(kwargs)
+        return [self.label], [self.probability], None, None
+
+
+def minicheck(label, probability):
+    scorer = FakeMiniCheck(label, probability)
+    adapter = MiniCheckAdapter(
+        scorer=scorer,
+        model="flan-t5-large",
+        revision="abcdef0123456789",
+        installed_package_version="1.0.0",
+    )
+    return adapter, scorer
+
+
+def test_minicheck_supported_mapping_records_probability_and_inputs():
+    adapter, scorer = minicheck(1, 0.94)
+    result = checked(adapter, threshold=0.8)
+
+    assert result.support.status == "supported"
+    assert result.support.decision.confidence == 0.94
+    assert scorer.calls == [{"docs": [SOURCE], "claims": [CLAIM]}]
+
+
+def test_minicheck_negative_is_insufficient_never_contradicted():
+    adapter, _ = minicheck(0, 0.08)
+    result = checked(adapter, threshold=0.8)
+
+    assert result.support.status == "insufficient"
+    assert result.support.decision.confidence == 0.92
+    assert "cannot distinguish contradiction" in result.support.decision.reason
+
+
+def test_adapter_errors_fail_closed_through_support_contract():
+    adapter, _ = minicheck(7, 1.5)
+    result = checked(adapter, threshold=0.8)
+
+    assert result.support.status == "not_assessed"
+    assert result.support.failure == "detector_error:ValueError"
+
+
+def test_minicheck_requires_preloaded_pinned_scorer():
+    with pytest.raises(ValueError, match="pinned scorer"):
+        MiniCheckAdapter(
+            scorer=None,
+            model="flan-t5-large",
+            revision="abcdef0123456789",
+            installed_package_version="1.0.0",
+        )

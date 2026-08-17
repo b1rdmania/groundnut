@@ -72,6 +72,20 @@ wrong and extra predictions are rejected.
 
 ## Adapter admission
 
+Groundnut includes benchmark-only adapters for LettuceDetect and MiniCheck, but
+neither model is an adopted dependency or quality claim. Imports load no model
+runtime and tests inject fakes without network access.
+
+The Lettuce adapter requires a pinned local model directory for real loading;
+it will not resolve a moving Hugging Face reference. A clean span result is an
+unscored `supported` decision, an explicitly typed contradiction maps to
+`contradicted`, and every other unsupported span maps to `insufficient`.
+
+The MiniCheck adapter requires an already-loaded, revision-pinned scorer because
+the package constructor does not expose an immutable model revision. Its binary
+negative maps to `insufficient`, never `contradicted`. Code/package and model/
+dataset licences must be recorded separately for both adapters.
+
 A learned detector remains an optional research dependency until it:
 
 1. runs over the same frozen cases and identical context windows as every

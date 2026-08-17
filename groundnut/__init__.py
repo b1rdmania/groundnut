@@ -48,6 +48,7 @@ from .run_manifest import (
     SourceDigest,
 )
 from .checker import ClaimCheckReport, check_claims
+from .adapters import LettuceDetectAdapter, MiniCheckAdapter
 from .verification import (
     Claim,
     MatchOutcome,
@@ -82,6 +83,7 @@ __all__ = [
     "EngineIdentity",
     "HttpResolver",
     "MatchOutcome",
+    "MiniCheckAdapter",
     "ParityComparison",
     "PolicyDigest",
     "ResolvedSource",
@@ -101,6 +103,7 @@ __all__ = [
     "SupportProbe",
     "SupportSpan",
     "VerifiedClaim",
+    "LettuceDetectAdapter",
     "analyse_text",
     "adjudicate",
     "assess_claim_support",

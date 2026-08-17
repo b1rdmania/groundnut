@@ -114,6 +114,11 @@ crosses support status with substring presence and shares one source origin and
 question. Consequently neither substring presence nor class-specific context
 selection can produce a valid-looking semantic result.
 
+Optional LettuceDetect and MiniCheck adapters are benchmark surfaces, not
+runtime endorsements. They load no dependency at import time, pin immutable
+model/package/configuration identity, and map outputs conservatively. Binary or
+untyped unsupported output is insufficient evidence, not contradiction.
+
 `check_claims` is the end-to-end engine surface for claim batches. It composes
 source resolution, mechanical verification, and one frozen support policy. The
 result sorts claim identities, derives completeness and metrics from the rows,
