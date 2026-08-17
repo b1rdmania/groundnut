@@ -68,6 +68,8 @@ Both are provenance claims, not truth claims: retrieval can be incomplete, a sou
 
 Caveat on the ~97%: it comes from agent runs (whole-document context, no temperature pinning, non-API protocol) that `LOG.md` calls *indicative, not API-reproducible*. It has not been established under a reproducible API run.
 
+Full measurement notes, including two corrected results and what to attack: [`FINDINGS.md`](./FINDINGS.md).
+
 ## Open questions 🔍
 
 **Is criterion 1 measuring the right thing?** The matcher is a symmetric token-set Jaccard at 0.5, which punishes a correct extraction for choosing different span boundaries than the annotator. Swapping it for containment moves the best run 0.4916 → 0.6415 **and raises precision 0.630 → 0.824** — the sign that the "false positives" were mostly boundary mismatches, not errors. Containment is also what LegalBench-RAG uses to score spans.
