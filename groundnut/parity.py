@@ -9,13 +9,68 @@ from typing import Any, Mapping
 
 
 PARITY_SCHEMA = "groundnut-analysis-parity/v1"
-EXCLUDED_PATHS = (
-    "/domain/evidence_disclosure",
-    "/domain/evidence_status",
-    "/domain/manifest_sha256",
-    "/source/source_id",
-    "/anchored_findings/*/anchor/source_id",
+
+
+@dataclass(frozen=True)
+class ParityExclusion:
+    path: str
+    reason: str
+
+    def __post_init__(self) -> None:
+        if not self.path.startswith("/") or not self.reason.strip():
+            raise ValueError("parity exclusion requires a JSON path and reason")
+
+    def to_dict(self) -> dict[str, str]:
+        return {"path": self.path, "reason": self.reason}
+
+
+EXCLUSIONS = (
+    ParityExclusion(
+        "/domain/evidence_disclosure",
+        "Quality disclosure is Groundnut metadata absent from the legacy result; "
+        "it does not change the executable playbook.",
+    ),
+    ParityExclusion(
+        "/domain/evidence_status",
+        "Evidence maturity is Groundnut metadata absent from the legacy result; "
+        "it is evaluated separately from output parity.",
+    ),
+    ParityExclusion(
+        "/domain/manifest_sha256",
+        "The manifest includes Groundnut-only evidence metadata; executable job "
+        "identity remains compared through playbook_sha256.",
+    ),
+    ParityExclusion(
+        "/source/source_id",
+        "Source IDs are host-local; source content hash and character count remain "
+        "inside the parity projection.",
+    ),
+    ParityExclusion(
+        "/anchored_findings/*/anchor/source_id",
+        "Anchor source IDs repeat the same host-local identifier; source hash, "
+        "quote, match mode, and offsets remain compared.",
+    ),
 )
+EXCLUDED_PATHS = tuple(row.path for row in EXCLUSIONS)
+
+
+def _exclusion_contract_sha256() -> str:
+    encoded = json.dumps(
+        [row.to_dict() for row in EXCLUSIONS],
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+EXCLUSION_CONTRACT_SHA256 = _exclusion_contract_sha256()
+PINNED_EXCLUSION_CONTRACT_SHA256 = (
+    "7c568a1c85d0d82b56d9956933eaa5a2e7c8e2dad176634209b56ce7c2014141"
+)
+if EXCLUSION_CONTRACT_SHA256 != PINNED_EXCLUSION_CONTRACT_SHA256:
+    raise RuntimeError(
+        "parity exclusions changed without updating the reviewed contract hash"
+    )
 
 
 def _require_exact_keys(value: Mapping[str, Any], expected: set[str], path: str) -> None:
@@ -124,7 +179,10 @@ class ParityComparison:
     equal: bool
     expected_sha256: str
     actual_sha256: str
-    excluded_paths: tuple[str, ...] = EXCLUDED_PATHS
+
+    @property
+    def excluded_paths(self) -> tuple[str, ...]:
+        return EXCLUDED_PATHS
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -133,6 +191,8 @@ class ParityComparison:
             "expected_sha256": self.expected_sha256,
             "actual_sha256": self.actual_sha256,
             "excluded_paths": list(self.excluded_paths),
+            "exclusion_contract_sha256": EXCLUSION_CONTRACT_SHA256,
+            "exclusions": [row.to_dict() for row in EXCLUSIONS],
         }
 
 
