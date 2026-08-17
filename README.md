@@ -178,6 +178,7 @@ Thresholds are fixed before holdout scoring.
 | Independent evidence-authority assessment | Landed |
 | Frozen semantic-support contract and exact baseline | Landed |
 | Paired four-cell detector-transfer probe contract | Landed |
+| Agent-screened development batch (structurally non-admissible) | Landed |
 | Canonical run manifest and artifact digests | Landed |
 | End-to-end batch claim checker and hashable report | Landed |
 | Canonical artifact-to-evidence runner | Landed |

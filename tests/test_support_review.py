@@ -15,6 +15,7 @@ from groundnut.support_review import (
     review_decisions_tsv,
 )
 from groundnut.support_review_html import render_support_review_html
+from groundnut.support_agent_screen import AgentSuggestion, screen_agent_suggestions
 from groundnut.support_cases import CaseProvenance
 from groundnut.support_seeds import AttestedSpanSeed, PresentIrrelevantCandidate
 
@@ -205,3 +206,55 @@ def test_offline_reviewer_keeps_agent_draft_separate_from_human_decision():
     assert "local:test-model" in html
     assert "review, do not rubber-stamp" in html
     assert 'irrelevant_decision: row.irrelevance_review.decision' in html
+
+
+def agent_suggestion(**updates):
+    row = manifest().rows[0]
+    values = {
+        "input_sha256": row.input_sha256,
+        "agent": "local:test-model",
+        "irrelevant_decision": "accepted",
+        "irrelevant_note": "The candidate addresses a different obligation.",
+        "paraphrase_text": "An audited report is due within thirty days.",
+        "paraphrase_note": "The duty and deadline are retained.",
+        "paraphrase_lexical_overlap": 0.4,
+        "paraphrase_absent_from_context": True,
+        "contradiction_decision": "accepted",
+        "contradiction_note": "The proposed mutation reverses the duty.",
+        "requires_human_review": True,
+    }
+    values.update(updates)
+    return AgentSuggestion(**values)
+
+
+def test_agent_screen_is_exploratory_and_structurally_ineligible():
+    current = manifest()
+    screen = screen_agent_suggestions(current, (agent_suggestion(),))
+
+    artifact = screen.to_dict()
+    assert artifact["qualification"] == "exploratory_only"
+    assert artifact["eligible_for_admission"] is False
+    assert artifact["included_group_count"] == 1
+    assert artifact["included_case_count"] == 4
+    assert len(artifact["sha256"]) == 64
+
+
+def test_agent_screen_excludes_disagreement_instead_of_resolving_it():
+    screen = screen_agent_suggestions(
+        manifest(),
+        (agent_suggestion(contradiction_decision="ambiguous"),),
+    )
+
+    assert screen.included_input_sha256 == ()
+    assert screen.excluded[0][1] == ("contradiction_ambiguous",)
+
+
+def test_agent_suggestion_boolean_strings_are_rejected():
+    value = {
+        "schema": "groundnut-support-agent-suggestion/v1",
+        **agent_suggestion().__dict__,
+        "requires_human_review": "true",
+    }
+
+    with pytest.raises(ValueError, match="flags must be booleans"):
+        AgentSuggestion.from_mapping(value)

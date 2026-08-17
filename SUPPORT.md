@@ -139,6 +139,15 @@ authorship while requiring a separate human reviewer ID. Human notes remain
 independent. Drafts outside the frozen lexical-overlap band or found verbatim
 in context become ambiguous rather than accepted.
 
+When human adjudication is not available, `scripts/screen_support_suggestions.py`
+provides a deliberately weaker development route. It checks that agent
+suggestions exactly cover the preregistered target rows, excludes every
+rejected or ambiguous group, and emits a self-hashed screen with
+`qualification: exploratory_only` and `eligible_for_admission: false`. This is
+useful for debugging adapters and estimating whether a learned detector is
+worth further work. It cannot create `adjudicated` provenance, promote cases to
+gold, qualify a detector, or change the canonical gate from `NOT MEASURED`.
+
 `run_support_bakeoff` then runs every frozen policy over those identical cases,
 writes complete run artifacts, recomputes each score, and produces one
 self-hashed admission decision per candidate. External packages remain

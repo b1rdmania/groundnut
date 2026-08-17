@@ -98,6 +98,11 @@ from .support_review import (
     review_decisions_tsv,
 )
 from .support_review_html import render_support_review_html
+from .support_agent_screen import (
+    AgentSuggestion,
+    AgentSupportScreen,
+    screen_agent_suggestions,
+)
 from .run_manifest import (
     ArtifactDigest,
     DomainDigest,
@@ -134,6 +139,8 @@ from .verification import (
 
 __all__ = [
     "AnalysisResult",
+    "AgentSuggestion",
+    "AgentSupportScreen",
     "ANALYTICAL_PROVENANCE_SCHEMA",
     "ANALYST_PROVENANCE_CLASSES",
     "AUTHORITY_KINDS",
@@ -248,6 +255,7 @@ __all__ = [
     "sample_present_irrelevant_candidates",
     "semantic_projection",
     "score_support",
+    "screen_agent_suggestions",
     "run_support_probe",
     "run_canonical_check",
     "verification_metrics",
