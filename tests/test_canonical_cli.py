@@ -69,6 +69,18 @@ def test_execute_request_replays_snapshot_and_returns_versioned_execution(tmp_pa
     assert execution["manifest"]["domain"]["key"] == "ma_dd"
 
 
+def test_execute_request_accepts_separate_arena_artifact(tmp_path):
+    request = _request(tmp_path)
+    original = tmp_path / "original.md"
+    original.write_text(
+        "Therefore the company is likely to sustain this revenue level for the next year."
+    )
+    request["arena_profile"] = True
+    request["arena_artifact"] = str(original)
+    response = execute_request(request, base_directory=tmp_path)
+    assert response["execution"]["run"]["arena"]["tasks"][0]["trigger"] == "inferential"
+
+
 def test_execute_request_requires_separate_live_process_permission(tmp_path):
     request = _request(tmp_path)
     request["acquisition_mode"] = "refresh"

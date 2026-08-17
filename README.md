@@ -239,6 +239,7 @@ by path; relative paths in a request file resolve beside that file.
 {
   "schema": "groundnut-canonical-request/v1",
   "artifact": "report.html",
+  "arena_artifact": "report.html",
   "snapshot_directory": "snapshots",
   "domain": "domain.json",
   "support_policy": "exact-support-policy.json",
@@ -259,6 +260,11 @@ Replay-only is the default and never touches the network. A request for
 replayed. The process boundary currently admits only the frozen exact-support
 baseline. That restriction is intentional while the canonical semantic-support
 gate remains unmeasured.
+
+When a consumer normalizes claims into structured JSON but needs adversarial
+task emission from the original prose, `arena_artifact` may identify that
+separate Markdown or HTML input. Its bytes are bound by the arena emission hash
+inside the canonical execution; it is not an unrecorded side input.
 
 ## Compatibility extraction gate 🚦
 

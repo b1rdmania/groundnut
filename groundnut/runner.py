@@ -118,6 +118,7 @@ def run_canonical_check(
     authority_policy: AuthorityPolicy,
     authority_declarations: Mapping[str, AuthorityDeclaration] | None = None,
     arena_profile: ArenaEmissionProfile | None = None,
+    arena_artifact_path: str | Path | None = None,
 ) -> CanonicalRun:
     artifact = extract_artifact(artifact_path, artifact_profile)
     references = sorted(
@@ -141,7 +142,7 @@ def run_canonical_check(
         declarations=authority_declarations,
     )
     arena = (
-        emit_arena_tasks(artifact_path, arena_profile)
+        emit_arena_tasks(arena_artifact_path or artifact_path, arena_profile)
         if arena_profile is not None
         else None
     )
@@ -165,6 +166,7 @@ def execute_canonical_check(
     authority_policy: AuthorityPolicy,
     authority_declarations: Mapping[str, AuthorityDeclaration] | None = None,
     arena_profile: ArenaEmissionProfile | None = None,
+    arena_artifact_path: str | Path | None = None,
     publication_grade: bool = False,
 ) -> CanonicalExecution:
     if publication_grade:
@@ -178,6 +180,7 @@ def execute_canonical_check(
         authority_policy=authority_policy,
         authority_declarations=authority_declarations,
         arena_profile=arena_profile,
+        arena_artifact_path=arena_artifact_path,
     )
     sources = tuple(
         SourceDigest.from_record(

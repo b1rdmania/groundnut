@@ -130,6 +130,15 @@ def execute_request(
             request.get("authority_declarations")
         ),
         arena_profile=_arena_profile(request.get("arena_profile")),
+        arena_artifact_path=(
+            _resolve_path(
+                request.get("arena_artifact"),
+                base=base,
+                label="arena_artifact",
+            )
+            if request.get("arena_artifact") is not None
+            else None
+        ),
         publication_grade=bool(request.get("publication_grade", False)),
     )
     return {
