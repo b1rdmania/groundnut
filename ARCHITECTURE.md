@@ -84,6 +84,18 @@ through character similarity alone. An anchored excerpt always carries
 may consume that record through an adapter but cannot rewrite its mechanical
 provenance.
 
+Semantic support is a separate, versioned artifact. A support policy pins the
+detector adapter, model, revision, package version, confidence threshold, and
+policy hash before a run. Its result is one of `supported`, `contradicted`,
+`insufficient`, `source_unavailable`, or `not_assessed`. The combined claim
+artifact preserves the original mechanical verification beside that semantic
+assessment; a detector cannot rewrite an inaccessible source or failed anchor.
+
+The shipped exact-support policy is a deterministic baseline, not a semantic
+quality claim. It reports a normalized substring as supported and every absent
+claim as insufficient—never contradicted. Optional learned adapters must beat
+that baseline on a frozen, domain-relevant development set before adoption.
+
 ## Evidence maturity
 
 Changing configuration demonstrates portability, not quality. Every domain

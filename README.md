@@ -112,16 +112,18 @@ Thresholds are fixed before holdout scoring.
 | Source resolution, verified snapshots, exact anchors | Landed |
 | Fail-closed per-segment coverage | Landed |
 | Mechanical citation and excerpt verification | Landed |
+| Frozen semantic-support contract and exact baseline | Landed |
 | Frozen-policy arena and offline adjudication CLI | Landed |
-| Semantic claim-support contract and detector adapters | Next build tranche |
+| Learned detector adapters | Next build tranche, after valid transfer measurement |
 | Valid detector-transfer probe and domain support dataset | Next measurement tranche |
 | Controlled chunking and largest-document merge comparison | Required before changing chunking |
 | IC research integration and product/OS ports | Deferred consumers |
 
-The current mechanical verifier intentionally stops at `not_assessed` for
-semantic support. The next tranche must add `supported`, `contradicted`,
-`insufficient`, `source_unavailable`, and `not_assessed` without allowing a
-model score to overwrite mechanical provenance.
+The mechanical verifier intentionally stops at `not_assessed`. The semantic
+support layer can then report `supported`, `contradicted`, `insufficient`,
+`source_unavailable`, or `not_assessed` in a separate artifact, without
+allowing a model score to overwrite mechanical provenance. The shipped exact
+policy is a baseline, not a learned support claim.
 
 ## Corpus 📚
 
@@ -223,7 +225,7 @@ real contracts remains unverified.
 ```
 groundnut/     🥜 engine, provenance, verification, coverage, sources, arena
 domains/       🧭 versioned checklists and evidence disclosures
-policies/      🧊 frozen arena policy
+policies/      🧊 frozen arena and support policies
 pipeline/     🥜 the extractor — CLI, backends, chunker, prompt, verbatim filter
 harness/      🌰 the gate — gate.py, judges.py, score.py, severity.json
 eval/         📚 41 categories, dev / holdout / probe splits

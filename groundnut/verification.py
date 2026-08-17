@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 import re
+from typing import Any
 
 from .sources import SourceReference, SourceResolution
 
@@ -22,6 +23,22 @@ class Claim:
     excerpt: str | None = None
     locator: str | None = None
     declared_analysis: bool = False
+    question: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "claim_id": self.claim_id,
+            "text": self.text,
+            "source": (
+                {"source_id": self.source.source_id, "uri": self.source.uri}
+                if self.source
+                else None
+            ),
+            "excerpt": self.excerpt,
+            "locator": self.locator,
+            "declared_analysis": self.declared_analysis,
+            "question": self.question,
+        }
 
 
 @dataclass(frozen=True)
@@ -40,6 +57,18 @@ class VerifiedClaim:
     support: str
     note: str
     failure: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": "groundnut-claim-verification/v1",
+            "claim": self.claim.to_dict(),
+            "anchor": self.anchor,
+            "method": self.method,
+            "score": self.score,
+            "support": self.support,
+            "note": self.note,
+            "failure": self.failure,
+        }
 
 
 _TRANS = str.maketrans(

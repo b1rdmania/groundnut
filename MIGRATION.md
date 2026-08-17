@@ -18,6 +18,8 @@ until they deliberately adopt a stable Groundnut contract.
 - Offline arena consumer with CI-safe exit semantics; hosts decide what to do
   with its immutable report.
 - Raw corpus-manifest hash enforcement.
+- Frozen semantic-support contracts with exact detector identity, immutable
+  mechanical verification, and one-to-one development scoring.
 
 The widened method-layer scope is a dated decision in `ARCHITECTURE.md`. It
 does not move the stop line: no auth, application persistence, credential
@@ -26,8 +28,10 @@ offline by contract and acquisition adapters are always invoked explicitly.
 
 ## Canonical-engine priority
 
-1. Tighten the anti-hallucination contract: retrieval provenance, claim
-   support, contradiction/negation handling, and fail-closed coverage.
+1. Tighten the anti-hallucination contract: benchmark optional support
+   detectors on paraphrase, contradiction/negation, numeric, attribution, and
+   irrelevant-evidence cases without weakening retrieval provenance or
+   fail-closed coverage.
 2. Establish labelled development sets and frozen bars for each exact domain
    pack before making quality claims.
 3. Test segmentation and merge behaviour under a controlled protocol,

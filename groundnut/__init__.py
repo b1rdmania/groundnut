@@ -26,6 +26,17 @@ from .arena import (
 )
 from .registry import DomainRegistry
 from .parity import ParityComparison, compare_analysis, semantic_projection
+from .support import (
+    ClaimAssessment,
+    DetectorDecision,
+    DetectorIdentity,
+    ExactSupportDetector,
+    SupportAssessment,
+    SupportPolicy,
+    SupportSpan,
+    assess_claim_support,
+)
+from .support_eval import SupportGold, score_support
 from .verification import (
     Claim,
     MatchOutcome,
@@ -43,13 +54,17 @@ __all__ = [
     "Attack",
     "Category",
     "Claim",
+    "ClaimAssessment",
     "CheckCoverage",
     "CoverageManifest",
     "DocumentType",
+    "DetectorDecision",
+    "DetectorIdentity",
     "DomainEvidence",
     "DomainPack",
     "DomainRegistry",
     "FileResolver",
+    "ExactSupportDetector",
     "HttpResolver",
     "MatchOutcome",
     "ParityComparison",
@@ -60,13 +75,19 @@ __all__ = [
     "SourceReference",
     "SourceRecord",
     "SourceResolution",
+    "SupportAssessment",
+    "SupportGold",
+    "SupportPolicy",
+    "SupportSpan",
     "VerifiedClaim",
     "analyse_text",
     "adjudicate",
+    "assess_claim_support",
     "anchor_quote",
     "anchor_excerpt",
     "compare_analysis",
     "semantic_projection",
+    "score_support",
     "verification_metrics",
     "verify_claim",
 ]
