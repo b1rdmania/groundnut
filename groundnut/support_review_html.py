@@ -50,7 +50,7 @@ button:hover { background: #405c35; }
 <header>
   <div class="bar">
     <strong>Groundnut support-pilot review</strong>
-    <span id="position"></span><span id="progress" class="warning"></span>
+    <span id="position"></span><span id="progress" class="warning"></span><span class="small">autosaves locally</span>
     <button id="previous">Previous</button><button id="next">Save & next</button>
     <button id="download">Download reviewed TSV</button>
   </div>
@@ -102,7 +102,7 @@ for (const id of ['irrelevantDecision','paraphraseDecision','contradictionDecisi
   for (const value of decisions) select.add(new Option(value, value));
 }
 let index = 0;
-const state = data.rows.map(row => ({
+let state = data.rows.map(row => ({
   input_sha256: row.input_sha256,
   source_id: row.candidate.source_id,
   question: row.candidate.question,
@@ -123,6 +123,11 @@ const state = data.rows.map(row => ({
   contradiction_reviewer_id: row.contradiction_review.reviewer_id || '',
   contradiction_note: row.contradiction_review.note || ''
 }));
+const storageKey = `groundnut-support-review:${data.manifest_sha256}`;
+try {
+  const saved = JSON.parse(localStorage.getItem(storageKey));
+  if (Array.isArray(saved) && saved.length === state.length && saved.every((row, i) => row.input_sha256 === state[i].input_sha256)) state = saved;
+} catch (_) { /* file browsers may disable local storage; TSV download still works */ }
 const ids = {
   source:'source_id', question:'question', attested:'attested_text', present:'present_candidate_text', context:'context_text',
   irrelevantDecision:'irrelevant_decision', irrelevantReviewer:'irrelevant_reviewer_id', irrelevantNote:'irrelevant_note',
@@ -137,6 +142,7 @@ function save() {
   if (reviewer) {
     for (const key of ['irrelevant_reviewer_id','paraphrase_reviewer_id','contradiction_reviewer_id']) if (!row[key]) row[key] = reviewer;
   }
+  try { localStorage.setItem(storageKey, JSON.stringify(state)); } catch (_) {}
 }
 function load() {
   const row = state[index];
