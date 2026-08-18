@@ -1,0 +1,85 @@
+{
+  "schema": "groundnut-navigation-interface-exploration-summary/v1",
+  "qualification": "development_selection_only",
+  "eligible_for_admission": false,
+  "case_pack": {
+    "source": "LegalBench-RAG CUAD",
+    "case_count": 100,
+    "unique_sources": true,
+    "holdout_excluded": true,
+    "sampling_seed": 991,
+    "max_node_characters": 3000,
+    "sha256": "198f7a291bcc45b8f0b7816af0454e1696c61195e48b910a00a39178d6886c88"
+  },
+  "frozen_runtime": {
+    "model": "qwen3:0.6b",
+    "model_revision": "sha256-7f4030143c1c477224c5434f8272c662a8b042079a0a584f0a27a1684fe2e1fa",
+    "backend": "ollama",
+    "backend_version": "0.31.1",
+    "context_tokens": 32768,
+    "max_prompt_characters": 100000,
+    "max_selected_nodes": 5,
+    "max_output_tokens": 128,
+    "temperature": 0,
+    "seed": 991
+  },
+  "n1_content_ids": {
+    "receipt_sha256": "4e136fc5f6141e58234ab1b80af6b75920b0c7316756b7acc55cc18aa5cb1c2f",
+    "exact_gold_coverage": 3,
+    "selected_cases": 24,
+    "abstentions": 23,
+    "failures": 53,
+    "unknown_or_nonselectable_id_failures": 51,
+    "mean_selected_nodes_when_selected": 4.5,
+    "mean_irrelevant_nodes_when_selected": 4.375,
+    "mean_context_ratio_when_selected": 0.08298079654567363,
+    "navigation_input_tokens": 876463
+  },
+  "n2_all_node_short_handles": {
+    "receipt_sha256": "4d15d3151ca2636b1da756d74e892ef0ab142911980a5884c2209f984d080f1e",
+    "exact_gold_coverage": 8,
+    "selected_cases": 44,
+    "abstentions": 6,
+    "failures": 50,
+    "unknown_handle_failures": 4,
+    "resolved_structural_node_failures": 43,
+    "mean_selected_nodes_when_selected": 4.840909090909091,
+    "mean_irrelevant_nodes_when_selected": 4.636363636363637,
+    "mean_context_ratio_when_selected": 0.08760942114635413,
+    "navigation_input_tokens": 758645
+  },
+  "n3_selectable_node_short_handles": {
+    "receipt_sha256": "2d24d321de57b0390ece6bf618a0def6f5f5e509a42a897644fb5afd6246199d",
+    "exact_gold_coverage": 13,
+    "selected_cases": 79,
+    "abstentions": 12,
+    "failures": 9,
+    "unknown_handle_failures": 6,
+    "resolved_structural_node_failures": 0,
+    "node_count_or_uniqueness_failures": 3,
+    "prompt_budget_abstentions": 4,
+    "empty_selection_abstentions": 8,
+    "mean_selected_nodes_when_selected": 4.924050632911392,
+    "mean_irrelevant_nodes_when_selected": 4.7594936708860756,
+    "mean_context_ratio_when_selected": 0.06953661091928458,
+    "navigation_tokens": {
+      "invoked_cases": 96,
+      "total_input": 759797,
+      "mean_input": 7914.552083333333,
+      "median_input": 5107.0,
+      "maximum_input": 30058,
+      "maximum_input_plus_output": 30098,
+      "total_output": 3392,
+      "context_limit": 32768,
+      "rows_over_context_limit": 0
+    },
+    "preregistered_targets": {
+      "zero_structural_node_failures": "pass",
+      "unknown_handle_failures_at_most_5": "fail",
+      "valid_selections_at_least_44": "pass",
+      "exact_gold_coverage_at_least_8": "pass"
+    }
+  },
+  "disclosure": "This experiment measures evidence-node selection only. It does not measure answer correctness, semantic support, contradiction, authority, completeness, or truth.",
+  "decision": "Keep selectable-only short handles as the safer experimental interface. Reject Qwen3 0.6B as a navigator because 13/100 exact evidence coverage is unsafe. Freeze the interface and compare a stronger selector on the identical development pack."
+}

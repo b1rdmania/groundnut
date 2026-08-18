@@ -14,6 +14,24 @@ from .artifacts import (
     extract_artifact,
 )
 from .metrics import MetricEnvelope
+from .navigation import (
+    NavigationIndex,
+    NavigationNode,
+    NavigationReceipt,
+    NavigationSelection,
+    NavigatorIdentity,
+    fetch_selected_nodes,
+)
+from .navigation_cases import NavigationCase
+from .signals import (
+    COMPONENT_SIGNAL_SCHEMA,
+    SIGNAL_BUNDLE_SCHEMA,
+    SIGNAL_ROLES,
+    ComponentLicence,
+    ComponentSignal,
+    SignalBundle,
+    component_input_sha256,
+)
 from .rendering import (
     RENDER_RECEIPT_SCHEMA,
     RenderReceipt,
@@ -126,7 +144,12 @@ from .runner import (
     execute_canonical_check,
     run_canonical_check,
 )
-from .adapters import AlignScoreAdapter, LettuceDetectAdapter, MiniCheckAdapter
+from .adapters import (
+    AlignScoreAdapter,
+    LettuceDetectAdapter,
+    MiniCheckAdapter,
+    SummaCAdapter,
+)
 from .support_runner import ProbeContextDigest, SupportProbeRun, run_support_probe
 from .verification import (
     ANALYTICAL_PROVENANCE_SCHEMA,
@@ -180,6 +203,9 @@ __all__ = [
     "ClaimEvidenceReport",
     "CheckCoverage",
     "COMPARISON_SCHEMA",
+    "COMPONENT_SIGNAL_SCHEMA",
+    "ComponentLicence",
+    "ComponentSignal",
     "CoverageManifest",
     "DocumentType",
     "DEFAULT_ARTIFACT_PROFILE",
@@ -199,6 +225,12 @@ __all__ = [
     "HttpResolver",
     "MatchOutcome",
     "MetricEnvelope",
+    "NavigationCase",
+    "NavigationIndex",
+    "NavigationNode",
+    "NavigationReceipt",
+    "NavigationSelection",
+    "NavigatorIdentity",
     "MiniCheckAdapter",
     "ParityComparison",
     "PresentIrrelevantCandidate",
@@ -225,6 +257,9 @@ __all__ = [
     "SourceResolution",
     "SeedImport",
     "SegmenterIdentity",
+    "SIGNAL_BUNDLE_SCHEMA",
+    "SIGNAL_ROLES",
+    "SignalBundle",
     "SupportAssessment",
     "SupportAdmissionReport",
     "SupportBakeoff",
@@ -235,6 +270,7 @@ __all__ = [
     "SupportProbePlan",
     "SupportProbeRun",
     "SupportSpan",
+    "SummaCAdapter",
     "VerifiedClaim",
     "LettuceDetectAdapter",
     "analyse_text",
@@ -248,6 +284,7 @@ __all__ = [
     "compare_analysis",
     "compare_agent_explorations",
     "compare_rendered_artifacts",
+    "component_input_sha256",
     "check_claims",
     "build_present_irrelevant_candidates",
     "build_pilot_probe",
@@ -271,4 +308,5 @@ __all__ = [
     "run_canonical_check",
     "verification_metrics",
     "verify_claim",
+    "fetch_selected_nodes",
 ]

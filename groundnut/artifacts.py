@@ -109,6 +109,7 @@ class ArtifactProfile:
     claims_key: str = "claims"
     claim_id_key: str = "claim_id"
     claim_text_key: str = "claim_text"
+    question_key: str = "verification_question"
     source_uri_key: str = "source_url"
     excerpt_key: str = "source_excerpt"
     locator_key: str = "source_locator"
@@ -116,6 +117,7 @@ class ArtifactProfile:
     provenance_class_key: str = "provenance_class"
     calculation_key: str = "calculation"
     evidence_comment_prefix: str = "groundnut-source"
+    question_comment_marker: str = "groundnut-verification-question"
     declared_analysis_classes: tuple[str, ...] = ("groundnut-declared-analysis",)
     provenance_class_markers: tuple[tuple[str, str], ...] = DEFAULT_PROVENANCE_CLASS_MARKERS
     ignored_container_classes: tuple[str, ...] = ("groundnut-references",)
@@ -147,6 +149,7 @@ class ArtifactProfile:
             self.claims_key,
             self.claim_id_key,
             self.claim_text_key,
+            self.question_key,
             self.source_uri_key,
             self.excerpt_key,
             self.locator_key,
@@ -154,6 +157,7 @@ class ArtifactProfile:
             self.provenance_class_key,
             self.calculation_key,
             self.evidence_comment_prefix,
+            self.question_comment_marker,
         )
         if not all(value.strip() for value in values):
             raise ValueError("artifact profile fields must not be empty")
@@ -184,6 +188,7 @@ class ArtifactProfile:
                 "claims": self.claims_key,
                 "claim_id": self.claim_id_key,
                 "claim_text": self.claim_text_key,
+                "verification_question": self.question_key,
                 "source_uri": self.source_uri_key,
                 "excerpt": self.excerpt_key,
                 "locator": self.locator_key,
@@ -193,6 +198,7 @@ class ArtifactProfile:
             },
             "html": {
                 "evidence_comment_prefix": self.evidence_comment_prefix,
+                "verification_question_comment": self.question_comment_marker,
                 "declared_analysis_classes": list(self.declared_analysis_classes),
                 "provenance_class_markers": dict(self.provenance_class_markers),
                 "ignored_container_classes": list(self.ignored_container_classes),
@@ -231,6 +237,9 @@ class ArtifactProfile:
             claims_key=str(structured.get("claims", "claims")),
             claim_id_key=str(structured.get("claim_id", "claim_id")),
             claim_text_key=str(structured.get("claim_text", "claim_text")),
+            question_key=str(
+                structured.get("verification_question", "verification_question")
+            ),
             source_uri_key=str(structured.get("source_uri", "source_url")),
             excerpt_key=str(structured.get("excerpt", "source_excerpt")),
             locator_key=str(structured.get("locator", "source_locator")),
@@ -243,6 +252,12 @@ class ArtifactProfile:
             calculation_key=str(structured.get("calculation", "calculation")),
             evidence_comment_prefix=str(
                 html.get("evidence_comment_prefix", "groundnut-source")
+            ),
+            question_comment_marker=str(
+                html.get(
+                    "verification_question_comment",
+                    "groundnut-verification-question",
+                )
             ),
             declared_analysis_classes=tuple(
                 str(item)
@@ -340,6 +355,7 @@ def _structured_claims(value: Any, profile: ArtifactProfile) -> list[Claim]:
                 claim_id=_optional_string(row.get(profile.claim_id_key), profile.claim_id_key)
                 or f"c{index + 1}",
                 text=text,
+                question=_optional_string(row.get(profile.question_key), profile.question_key),
                 source=_reference(uri) if uri else None,
                 excerpt=_optional_string(row.get(profile.excerpt_key), profile.excerpt_key),
                 locator=_optional_string(row.get(profile.locator_key), profile.locator_key),
@@ -384,17 +400,17 @@ def _structured_claims(value: Any, profile: ArtifactProfile) -> list[Claim]:
 
 def _markdown_claims(raw: str, profile: ArtifactProfile) -> list[Claim]:
     claims = []
-    comment = _comment_pattern(profile)
     for line_number, line in enumerate(raw.splitlines(), 1):
         for match in _LINK.finditer(line):
-            evidence = comment.match(line[match.end() :])
+            evidence, question = _adjacent_comments(line[match.end() :], profile)
             excerpt, locator = _citation_evidence(
-                match.group(1), match.group(3), evidence.groups() if evidence else None
+                match.group(1), match.group(3), evidence
             )
             claims.append(
                 Claim(
                     claim_id=f"c{len(claims) + 1}",
                     text=_reading_text(line, profile),
+                    question=question,
                     source=_reference(match.group(2)),
                     excerpt=excerpt,
                     locator=locator,
@@ -452,6 +468,10 @@ def _html_claims(raw: str, profile: ArtifactProfile) -> list[Claim]:
         lambda match: f" __GROUNDNUT_EVIDENCE_{match.group(1).upper()}_{_encode(match.group(2).strip())}__ ",
         prepared,
     )
+    prepared = _question_comment_pattern(profile).sub(
+        lambda match: f" __GROUNDNUT_QUESTION_{_encode(match.group(1).strip())}__ ",
+        prepared,
+    )
     prepared = _BLOCK_END.sub("\n", prepared)
     prepared = re.sub(r"<(?:br|hr)\s*/?>", "\n", prepared, flags=re.I)
     prepared = unescape(_TAG.sub(" ", prepared))
@@ -468,15 +488,7 @@ def _html_claims(raw: str, profile: ArtifactProfile) -> list[Claim]:
         reading = _reading_text(line, profile)
         if links:
             for match in links:
-                evidence = re.match(
-                    r"\s*__GROUNDNUT_EVIDENCE_(QUOTE|LOCATOR)_([^\s]+)__",
-                    line[match.end() :],
-                )
-                adjacent = (
-                    (evidence.group(1).casefold(), _decode(evidence.group(2)))
-                    if evidence
-                    else None
-                )
+                adjacent, question = _adjacent_sentinels(line[match.end() :])
                 excerpt, locator = _citation_evidence(
                     match.group(1), match.group(3), adjacent
                 )
@@ -484,6 +496,7 @@ def _html_claims(raw: str, profile: ArtifactProfile) -> list[Claim]:
                     Claim(
                         claim_id=f"c{len(claims) + 1}",
                         text=reading,
+                        question=question,
                         source=_reference(match.group(2)),
                         excerpt=excerpt,
                         locator=locator,
@@ -525,8 +538,9 @@ def _html_attribute(attributes: str, name: str) -> str | None:
 def _reading_text(value: str, profile: ArtifactProfile) -> str:
     value = _LINK.sub(lambda match: match.group(1), value)
     value = _comment_pattern(profile).sub("", value)
+    value = _question_comment_pattern(profile).sub("", value)
     value = re.sub(
-        r"__GROUNDNUT_(?:DECLARED_ANALYSIS|PROVENANCE_[A-Z_]+|EVIDENCE_(?:QUOTE|LOCATOR)_[^\s]+)__",
+        r"__GROUNDNUT_(?:DECLARED_ANALYSIS|PROVENANCE_[A-Z_]+|EVIDENCE_(?:QUOTE|LOCATOR)_[^\s]+|QUESTION_[^\s]+)__",
         "",
         value,
     )
@@ -552,6 +566,67 @@ def _comment_pattern(profile: ArtifactProfile) -> re.Pattern[str]:
         rf"\s*<!--\s*{re.escape(profile.evidence_comment_prefix)}-(quote|locator):\s*([\s\S]*?)\s*-->",
         re.I,
     )
+
+
+def _question_comment_pattern(profile: ArtifactProfile) -> re.Pattern[str]:
+    return re.compile(
+        rf"\s*<!--\s*{re.escape(profile.question_comment_marker)}:\s*([\s\S]*?)\s*-->",
+        re.I,
+    )
+
+
+def _adjacent_comments(
+    value: str, profile: ArtifactProfile
+) -> tuple[tuple[str, str] | None, str | None]:
+    pattern = re.compile(
+        rf"\s*<!--\s*(?:"
+        rf"{re.escape(profile.evidence_comment_prefix)}-(?P<kind>quote|locator):\s*(?P<evidence>[\s\S]*?)"
+        rf"|{re.escape(profile.question_comment_marker)}:\s*(?P<question>[\s\S]*?)"
+        rf")\s*-->",
+        re.I,
+    )
+    evidence = None
+    question = None
+    question_seen = False
+    remaining = value
+    while marker := pattern.match(remaining):
+        if marker.group("evidence") is not None:
+            if evidence is not None:
+                raise ValueError("citation declares more than one adjacent evidence marker")
+            evidence = (marker.group("kind").casefold(), marker.group("evidence").strip())
+        else:
+            if question_seen:
+                raise ValueError("citation declares more than one adjacent verification question")
+            question_seen = True
+            question = marker.group("question").strip() or None
+        remaining = remaining[marker.end() :]
+    return evidence, question
+
+
+def _adjacent_sentinels(value: str) -> tuple[tuple[str, str] | None, str | None]:
+    pattern = re.compile(
+        r"\s*__GROUNDNUT_(?:"
+        r"EVIDENCE_(?P<kind>QUOTE|LOCATOR)_(?P<evidence>[^\s]+)"
+        r"|QUESTION_(?P<question>[^\s]+)"
+        r")__"
+    )
+    evidence = None
+    question = None
+    remaining = value
+    while marker := pattern.match(remaining):
+        if marker.group("evidence") is not None:
+            if evidence is not None:
+                raise ValueError("citation declares more than one adjacent evidence marker")
+            evidence = (
+                marker.group("kind").casefold(),
+                _decode(marker.group("evidence")),
+            )
+        else:
+            if question is not None:
+                raise ValueError("citation declares more than one adjacent verification question")
+            question = _decode(marker.group("question"))
+        remaining = remaining[marker.end() :]
+    return evidence, question
 
 
 def _declared(value: str, profile: ArtifactProfile) -> bool:

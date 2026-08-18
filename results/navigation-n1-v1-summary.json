@@ -1,0 +1,73 @@
+{
+  "schema": "groundnut-navigation-exploration-summary/v1",
+  "qualification": "development_selection_only",
+  "eligible_for_admission": false,
+  "case_pack": {
+    "source": "LegalBench-RAG CUAD",
+    "case_count": 100,
+    "unique_sources": true,
+    "holdout_excluded": true,
+    "sampling_seed": 991,
+    "max_node_characters": 3000,
+    "sha256": "198f7a291bcc45b8f0b7816af0454e1696c61195e48b910a00a39178d6886c88"
+  },
+  "deterministic_receipt_sha256": "a594030a7cf7ed0e25f8d12c12a34a0a5be21ac6b518a444d992f2fdffcdf6c4",
+  "model_receipt_sha256": "4e136fc5f6141e58234ab1b80af6b75920b0c7316756b7acc55cc18aa5cb1c2f",
+  "identity_correction": {
+    "recorded_raw_result_sha256": "c5d5e7562bac8e55f342e1360d6a38c6d59ea3906325d3ffe9418847b1550eb5",
+    "reason": "The first receipt attributed the native Groundnut adapter to the MIT mechanism donor. Frozen raw outputs were replayed offline with Groundnut as the Apache-2.0 code source and TreeDex retained as the MIT mechanism donor. No selector output or case decision changed."
+  },
+  "full_injection": {
+    "exact_gold_coverage": 100,
+    "exact_gold_coverage_rate": 1.0,
+    "mean_selected_nodes": 189.07,
+    "mean_irrelevant_nodes": 187.89,
+    "mean_context_ratio": 0.9889646287130178,
+    "abstentions": 0,
+    "failures": 0
+  },
+  "lexical_structure_max_3": {
+    "exact_gold_coverage": 8,
+    "exact_gold_coverage_rate": 0.08,
+    "mean_selected_nodes": 3.0,
+    "mean_irrelevant_nodes": 2.91,
+    "mean_context_ratio": 0.060553015531700366,
+    "abstentions": 0,
+    "failures": 0
+  },
+  "treedex_style_qwen3_0_6b": {
+    "model": "qwen3:0.6b",
+    "model_revision": "sha256-7f4030143c1c477224c5434f8272c662a8b042079a0a584f0a27a1684fe2e1fa",
+    "model_licence_spdx": "Apache-2.0",
+    "mechanism_donor": "alisawuffles/treedex",
+    "mechanism_donor_revision": "cb506162ef9e14eac41ba032d3a21879aa2c8770e",
+    "mechanism_donor_spdx": "MIT",
+    "exact_gold_coverage": 3,
+    "exact_gold_coverage_rate": 0.03,
+    "selected_cases": 24,
+    "abstentions": 23,
+    "failures": 53,
+    "mean_selected_nodes_when_selected": 4.5,
+    "mean_irrelevant_nodes_when_selected": 4.375,
+    "mean_context_ratio_when_selected": 0.08298079654567363,
+    "selection_reason_counts": {
+      "prompt_budget_abstention": 7,
+      "empty_model_selection": 16,
+      "valid_bounded_selection": 24,
+      "unknown_or_nonselectable_ids": 51,
+      "node_count_or_uniqueness_violation": 2
+    },
+    "navigation_tokens": {
+      "invoked_cases": 93,
+      "total_input": 876463,
+      "mean_input": 9424.333333333334,
+      "median_input": 6661,
+      "maximum_input": 32346,
+      "maximum_input_plus_output": 32353,
+      "context_limit": 32768,
+      "rows_over_context_limit": 0
+    }
+  },
+  "disclosure": "This experiment measures evidence-node selection only. It does not measure answer correctness, semantic support, contradiction, authority, or truth.",
+  "decision": "Reject the lexical navigator and this Qwen3 0.6B TreeDex-style arm for admission. Keep the strict hash-bound navigation contracts. Next test short model-facing handles and native hierarchy to reduce invalid IDs and navigation cost, then run a stronger selector on the identical development pack."
+}

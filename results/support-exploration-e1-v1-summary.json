@@ -1,0 +1,68 @@
+{
+  "schema": "groundnut-public-support-exploration-summary/v1",
+  "qualification": "agent_screened_development",
+  "eligible_for_admission": false,
+  "case_contract": {
+    "group_count": 46,
+    "case_count": 184,
+    "cases_per_group": 4,
+    "kinds": ["verbatim_supported", "paraphrase_supported", "contradicted", "present_irrelevant"],
+    "screen_sha256": "d0108cbee3a6772a65cfcfbe9ac25048fb9d1b37e5f127fc19b153c36d345db0"
+  },
+  "comparison": {
+    "full_private_receipt_sha256": "584fb8b2582cc923403fc485861d82158832ec45e7344937b0a670551317c23b",
+    "results": {
+      "exact": {
+        "three_way_accuracy": 0.25,
+        "three_way_macro_f1": 0.16666666666666666,
+        "binary_accuracy": 0.5,
+        "unsupported_recall": 0.5,
+        "run_sha256": "b5e625b26f9d92c4beac3b55797e9c1e1d3600fc33a7e946d59bde3879b0e534"
+      },
+      "lettuce_base": {
+        "three_way_accuracy": 0.4945652173913043,
+        "three_way_macro_f1": 0.22060606060606058,
+        "binary_accuracy": 0.4945652173913043,
+        "unsupported_recall": 0.0,
+        "run_sha256": "219b07d8b2f5753f297fff8ab9c81d57ed469b8a834ad51fb9da777b0068dfa1"
+      },
+      "lettuce_v2": {
+        "three_way_accuracy": 0.483695652173913,
+        "three_way_macro_f1": 0.22389937106918237,
+        "binary_accuracy": 0.5271739130434783,
+        "unsupported_recall": 0.08695652173913043,
+        "run_sha256": "1020da4f1d53535947ef0cd7c3fba9c12591158a7803c36cc3da9bac4f1dd0fd"
+      },
+      "minicheck": {
+        "three_way_accuracy": 0.45108695652173914,
+        "three_way_macro_f1": 0.2585034013605442,
+        "binary_accuracy": 0.6521739130434783,
+        "unsupported_recall": 0.43478260869565216,
+        "run_sha256": "918b1043c0abc9dcfcff44d19e6df9ab5455a8725a2aaa999f227af95337b77c"
+      },
+      "summac_zs": {
+        "three_way_accuracy": 0.43478260869565216,
+        "three_way_macro_f1": 0.24024024024024024,
+        "binary_accuracy": 0.6630434782608695,
+        "unsupported_recall": 0.45652173913043476,
+        "run_sha256": "2843e6a9c22c34d4510f91101943d4f10e3742d62c290494f22730e59e7d45e6"
+      },
+      "alignscore_nli": {
+        "three_way_accuracy": 0.5380434782608695,
+        "three_way_macro_f1": 0.4037876019973206,
+        "binary_accuracy": 0.6413043478260869,
+        "unsupported_recall": 0.391304347826087,
+        "run_sha256": "1b5351aebce57d93189459daede3b4072dd45132ae201b3a2758f8e4a335b1dd"
+      },
+      "alignscore_qa": {
+        "three_way_accuracy": 0.44021739130434784,
+        "three_way_macro_f1": 0.2680896831306362,
+        "binary_accuracy": 0.5054347826086957,
+        "unsupported_recall": 0.21739130434782608,
+        "run_sha256": "acd5040fe7d872ec166a9c7d7bb53844f6311f69aaf38b7da9d227d3d8acb207"
+      }
+    }
+  },
+  "decision": "No learned support component is admitted. AlignScore NLI remains the leading complete-label candidate; every method remains exploratory until the frozen human-adjudicated gate is measured.",
+  "disclosure": "This public file contains aggregate metrics and hashes only. Case rows and source text remain outside the repository."
+}

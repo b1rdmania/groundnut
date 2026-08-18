@@ -23,6 +23,7 @@ from groundnut.support_exploration import (
 )
 from groundnut.support_cases import CaseProvenance
 from groundnut.support_seeds import AttestedSpanSeed, PresentIrrelevantCandidate
+from groundnut.adapters import SummaCAdapter
 
 
 SOURCE = (
@@ -279,6 +280,33 @@ def test_agent_exploration_runs_without_creating_an_admission_result():
     assert result["score"]["by_kind"]["paraphrase_supported"]["accuracy"] == 0.0
     assert result["score"]["by_kind"]["contradicted"]["accuracy"] == 0.0
     assert result["score"]["by_kind"]["present_irrelevant"]["accuracy"] == 0.0
+
+
+def test_agent_exploration_preserves_component_signal_raw_output():
+    class Scorer:
+        def score_one(self, **kwargs):
+            return {"score": 0.4, "image": [[[0.7]], [[0.3]], [[0.0]]]}
+
+    detector = SummaCAdapter(
+        scorer=Scorer(),
+        model="summac-test",
+        revision="abcdef0123456789",
+        installed_package_version="0.0.4",
+        model_licence_spdx="MIT",
+        model_source="https://example.test/model",
+    )
+    result = run_agent_exploration(manifest(), (agent_suggestion(),), detector)
+
+    assert all("component_signal" in row for row in result["rows"])
+    first = result["rows"][0]["component_signal"]
+    assert first["raw_output"]["published_output"]["image"] == [
+        [[0.7]],
+        [[0.3]],
+        [[0.0]],
+    ]
+    assert first["raw_output_sha256"] == result["rows"][0]["decision"][
+        "raw_output_sha256"
+    ]
 
 
 def test_agent_exploration_comparison_preserves_non_admission_boundary():

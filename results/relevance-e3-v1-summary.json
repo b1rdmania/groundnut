@@ -1,0 +1,76 @@
+{
+  "schema": "groundnut-relevance-exploration-summary/v1",
+  "qualification": "exploratory_only",
+  "eligible_for_admission": false,
+  "case_contract": {
+    "relevant": [
+      "verbatim_supported",
+      "paraphrase_supported",
+      "contradicted"
+    ],
+    "irrelevant": [
+      "present_irrelevant"
+    ],
+    "reason": "Contradictory evidence can answer the question and remain relevant. Relevance is independent of support."
+  },
+  "group_count": 46,
+  "case_count": 184,
+  "lexical_baseline": {
+    "full_receipt_sha256": "4faad8e1b5191b277b0a428b25ee4d78277bd8f9b58c12d15ab04ce89e302617",
+    "roc_auc": 0.6016068052930057,
+    "average_precision": 0.8300905292251605,
+    "all_three_relevant_above_irrelevant_count": 17,
+    "all_three_relevant_above_irrelevant_rate": 0.3695652173913043,
+    "pairwise_win_rate": {
+      "verbatim_supported": 0.5760869565217391,
+      "paraphrase_supported": 0.6739130434782609,
+      "contradicted": 0.5652173913043478
+    }
+  },
+  "bge_reranker_base": {
+    "model": "BAAI/bge-reranker-base",
+    "revision": "2cfc18c9415c912f9d8155881c133215df768a70",
+    "model_licence_spdx": "MIT",
+    "full_receipt_sha256": "522f1f97847200afeb46ce459155512526968c8dc080740cf4c1c972b9046741",
+    "roc_auc": 0.6132640201638311,
+    "average_precision": 0.8503133211612045,
+    "all_three_relevant_above_irrelevant_count": 23,
+    "all_three_relevant_above_irrelevant_rate": 0.5,
+    "pairwise_win_rate": {
+      "verbatim_supported": 0.5217391304347826,
+      "paraphrase_supported": 0.717391304347826,
+      "contradicted": 0.5
+    }
+  },
+  "bge_reranker_v2_m3": {
+    "model": "BAAI/bge-reranker-v2-m3",
+    "revision": "953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e",
+    "model_licence_spdx": "Apache-2.0",
+    "full_receipt_sha256": "50986a8b7b7a2766f232c289fecea51a27112e0681c99465d7d51760eb51a493",
+    "roc_auc": 0.6761184625078765,
+    "average_precision": 0.8611752589333719,
+    "all_three_relevant_above_irrelevant_count": 27,
+    "all_three_relevant_above_irrelevant_rate": 0.5869565217391305,
+    "pairwise_win_rate": {
+      "verbatim_supported": 0.6956521739130435,
+      "paraphrase_supported": 0.7391304347826086,
+      "contradicted": 0.6304347826086957
+    }
+  },
+  "roberta_base_squad2": {
+    "model": "deepset/roberta-base-squad2",
+    "revision": "adc3b06f79f797d1c575d5479d6f5efe54a9e3b4",
+    "model_licence_spdx": "CC-BY-4.0",
+    "full_receipt_sha256": "bcb95d0e72cf8da3d7a11907b68442ee44f434388d21e17e519c6f26c7b0bab2",
+    "roc_auc": 0.7496849401386263,
+    "average_precision": 0.9046657279411677,
+    "all_three_relevant_above_irrelevant_count": 31,
+    "all_three_relevant_above_irrelevant_rate": 0.6739130434782609,
+    "pairwise_win_rate": {
+      "verbatim_supported": 0.8478260869565217,
+      "paraphrase_supported": 0.8695652173913043,
+      "contradicted": 0.7608695652173914
+    }
+  },
+  "decision": "Keep the relevance lane and lossless adapters. Retain extractive QA as the leading question-relevance challenger and BGE v2-m3 as a claim-to-passage challenger. Do not adopt or threshold either from this exploratory result."
+}

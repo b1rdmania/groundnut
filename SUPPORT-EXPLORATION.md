@@ -44,12 +44,13 @@ policy, provenance, fail-closed behaviour, and visible disagreement.
 | LettuceDetect base ModernBERT | 49.5% | 0.221 | 49.5% | 0.0% |
 | LettuceDetect v2 mmBERT base | 48.4% | 0.224 | 52.7% | 8.7% |
 | MiniCheck Flan-T5-Large | 45.1% | 0.259 | 65.2% | 43.5% |
+| SummaC-ZS, DeBERTa-base MNLI | 43.5% | 0.240 | **66.3%** | **45.7%** |
 | AlignScore-base, three-way NLI | **53.8%** | **0.404** | 64.1% | 39.1% |
 | AlignScore-base, question-conditioned binary | 44.0% | 0.268 | 50.5% | 21.7% |
 
 The three-way score keeps `contradicted` separate from `insufficient`.
-LettuceDetect without its taxonomy head and MiniCheck are binary detectors, so
-neither can satisfy that contract alone.
+LettuceDetect without its taxonomy head, MiniCheck, and SummaC are binary
+detectors, so none can satisfy that contract alone.
 
 ## What the case kinds show
 
@@ -59,12 +60,21 @@ neither can satisfy that contract alone.
 | Lettuce base | 46/46 | 45/46 | 0/46 | 0/46 |
 | Lettuce v2 | 46/46 | 43/46 | 0/46 | 0/46 |
 | MiniCheck | 40/46 | 40/46 | 0/46 | 3/46 |
+| SummaC-ZS | 46/46 | 34/46 | 0/46 | 0/46 |
 | AlignScore NLI | 43/46 | 39/46 | **15/46** | 2/46 |
 | AlignScore question-conditioned | 37/46 | 36/46 | 0/46 | **8/46** |
 
 MiniCheck marked 37/46 contradiction mutations as unsupported, but its binary
 interface cannot call them contradictions. Its gain is real at the binary
 support boundary and insufficient for Groundnut's full account.
+
+SummaC marked 42/46 contradiction mutations as unsupported, including seven
+that MiniCheck missed, but it rejected 12/92 supported cases and found no
+present-but-irrelevant case. The fixed local CPU run took about 24 minutes and
+used about 2 GB resident memory. An MPS attempt was discarded after a confirmed
+backend wait before any output artifact was written. SummaC therefore remains
+an offline challenger signal, not a default runtime component or semantic
+judge.
 
 AlignScore's published three-way NLI head is the strongest complete-label
 candidate measured here. The separately preregistered question-conditioned use
@@ -85,10 +95,49 @@ post hoc into a tuned policy.
   candidate-retrieval or secondary-support signal.
 - Retain MiniCheck's stronger binary unsupported signal as a candidate input to
   a Groundnut-owned decision policy, never as the final verdict.
+- Retain SummaC only as an optional offline unsupported/contradiction
+  challenger. The seven contradictions it caught that MiniCheck missed are
+  worth preserving for policy experiments, but its cost and zero relevance
+  movement block runtime adoption.
 - Prioritize the present-but-irrelevant class: the best result is now 8/46,
   which remains the clearest measured engine gap.
 - A later human-adjudicated run must confirm any decision before admission.
 
 Pinned model revisions and complete per-case decisions are recorded in the
 private self-hashed exploration artifacts; source documents and generated cases
-remain outside the public repository.
+remain outside the public repository. The public aggregate receipt is
+`results/support-exploration-e1-v1-summary.json`. It binds the published
+numbers to the private seven-method comparison artifact with SHA-256
+`584fb8b2582cc923403fc485861d82158832ec45e7344937b0a670551317c23b`.
+The SummaC run artifact has SHA-256
+`2843e6a9c22c34d4510f91101943d4f10e3742d62c290494f22730e59e7d45e6`.
+
+## Independent relevance follow-up
+
+The support table above does not cleanly measure relevance. In particular,
+contradictory evidence can answer the question while disagreeing with the
+claim. E3 therefore uses a separate contract: verbatim support, paraphrase and
+contradiction are relevant; present-but-irrelevant is not. The scorer sees the
+question and the candidate evidence only. No threshold was selected after the
+run.
+
+| Relevance method | ROC-AUC | Average precision | Complete paired groups |
+|---|---:|---:|---:|
+| Query-token recall | 0.602 | 0.830 | 17/46 |
+| BGE reranker base | 0.613 | 0.850 | 23/46 |
+| BGE reranker v2-m3 | **0.676** | **0.861** | **27/46** |
+| RoBERTa base SQuAD2 answerability | **0.750** | **0.905** | **31/46** |
+
+“Complete” means that all three relevant variants ranked above the irrelevant
+variant inside the same source-bound group. v2-m3 improved every pairwise
+comparison. Extractive QA improved again, but still failed to order 15 of 46
+complete groups. The relevance lane is now correctly typed and replayable; no
+tested scorer is admitted. The summary receipt is
+`results/relevance-e3-v1-summary.json`.
+
+One private IC report supplied a separate, unlabelled claim/excerpt envelope.
+BGE v2-m3 assigned high semantic-relatedness scores to exact anchors and to
+ambiguous or failed fuzzy anchors. Related text need not be the quoted text and
+need not support the full claim. Relevance is therefore additive to mechanical
+anchoring, never a replacement. The aggregate disclosure is
+`results/ic-relevance-envelope-v1-summary.json`.

@@ -106,6 +106,8 @@ class Claim:
     def __post_init__(self) -> None:
         if not self.claim_id.strip() or not self.text.strip():
             raise ValueError("claim identity and text are required")
+        if self.question is not None and not self.question.strip():
+            raise ValueError("claim verification question must not be empty")
         if self.provenance_class not in CLAIM_PROVENANCE_CLASSES:
             raise ValueError(f"unknown claim provenance class: {self.provenance_class}")
         if self.declared_analysis and self.provenance_class == "unclassified":

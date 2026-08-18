@@ -8,6 +8,7 @@ import hashlib
 from pathlib import Path
 from typing import Any
 
+from ..signals import ComponentLicence, ComponentSignal, component_input_sha256
 from ..support import (
     DetectorDecision,
     DetectorIdentity,
@@ -17,6 +18,7 @@ from ..support import (
 
 
 DEFAULT_QUESTION = "Is every part of this claim supported by the supplied source?"
+LETTUCE_CODE_SOURCE = "https://github.com/KRLabsOrg/LettuceDetect"
 
 
 class LettuceDetectAdapter:
@@ -39,6 +41,8 @@ class LettuceDetectAdapter:
         taxonomy_head_path: str | Path | None = None,
         installed_package_version: str | None = None,
         fallback_question: str = DEFAULT_QUESTION,
+        model_licence_spdx: str = "NOASSERTION",
+        model_source: str | None = None,
     ) -> None:
         if not 0.0 <= span_threshold <= 1.0:
             raise ValueError("Lettuce span_threshold must be between 0 and 1")
@@ -62,6 +66,12 @@ class LettuceDetectAdapter:
         )
         self.span_threshold = span_threshold
         self.fallback_question = fallback_question
+        self.licence = ComponentLicence(
+            code_spdx="MIT",
+            code_source=LETTUCE_CODE_SOURCE,
+            model_spdx=model_licence_spdx,
+            model_source=model_source or model,
+        )
         self.backend = (
             backend
             if backend is not None
@@ -100,6 +110,16 @@ class LettuceDetectAdapter:
     def assess(
         self, *, source_text: str, claim_text: str, question: str | None
     ) -> DetectorDecision:
+        decision, _ = self.assess_with_signal(
+            source_text=source_text,
+            claim_text=claim_text,
+            question=question,
+        )
+        return decision
+
+    def assess_with_signal(
+        self, *, source_text: str, claim_text: str, question: str | None
+    ) -> tuple[DetectorDecision, ComponentSignal]:
         raw = self.backend.predict(
             context=[source_text],
             question=question or self.fallback_question,
@@ -112,30 +132,60 @@ class LettuceDetectAdapter:
         normalized = [_normalize_span(row) for row in raw]
         raw_hash = _hash_json(normalized)
         spans = tuple(_support_span(row) for row in normalized)
-        if not spans:
-            return DetectorDecision(
-                label="supported",
-                confidence=None,
-                reason="LettuceDetect returned no unsupported spans.",
-                raw_output_sha256=raw_hash,
-            )
+        confidences = [span.confidence for span in spans if span.confidence is not None]
         contradiction = any(
             row.get("category", "").casefold() == "contradiction"
             for row in normalized
         )
-        confidences = [span.confidence for span in spans if span.confidence is not None]
-        return DetectorDecision(
-            label="contradicted" if contradiction else "insufficient",
-            confidence=max(confidences) if confidences else None,
-            reason=(
-                "LettuceDetect returned an explicitly typed contradiction span."
-                if contradiction
-                else "LettuceDetect returned unsupported spans without an explicit "
-                "contradiction type."
-            ),
-            spans=spans,
-            raw_output_sha256=raw_hash,
+        label = (
+            "contradicted"
+            if contradiction
+            else "insufficient"
+            if spans
+            else "supported"
         )
+        reason = (
+            "LettuceDetect returned no unsupported spans."
+            if not spans
+            else "LettuceDetect returned an explicitly typed contradiction span."
+            if contradiction
+            else "LettuceDetect returned unsupported spans without an explicit "
+            "contradiction type."
+        )
+        signal = ComponentSignal(
+            role="span_localisation",
+            label=label,
+            scores={
+                "max_unsupported_confidence": max(confidences) if confidences else 0.0
+            },
+            input_sha256=component_input_sha256(
+                source_text=source_text,
+                claim_text=claim_text,
+                question=question,
+            ),
+            component=self.identity,
+            licence=self.licence,
+            raw_output=normalized,
+            note=reason,
+        )
+        if not spans:
+            decision = DetectorDecision(
+                label="supported",
+                confidence=None,
+                reason=reason,
+                raw_output_sha256=signal.raw_output_sha256,
+            )
+        else:
+            decision = DetectorDecision(
+                label=label,
+                confidence=max(confidences) if confidences else None,
+                reason=reason,
+                spans=spans,
+                raw_output_sha256=signal.raw_output_sha256,
+            )
+        if raw_hash != signal.raw_output_sha256:
+            raise ValueError("Lettuce raw output hash changed during signal mapping")
+        return decision, signal
 
 
 def _normalize_span(value: Any) -> dict[str, Any]:

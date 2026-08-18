@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from pathlib import Path
 from typing import Any, Callable
 
+from ..signals import ComponentLicence, ComponentSignal, component_input_sha256
 from ..support import DetectorDecision, DetectorIdentity, configuration_sha256
 
 
 _MODES = {"nli": "three_way_nli", "qa": "question_answer_binary"}
+ALIGNSCORE_CODE_SOURCE = "https://github.com/yuh-zha/AlignScore"
 
 
 class AlignScoreAdapter:
@@ -28,6 +29,8 @@ class AlignScoreAdapter:
         installed_package_version: str = "0.1.3",
         backend: Any | None = None,
         sentence_splitter: Callable[[str], list[str]] | None = None,
+        model_licence_spdx: str = "MIT",
+        model_source: str = ALIGNSCORE_CODE_SOURCE,
     ) -> None:
         if mode not in _MODES:
             raise ValueError(f"unsupported AlignScore mode: {mode}")
@@ -48,6 +51,12 @@ class AlignScoreAdapter:
             configuration_sha256=configuration_sha256(config),
         )
         self.mode = mode
+        self.licence = ComponentLicence(
+            code_spdx="MIT",
+            code_source=ALIGNSCORE_CODE_SOURCE,
+            model_spdx=model_licence_spdx,
+            model_source=model_source,
+        )
         self.backend = backend or _PinnedAlignScoreBackend(
             checkpoint_path=Path(checkpoint_path),
             backbone_path=Path(backbone_path) if backbone_path else None,
@@ -57,6 +66,16 @@ class AlignScoreAdapter:
     def assess(
         self, *, source_text: str, claim_text: str, question: str | None
     ) -> DetectorDecision:
+        decision, _ = self.assess_with_signal(
+            source_text=source_text,
+            claim_text=claim_text,
+            question=question,
+        )
+        return decision
+
+    def assess_with_signal(
+        self, *, source_text: str, claim_text: str, question: str | None
+    ) -> tuple[DetectorDecision, ComponentSignal]:
         if self.mode == "qa" and not question:
             raise ValueError("question-conditioned AlignScore requires a question")
         result = self.backend.predict(
@@ -83,17 +102,48 @@ class AlignScoreAdapter:
             "probabilities": list(probabilities),
             "selected_chunk_sha256": str(result["selected_chunk_sha256"]),
         }
-        return DetectorDecision(
+        reason = (
+            f"AlignScore {_MODES[self.mode]} selected {label} from the "
+            "highest-support evidence chunk."
+        )
+        signal = ComponentSignal(
+            role="entailment" if self.mode == "nli" else "relevance",
+            label=label,
+            scores=(
+                {
+                    "supported": probabilities[0],
+                    "insufficient": probabilities[1],
+                    "contradicted": probabilities[2],
+                }
+                if self.mode == "nli"
+                else {
+                    "insufficient": probabilities[0],
+                    "supported": probabilities[1],
+                }
+            ),
+            input_sha256=component_input_sha256(
+                source_text=source_text,
+                claim_text=claim_text,
+                question=question,
+            ),
+            component=self.identity,
+            licence=self.licence,
+            raw_output=normalized,
+            note=(
+                reason
+                if self.mode == "nli"
+                else reason
+                + " This is a question-conditioned support proxy, not a pure "
+                "relevance verdict."
+            ),
+        )
+        decision = DetectorDecision(
             label=label,
             confidence=probabilities[index],
-            reason=(
-                f"AlignScore {_MODES[self.mode]} selected {label} from the "
-                "highest-support evidence chunk."
-            ),
-            raw_output_sha256=hashlib.sha256(
-                json.dumps(normalized, sort_keys=True, separators=(",", ":")).encode()
-            ).hexdigest(),
+            reason=reason,
+            raw_output_sha256=signal.raw_output_sha256,
         )
+        return decision, signal
 
 
 class _PinnedAlignScoreBackend:

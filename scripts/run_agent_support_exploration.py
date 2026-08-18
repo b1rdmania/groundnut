@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Run exact or pinned local LettuceDetect over an agent-screened batch."""
+"""Run a pinned support component over one agent-screened development batch."""
 
 from __future__ import annotations
 
 import argparse
 import json
 from pathlib import Path
+import re
 import sys
 
 REPO = Path(__file__).resolve().parent.parent
@@ -16,6 +17,7 @@ from groundnut.adapters import (  # noqa: E402
     AlignScoreAdapter,
     LettuceDetectAdapter,
     MiniCheckAdapter,
+    SummaCAdapter,
 )
 from groundnut.support import ExactSupportDetector  # noqa: E402
 from groundnut.support_agent_screen import AgentSuggestion  # noqa: E402
@@ -36,6 +38,7 @@ def main() -> None:
             "minicheck-flan",
             "alignscore-nli",
             "alignscore-qa",
+            "summac-zs",
         ),
         required=True,
     )
@@ -45,8 +48,13 @@ def main() -> None:
     parser.add_argument("--backbone-revision")
     parser.add_argument("--model-name")
     parser.add_argument("--model-revision")
+    parser.add_argument("--model-licence-spdx")
+    parser.add_argument("--model-source")
+    parser.add_argument("--summac-model-key", default="vitc")
+    parser.add_argument("--granularity", default="sentence")
+    parser.add_argument("--device", choices=("cpu", "mps"), default="cpu")
     parser.add_argument("--package-version", default="0.2.3")
-    parser.add_argument("--threshold", type=float, default=0.5)
+    parser.add_argument("--threshold", type=float)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
@@ -70,9 +78,11 @@ def main() -> None:
         detector = LettuceDetectAdapter(
             model=args.model_name,
             revision=args.model_revision,
-            span_threshold=args.threshold,
+            span_threshold=args.threshold if args.threshold is not None else 0.5,
             model_path=args.model_path,
             installed_package_version=args.package_version,
+            model_licence_spdx=args.model_licence_spdx or "NOASSERTION",
+            model_source=args.model_source or args.model_name,
         )
     elif args.detector == "minicheck-flan":
         if not args.model_path or not args.model_name or not args.model_revision:
@@ -84,8 +94,10 @@ def main() -> None:
             model=args.model_name,
             revision=args.model_revision,
             installed_package_version=args.package_version,
+            model_licence_spdx=args.model_licence_spdx or "NOASSERTION",
+            model_source=args.model_source or args.model_name,
         )
-    else:
+    elif args.detector.startswith("alignscore-"):
         if not all(
             (
                 args.checkpoint_path,
@@ -107,6 +119,40 @@ def main() -> None:
             backbone_path=args.backbone_path,
             backbone_revision=args.backbone_revision,
             installed_package_version=args.package_version,
+            model_licence_spdx=args.model_licence_spdx or "MIT",
+            model_source=args.model_source or args.model_name,
+        )
+    else:
+        if not all(
+            (
+                args.model_path,
+                args.model_name,
+                args.model_revision,
+                args.model_licence_spdx,
+                args.model_source,
+            )
+        ):
+            parser.error(
+                "summac-zs requires --model-path, --model-name, --model-revision, "
+                "--model-licence-spdx, and --model-source"
+            )
+        detector = SummaCAdapter(
+            scorer=_PinnedSummaCZSScorer(
+                args.model_path,
+                model_key=args.summac_model_key,
+                granularity=args.granularity,
+                device=args.device,
+            ),
+            model=args.model_name,
+            revision=args.model_revision,
+            installed_package_version=args.package_version,
+            model_licence_spdx=args.model_licence_spdx,
+            model_source=args.model_source,
+            threshold=args.threshold if args.threshold is not None else 0.0,
+            granularity=args.granularity,
+            aggregation="summac-zs:max-mean:entailment-minus-contradiction",
+            sentence_splitter_id="groundnut.regex-sentence.v1",
+            runtime_device=args.device,
         )
     result = run_agent_exploration(manifest, suggestions, detector)
     args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -184,6 +230,52 @@ class _PinnedMiniCheckFlanScorer:
         raw = [float(value) for value in probabilities.cpu()]
         support_probability = max(raw)
         return [int(support_probability > 0.5)], [support_probability], chunks, [raw]
+
+
+class _PinnedSummaCZSScorer:
+    """SummaC-ZS with an explicitly local NLI model and no network loading."""
+
+    def __init__(
+        self, model_path: Path, *, model_key: str, granularity: str, device: str
+    ) -> None:
+        import torch
+        from summac.model_summac import SummaCZS
+        from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+        if not model_path.is_dir():
+            raise ValueError("SummaC scorer requires a pinned local model directory")
+        if device == "mps" and not torch.backends.mps.is_available():
+            raise ValueError("SummaC MPS device is unavailable")
+        self.scorer = SummaCZS(
+            model_name=model_key,
+            granularity=granularity,
+            op1="max",
+            op2="mean",
+            use_ent=True,
+            use_con=True,
+            imager_load_cache=False,
+            use_cache=False,
+            device=device,
+        )
+        self.scorer.imager.tokenizer = AutoTokenizer.from_pretrained(
+            model_path, local_files_only=True
+        )
+        self.scorer.imager.model = AutoModelForSequenceClassification.from_pretrained(
+            model_path, local_files_only=True
+        ).to(device).eval()
+        self.scorer.imager.split_sentences = _groundnut_sentences
+
+    def score_one(self, *, original: str, generated: str):
+        return self.scorer.score_one(original, generated)
+
+
+def _groundnut_sentences(text: str) -> list[str]:
+    """Offline sentence split used by the pinned SummaC experiment."""
+    return [
+        sentence.strip()
+        for sentence in re.split(r"(?<=[.!?])\s+|\n+", text)
+        if len(sentence.strip()) > 10
+    ]
 
 
 if __name__ == "__main__":

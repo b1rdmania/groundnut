@@ -22,6 +22,22 @@ acquisition, evaluation, annotation and adjudication machinery. This is a
 capability boundary, not a size limit.
 
 The current priority is to make those checking guarantees tight and measured.
+
+## Structured evidence navigation
+
+Navigation sits after deterministic acquisition and before semantic support.
+It selects source nodes for later checkers; it does not answer a question or
+produce a support verdict. `groundnut-navigation-index/v1` binds a native or
+derived tree to exact source offsets and hashes. A navigator returns only node
+IDs through `groundnut-navigation-selection/v1`, and exact text is recovered
+under `groundnut-navigation-receipt/v1` after every identity is checked.
+
+This boundary permits TreeDex- or PageIndex-style vectorless navigation without
+letting a selector's generated prose enter the evidence record. Unknown IDs,
+duplicates, oversized selections, selector exceptions, and prompt-budget
+breaches fail or abstain explicitly. There is no hidden full-document fallback.
+See `NAVIGATION.md` for the frozen experiment contract and donor lineage.
+
 IC research is a future proving ground and consumer once the engine clears its
 own bars. Product ports, deployment rewrites, and public packaging are separate
 later decisions; none drives the core roadmap today.
@@ -46,6 +62,17 @@ may see data, spend credentials, approve a legal conclusion, or publish an
 artifact. Those actions require explicit deployment policy or human authority.
 Adapters are opt-in edges: importing or running analysis never performs an
 implicit network request.
+
+Structured claim artifacts can carry an optional `verification_question`.
+This is the explicit task the cited excerpt is meant to answer. It is retained
+as the canonical claim's `question`, bound into support inputs and available to
+independent relevance components. Groundnut does not derive it silently from
+the claim or report section. Older artifacts without the field remain valid;
+question-dependent components must abstain when it is absent.
+Markdown and rendered HTML can carry the same field in an adjacent
+`groundnut-verification-question` comment after the citation evidence marker.
+Both marker names are profile configuration, so a consumer such as an IC
+writer can use its own convention without adding product logic to the engine.
 
 The built-in adapters cover local text and simple HTTP text/HTML. Paywalls,
 unreachable sources, and unsupported PDFs remain explicit failure states.
@@ -110,8 +137,9 @@ manifest and separates deterministic replay from marked integration work.
 `groundnut-artifact-profile/v1` maps generic structured fields and rendered
 evidence conventions into canonical claims. `extract_artifact` accepts
 structured JSON, Markdown citations, and rendered HTML, retaining source
-identity, quotes, locators, declared analysis, input hash, profile hash, and
-artifact location. The parser does not fetch, anchor, assess support, or assign
+identity, quotes, locators, verification questions, declared analysis, input
+hash, profile hash, and artifact location. The parser does not fetch, anchor,
+assess support, or assign
 a domain outcome; those remain later and independently recorded stages.
 
 Consumer-specific field names and HTML conventions belong in a profile rather

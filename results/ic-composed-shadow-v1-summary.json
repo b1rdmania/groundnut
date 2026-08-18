@@ -1,0 +1,17 @@
+{
+  "schema": "groundnut-public-experiment-summary/v1",
+  "experiment": "private-ic-composed-shadow-v1",
+  "date": "2026-08-18",
+  "population": "105 claims from one private IC research report",
+  "private_receipt_sha256": "cdd01adcd537bf4030c63328f7e6c3652ee289784dd9ad00ea22a309b8c65dfc",
+  "claims_with_experimental_signals": 96,
+  "questions_present": 0,
+  "outcomes": {
+    "needs_validation": 32,
+    "not_assessed": 0,
+    "source_unavailable": 10,
+    "withheld": 63
+  },
+  "decision": "retain the fail-closed composer; do not admit a semantic component",
+  "disclosure": "Company content, people, URLs, local paths, and row-level signals remain private. Experimental relatedness scores were preserved but could not determine an outcome."
+}
