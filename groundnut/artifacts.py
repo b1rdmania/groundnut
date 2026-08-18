@@ -109,6 +109,7 @@ class ArtifactProfile:
     claims_key: str = "claims"
     claim_id_key: str = "claim_id"
     claim_text_key: str = "claim_text"
+    question_key: str = "verification_question"
     source_uri_key: str = "source_url"
     excerpt_key: str = "source_excerpt"
     locator_key: str = "source_locator"
@@ -147,6 +148,7 @@ class ArtifactProfile:
             self.claims_key,
             self.claim_id_key,
             self.claim_text_key,
+            self.question_key,
             self.source_uri_key,
             self.excerpt_key,
             self.locator_key,
@@ -184,6 +186,7 @@ class ArtifactProfile:
                 "claims": self.claims_key,
                 "claim_id": self.claim_id_key,
                 "claim_text": self.claim_text_key,
+                "verification_question": self.question_key,
                 "source_uri": self.source_uri_key,
                 "excerpt": self.excerpt_key,
                 "locator": self.locator_key,
@@ -231,6 +234,9 @@ class ArtifactProfile:
             claims_key=str(structured.get("claims", "claims")),
             claim_id_key=str(structured.get("claim_id", "claim_id")),
             claim_text_key=str(structured.get("claim_text", "claim_text")),
+            question_key=str(
+                structured.get("verification_question", "verification_question")
+            ),
             source_uri_key=str(structured.get("source_uri", "source_url")),
             excerpt_key=str(structured.get("excerpt", "source_excerpt")),
             locator_key=str(structured.get("locator", "source_locator")),
@@ -340,6 +346,7 @@ def _structured_claims(value: Any, profile: ArtifactProfile) -> list[Claim]:
                 claim_id=_optional_string(row.get(profile.claim_id_key), profile.claim_id_key)
                 or f"c{index + 1}",
                 text=text,
+                question=_optional_string(row.get(profile.question_key), profile.question_key),
                 source=_reference(uri) if uri else None,
                 excerpt=_optional_string(row.get(profile.excerpt_key), profile.excerpt_key),
                 locator=_optional_string(row.get(profile.locator_key), profile.locator_key),

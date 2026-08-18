@@ -15,6 +15,7 @@ def test_structured_json_maps_claims_and_binds_profile_and_input(tmp_path):
                     {
                         "claim_id": "revenue",
                         "claim_text": "Revenue was $4.2 million in 2025.",
+                        "verification_question": "What was revenue in 2025?",
                         "source_url": "https://example.test/filing",
                         "source_excerpt": "Revenue for 2025 was $4.2 million.",
                     },
@@ -50,6 +51,7 @@ def test_structured_json_maps_claims_and_binds_profile_and_input(tmp_path):
     assert result.input_sha256 == sha256_text(path.read_text())
     assert result.claims[0].claim_id == "revenue"
     assert result.claims[0].source.uri == "https://example.test/filing"
+    assert result.claims[0].question == "What was revenue in 2025?"
     assert result.claims[0].location == "claims[0]"
     assert result.claims[1].declared_analysis is True
     assert result.claims[1].provenance_class == "analyst_calculation"
@@ -85,17 +87,19 @@ def test_structured_json_maps_claims_and_binds_profile_and_input(tmp_path):
 
 def test_profile_ports_a_structured_contract_without_product_code(tmp_path):
     path = tmp_path / "custom.json"
-    path.write_text(json.dumps({"assertions": [{"text": "A claim.", "url": "https://example.test/a"}]}))
+    path.write_text(json.dumps({"assertions": [{"text": "A claim.", "url": "https://example.test/a", "intent": "What does the source establish?"}]}))
     profile = ArtifactProfile(
         key="custom",
         version="1",
         claims_key="assertions",
         claim_text_key="text",
+        question_key="intent",
         source_uri_key="url",
     )
     [claim] = extract_artifact(path, profile).claims
     assert claim.text == "A claim."
     assert claim.source.uri == "https://example.test/a"
+    assert claim.question == "What does the source establish?"
     assert claim.location == "assertions[0]"
 
 

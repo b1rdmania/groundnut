@@ -47,6 +47,13 @@ artifact. Those actions require explicit deployment policy or human authority.
 Adapters are opt-in edges: importing or running analysis never performs an
 implicit network request.
 
+Structured claim artifacts can carry an optional `verification_question`.
+This is the explicit task the cited excerpt is meant to answer. It is retained
+as the canonical claim's `question`, bound into support inputs and available to
+independent relevance components. Groundnut does not derive it silently from
+the claim or report section. Older artifacts without the field remain valid;
+question-dependent components must abstain when it is absent.
+
 The built-in adapters cover local text and simple HTTP text/HTML. Paywalls,
 unreachable sources, and unsupported PDFs remain explicit failure states.
 `SnapshotStore` archives the normalized source with its hash and refuses a

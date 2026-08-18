@@ -23,6 +23,11 @@ def resolved(reference, text):
     )
 
 
+def test_claim_rejects_blank_verification_question():
+    with pytest.raises(ValueError, match="question"):
+        Claim("c1", "A claim", question="  ")
+
+
 def test_exact_and_format_normalised_excerpt_anchor():
     assert anchor_excerpt("Revenue was $14.2M.", "Revenue was $14.2M.").anchor == "found"
     outcome = anchor_excerpt(

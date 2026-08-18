@@ -244,6 +244,7 @@ Thresholds are fixed before holdout scoring.
 | Hash-bound formula and named-input lineage for analyst calculations | Landed |
 | Metric envelopes and separate fuzzy-anchor population | Landed |
 | Explicit segmenter identity in extraction and run manifest | Landed |
+| Optional hash-bound `verification_question` in structured claims | Landed |
 | Generic authored-to-rendered evidence-parity receipt and CLI | Landed |
 | Frozen-policy arena and offline adjudication CLI | Landed |
 | Profile-hashed arena task emission with section-contained context | Landed |
