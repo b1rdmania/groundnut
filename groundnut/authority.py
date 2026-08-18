@@ -212,10 +212,13 @@ class ClaimEvidenceReport:
     def canonical_payload(self) -> dict[str, Any]:
         authority_counts = {kind: 0 for kind in sorted(AUTHORITY_KINDS)}
         support_counts: dict[str, int] = {}
+        provenance_counts: dict[str, int] = {}
         for row in self.accounts:
             authority_counts[row.authority.kind] += 1
             status = row.assessment.support.status
             support_counts[status] = support_counts.get(status, 0) + 1
+            provenance = row.assessment.verification.claim.provenance_class
+            provenance_counts[provenance] = provenance_counts.get(provenance, 0) + 1
         return {
             "schema": "groundnut-claim-evidence-report/v1",
             "support_policy": {
@@ -231,6 +234,7 @@ class ClaimEvidenceReport:
                 "claims": len(self.accounts),
                 "support_status_counts": dict(sorted(support_counts.items())),
                 "authority_kind_counts": authority_counts,
+                "provenance_class_counts": dict(sorted(provenance_counts.items())),
             },
             "accounts": [row.to_dict() for row in self.accounts],
         }
@@ -260,11 +264,21 @@ def assess_evidence_authority(
         assigned_by = declaration.assigned_by
         note = declaration.note
         declaration_sha256 = declaration.sha256
-    elif claim.declared_analysis:
+    elif claim.provenance_class in {
+        "analyst_calculation",
+        "analyst_inference",
+        "recommendation",
+    }:
         kind = "analyst_derived"
         basis = "artifact_declaration"
         assigned_by = None
-        note = "Artifact explicitly declares analyst-derived analysis."
+        note = f"Artifact explicitly declares {claim.provenance_class}."
+        declaration_sha256 = None
+    elif claim.provenance_class == "company_assertion":
+        kind = "subject_provided"
+        basis = "artifact_declaration"
+        assigned_by = None
+        note = "Artifact explicitly declares a company assertion."
         declaration_sha256 = None
     else:
         kind = "unknown_authority"

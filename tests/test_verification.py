@@ -1,5 +1,14 @@
 from groundnut.sources import ResolvedSource, SourceReference, SourceResolution
-from groundnut.verification import Claim, anchor_excerpt, verification_metrics, verify_claim
+import pytest
+
+from groundnut.verification import (
+    CalculationInput,
+    CalculationLineage,
+    Claim,
+    anchor_excerpt,
+    verification_metrics,
+    verify_claim,
+)
 
 
 def resolved(reference, text):
@@ -46,6 +55,44 @@ def test_anchor_presence_never_becomes_support():
     assert "support has not been assessed" in result.note
 
 
+def test_calculation_lineage_is_hash_bound_but_never_becomes_support():
+    lineage = CalculationLineage(
+        formula="arr = customers * annual_price",
+        inputs=(
+            CalculationInput("annual_price", "£12,000", ("price",)),
+            CalculationInput("customers", "5", ("customers",)),
+        ),
+    )
+    claim = Claim(
+        "arr",
+        "Modelled ARR is £60,000.",
+        provenance_class="analyst_calculation",
+        calculation_lineage=lineage,
+    )
+    result = verify_claim(claim, None)
+    payload = result.to_dict()["claim"]["analytical_provenance"]
+
+    assert payload["calculation_lineage_status"] == "declared"
+    assert payload["calculation_lineage"]["formula_sha256"] == lineage.formula_sha256
+    assert [row["name"] for row in payload["calculation_lineage"]["inputs"]] == [
+        "annual_price",
+        "customers",
+    ]
+    assert result.support == "not_assessed"
+
+    metrics = verification_metrics([result])
+    lineage_rate = metrics["rates"]["calculation_lineage_coverage"]
+    assert (lineage_rate["numerator"], lineage_rate["denominator"]) == (1, 1)
+
+    with pytest.raises(ValueError, match="requires analyst_calculation"):
+        Claim(
+            "wrong",
+            "Do this.",
+            provenance_class="recommendation",
+            calculation_lineage=lineage,
+        )
+
+
 def test_fetch_failure_is_not_scored_as_fabrication():
     reference = SourceReference("filing", "https://example.test/paywall")
     result = verify_claim(
@@ -69,6 +116,40 @@ def test_metrics_keep_coverage_accessibility_and_anchoring_separate():
     ]
 
     metrics = verification_metrics(rows)
-    assert metrics["citation_coverage"] == 0.5
-    assert metrics["source_accessibility"] == 1.0
-    assert metrics["excerpt_anchoring"] == 1.0
+    assert metrics["schema"] == "groundnut-verification-metrics/v2"
+    assert metrics["rates"]["citation_coverage"] == {
+        "schema": "groundnut-metric-envelope/v1",
+        "name": "citation_coverage",
+        "class": "coverage",
+        "numerator": 1,
+        "denominator": 2,
+        "population": "all detected claims",
+        "value": 0.5,
+    }
+    assert metrics["rates"]["source_accessibility"]["value"] == 1.0
+    assert metrics["rates"]["excerpt_anchoring"]["value"] == 1.0
+    assert metrics["anchor_outcome_counts"]["no_source"] == 1
+    by_class = metrics["by_provenance_class"]["unclassified"]
+    assert by_class["citation_coverage"]["denominator"] == 2
+
+
+def test_metrics_keep_fuzzy_anchors_as_their_own_population():
+    reference = SourceReference("s1", "https://example.test/a")
+    source = (
+        "The company reported consolidated revenue of $14.2 million for the "
+        "financial year ending 31 December 2025."
+    )
+    drifted = source.replace("consolidated", "consolidate")
+    rows = [
+        verify_claim(
+            Claim("fuzzy", "Claim", source=reference, excerpt=drifted),
+            resolved(reference, source),
+        )
+    ]
+    metrics = verification_metrics(rows)
+    assert rows[0].method == "fuzzy"
+    assert rows[0].anchor == "found"
+    assert metrics["counts"]["fuzzy_anchored_excerpts"] == 1
+    assert metrics["anchor_outcome_counts"]["fuzzy_found"] == 1
+    fuzzy = metrics["rates"]["fuzzy_anchor_share"]
+    assert (fuzzy["numerator"], fuzzy["denominator"], fuzzy["value"]) == (1, 1, 1.0)

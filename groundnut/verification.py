@@ -12,7 +12,82 @@ from dataclasses import dataclass
 import re
 from typing import Any
 
+from .metrics import MetricEnvelope
+from .provenance import sha256_text
 from .sources import SourceReference, SourceResolution
+
+
+CLAIM_PROVENANCE_CLASSES = {
+    "external_evidence",
+    "company_assertion",
+    "analyst_calculation",
+    "analyst_inference",
+    "recommendation",
+    "open_question",
+    "unclassified",
+}
+ANALYTICAL_PROVENANCE_SCHEMA = "groundnut-analytical-provenance/v1"
+CALCULATION_LINEAGE_SCHEMA = "groundnut-calculation-lineage/v1"
+ANALYST_PROVENANCE_CLASSES = {
+    "analyst_calculation",
+    "analyst_inference",
+    "recommendation",
+}
+
+
+@dataclass(frozen=True)
+class CalculationInput:
+    name: str
+    value: str
+    source_claim_ids: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "source_claim_ids", tuple(sorted(self.source_claim_ids))
+        )
+        if not self.name.strip() or not self.value.strip():
+            raise ValueError("calculation input name and value are required")
+        if any(not claim_id.strip() for claim_id in self.source_claim_ids):
+            raise ValueError("calculation input source claim ids must not be empty")
+        if len(self.source_claim_ids) != len(set(self.source_claim_ids)):
+            raise ValueError("calculation input source claim ids must be unique")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "value": self.value,
+            "source_claim_ids": list(self.source_claim_ids),
+        }
+
+
+@dataclass(frozen=True)
+class CalculationLineage:
+    formula: str
+    inputs: tuple[CalculationInput, ...]
+    note: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "inputs", tuple(sorted(self.inputs, key=lambda row: row.name)))
+        if not self.formula.strip() or not self.inputs:
+            raise ValueError("calculation formula and at least one named input are required")
+        names = [row.name for row in self.inputs]
+        if len(names) != len(set(names)):
+            raise ValueError("calculation input names must be unique")
+        if self.note is not None and not self.note.strip():
+            raise ValueError("calculation lineage note must not be empty")
+
+    @property
+    def formula_sha256(self) -> str:
+        return sha256_text(self.formula)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": CALCULATION_LINEAGE_SCHEMA,
+            "formula": self.formula,
+            "formula_sha256": self.formula_sha256,
+            "inputs": [row.to_dict() for row in self.inputs],
+            "note": self.note,
+        }
 
 
 @dataclass(frozen=True)
@@ -23,8 +98,29 @@ class Claim:
     excerpt: str | None = None
     locator: str | None = None
     declared_analysis: bool = False
+    provenance_class: str = "unclassified"
     question: str | None = None
     location: str | None = None
+    calculation_lineage: CalculationLineage | None = None
+
+    def __post_init__(self) -> None:
+        if not self.claim_id.strip() or not self.text.strip():
+            raise ValueError("claim identity and text are required")
+        if self.provenance_class not in CLAIM_PROVENANCE_CLASSES:
+            raise ValueError(f"unknown claim provenance class: {self.provenance_class}")
+        if self.declared_analysis and self.provenance_class == "unclassified":
+            object.__setattr__(self, "provenance_class", "analyst_inference")
+        elif self.declared_analysis and self.provenance_class not in ANALYST_PROVENANCE_CLASSES:
+            raise ValueError("declared analysis conflicts with provenance class")
+        elif self.provenance_class in ANALYST_PROVENANCE_CLASSES:
+            object.__setattr__(self, "declared_analysis", True)
+        if (
+            self.calculation_lineage is not None
+            and self.provenance_class != "analyst_calculation"
+        ):
+            raise ValueError(
+                "calculation lineage requires analyst_calculation provenance"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -38,6 +134,22 @@ class Claim:
             "excerpt": self.excerpt,
             "locator": self.locator,
             "declared_analysis": self.declared_analysis,
+            "analytical_provenance": {
+                "schema": ANALYTICAL_PROVENANCE_SCHEMA,
+                "class": self.provenance_class,
+                "calculation_lineage_status": (
+                    "declared"
+                    if self.calculation_lineage is not None
+                    else "missing"
+                    if self.provenance_class == "analyst_calculation"
+                    else "not_applicable"
+                ),
+                "calculation_lineage": (
+                    self.calculation_lineage.to_dict()
+                    if self.calculation_lineage is not None
+                    else None
+                ),
+            },
             "question": self.question,
             "location": self.location,
         }
@@ -139,15 +251,16 @@ def best_window_similarity(needle: str, haystack: str) -> float:
 def verify_claim(claim: Claim, resolution: SourceResolution | None) -> VerifiedClaim:
     """Mechanically verify citation apparatus without judging claim support."""
     if claim.source is None:
+        typed = claim.provenance_class != "unclassified"
         return VerifiedClaim(
             claim=claim,
             anchor=None,
-            method="provenance" if claim.declared_analysis else "no_source",
+            method="provenance" if typed else "no_source",
             score=None,
-            support="declared_analysis" if claim.declared_analysis else "not_assessed",
+            support="not_assessed",
             note=(
-                "Declared analysis has no external source; review its inputs and method."
-                if claim.declared_analysis
+                f"Artifact declares {claim.provenance_class}; this class does not establish support."
+                if typed
                 else "No checkable source is attached."
             ),
         )
@@ -196,22 +309,117 @@ def verify_claim(claim: Claim, resolution: SourceResolution | None) -> VerifiedC
     )
 
 
-def verification_metrics(rows: list[VerifiedClaim]) -> dict[str, float | int | None]:
+def verification_metrics(rows: list[VerifiedClaim]) -> dict[str, Any]:
     cited = [row for row in rows if row.claim.source is not None]
     readable = [row for row in cited if row.method != "fetch_failed"]
     excerpts = [row for row in cited if row.claim.excerpt]
     anchored = [row for row in excerpts if row.anchor == "found"]
-    return {
-        "detected_claims": len(rows),
-        "cited_claims": len(cited),
-        "citation_coverage": _ratio(len(cited), len(rows)),
-        "readable_citations": len(readable),
-        "source_accessibility": _ratio(len(readable), len(cited)),
-        "excerpt_claims": len(excerpts),
-        "anchored_excerpts": len(anchored),
-        "excerpt_anchoring": _ratio(len(anchored), len(excerpts)),
+    exact_anchored = [row for row in anchored if row.method == "exact"]
+    fuzzy_anchored = [row for row in anchored if row.method == "fuzzy"]
+    calculations = [
+        row for row in rows if row.claim.provenance_class == "analyst_calculation"
+    ]
+    calculations_with_lineage = [
+        row for row in calculations if row.claim.calculation_lineage is not None
+    ]
+    anchor_outcomes = {
+        "exact_found": len(exact_anchored),
+        "fuzzy_found": len(fuzzy_anchored),
+        "fuzzy_ambiguous": sum(
+            row.method == "fuzzy" and row.anchor == "ambiguous" for row in excerpts
+        ),
+        "fuzzy_not_found": sum(
+            row.method == "fuzzy" and row.anchor == "not_found" for row in excerpts
+        ),
+        "locator_only": sum(row.method == "locator" for row in cited),
+        "no_excerpt": sum(row.method == "no_excerpt" for row in cited),
+        "fetch_failed": sum(row.method == "fetch_failed" for row in cited),
+        "no_source": sum(row.method == "no_source" for row in rows),
+        "typed_provenance": sum(row.method == "provenance" for row in rows),
     }
-
-
-def _ratio(numerator: int, denominator: int) -> float | None:
-    return numerator / denominator if denominator else None
+    rates = (
+        MetricEnvelope(
+            "citation_coverage",
+            "coverage",
+            len(cited),
+            len(rows),
+            "all detected claims",
+        ),
+        MetricEnvelope(
+            "source_accessibility",
+            "accessibility",
+            len(readable),
+            len(cited),
+            "claims with a cited source",
+        ),
+        MetricEnvelope(
+            "excerpt_anchoring",
+            "anchoring",
+            len(anchored),
+            len(excerpts),
+            "cited claims with a supplied verbatim excerpt",
+        ),
+        MetricEnvelope(
+            "exact_anchor_share",
+            "anchoring_method",
+            len(exact_anchored),
+            len(anchored),
+            "anchored excerpts",
+        ),
+        MetricEnvelope(
+            "fuzzy_anchor_share",
+            "anchoring_method",
+            len(fuzzy_anchored),
+            len(anchored),
+            "anchored excerpts",
+        ),
+        MetricEnvelope(
+            "calculation_lineage_coverage",
+            "provenance_completeness",
+            len(calculations_with_lineage),
+            len(calculations),
+            "claims declared analyst_calculation",
+        ),
+    )
+    per_provenance = {}
+    for provenance_class in sorted({row.claim.provenance_class for row in rows}):
+        population = [
+            row for row in rows if row.claim.provenance_class == provenance_class
+        ]
+        population_cited = [row for row in population if row.claim.source is not None]
+        per_provenance[provenance_class] = {
+            "claims": len(population),
+            "cited_claims": len(population_cited),
+            "no_source": sum(row.method == "no_source" for row in population),
+            "typed_provenance": sum(
+                row.method == "provenance" for row in population
+            ),
+            "fuzzy_anchored_excerpts": sum(
+                row.method == "fuzzy" and row.anchor == "found"
+                for row in population
+            ),
+            "citation_coverage": MetricEnvelope(
+                "citation_coverage",
+                "coverage_by_provenance",
+                len(population_cited),
+                len(population),
+                f"claims declared {provenance_class}",
+            ).to_dict(),
+        }
+    return {
+        "schema": "groundnut-verification-metrics/v2",
+        "counts": {
+            "detected_claims": len(rows),
+            "cited_claims": len(cited),
+            "readable_citations": len(readable),
+            "excerpt_claims": len(excerpts),
+            "anchored_excerpts": len(anchored),
+            "exact_anchored_excerpts": len(exact_anchored),
+            "fuzzy_anchored_excerpts": len(fuzzy_anchored),
+            "analyst_calculations": len(calculations),
+            "calculations_with_lineage": len(calculations_with_lineage),
+        },
+        "anchor_outcome_counts": anchor_outcomes,
+        "by_provenance_class": per_provenance,
+        "rates": {metric.name: metric.to_dict() for metric in rates},
+    }

@@ -2,5 +2,6 @@
 
 from .lettuce import LettuceDetectAdapter
 from .minicheck import MiniCheckAdapter
+from .alignscore import AlignScoreAdapter
 
-__all__ = ["LettuceDetectAdapter", "MiniCheckAdapter"]
+__all__ = ["AlignScoreAdapter", "LettuceDetectAdapter", "MiniCheckAdapter"]

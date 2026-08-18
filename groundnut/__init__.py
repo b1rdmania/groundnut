@@ -9,7 +9,16 @@ from .artifacts import (
     ArtifactExtraction,
     ArtifactProfile,
     DEFAULT_ARTIFACT_PROFILE,
+    DEFAULT_SEGMENTER,
+    SegmenterIdentity,
     extract_artifact,
+)
+from .metrics import MetricEnvelope
+from .rendering import (
+    RENDER_RECEIPT_SCHEMA,
+    RenderReceipt,
+    RendererIdentity,
+    compare_rendered_artifacts,
 )
 from .engine import AnalysisResult, analyse_text
 from .coverage import CheckCoverage, CoverageManifest
@@ -89,6 +98,17 @@ from .support_review import (
     review_decisions_tsv,
 )
 from .support_review_html import render_support_review_html
+from .support_agent_screen import (
+    AgentSuggestion,
+    AgentSupportScreen,
+    screen_agent_suggestions,
+)
+from .support_exploration import (
+    COMPARISON_SCHEMA,
+    EXPLORATION_SCHEMA,
+    compare_agent_explorations,
+    run_agent_exploration,
+)
 from .run_manifest import (
     ArtifactDigest,
     DomainDigest,
@@ -106,9 +126,15 @@ from .runner import (
     execute_canonical_check,
     run_canonical_check,
 )
-from .adapters import LettuceDetectAdapter, MiniCheckAdapter
+from .adapters import AlignScoreAdapter, LettuceDetectAdapter, MiniCheckAdapter
 from .support_runner import ProbeContextDigest, SupportProbeRun, run_support_probe
 from .verification import (
+    ANALYTICAL_PROVENANCE_SCHEMA,
+    ANALYST_PROVENANCE_CLASSES,
+    CALCULATION_LINEAGE_SCHEMA,
+    CLAIM_PROVENANCE_CLASSES,
+    CalculationInput,
+    CalculationLineage,
     Claim,
     MatchOutcome,
     VerifiedClaim,
@@ -119,6 +145,11 @@ from .verification import (
 
 __all__ = [
     "AnalysisResult",
+    "AlignScoreAdapter",
+    "AgentSuggestion",
+    "AgentSupportScreen",
+    "ANALYTICAL_PROVENANCE_SCHEMA",
+    "ANALYST_PROVENANCE_CLASSES",
     "AUTHORITY_KINDS",
     "AnnotationBundle",
     "ArtifactDigest",
@@ -137,16 +168,22 @@ __all__ = [
     "Category",
     "CanonicalRun",
     "CanonicalExecution",
+    "CALCULATION_LINEAGE_SCHEMA",
     "CaseProvenance",
+    "CalculationInput",
+    "CalculationLineage",
     "Claim",
+    "CLAIM_PROVENANCE_CLASSES",
     "ClaimAssessment",
     "ClaimCheckReport",
     "ClaimEvidenceAccount",
     "ClaimEvidenceReport",
     "CheckCoverage",
+    "COMPARISON_SCHEMA",
     "CoverageManifest",
     "DocumentType",
     "DEFAULT_ARTIFACT_PROFILE",
+    "DEFAULT_SEGMENTER",
     "DEFAULT_ARENA_EMISSION_PROFILE",
     "DomainDigest",
     "DetectorDecision",
@@ -157,9 +194,11 @@ __all__ = [
     "FileResolver",
     "ExactSupportDetector",
     "EngineIdentity",
+    "EXPLORATION_SCHEMA",
     "EvidenceAnnotation",
     "HttpResolver",
     "MatchOutcome",
+    "MetricEnvelope",
     "MiniCheckAdapter",
     "ParityComparison",
     "PresentIrrelevantCandidate",
@@ -169,6 +208,9 @@ __all__ = [
     "ProbeContextDigest",
     "ResolvedSource",
     "RecordedProbeRun",
+    "RENDER_RECEIPT_SCHEMA",
+    "RenderReceipt",
+    "RendererIdentity",
     "Ruling",
     "RunManifest",
     "RuntimeComponent",
@@ -182,6 +224,7 @@ __all__ = [
     "SourceRecord",
     "SourceResolution",
     "SeedImport",
+    "SegmenterIdentity",
     "SupportAssessment",
     "SupportAdmissionReport",
     "SupportBakeoff",
@@ -203,6 +246,8 @@ __all__ = [
     "apply_review_decisions_tsv",
     "anchor_excerpt",
     "compare_analysis",
+    "compare_agent_explorations",
+    "compare_rendered_artifacts",
     "check_claims",
     "build_present_irrelevant_candidates",
     "build_pilot_probe",
@@ -217,9 +262,11 @@ __all__ = [
     "review_decisions_tsv",
     "render_support_review_html",
     "run_support_bakeoff",
+    "run_agent_exploration",
     "sample_present_irrelevant_candidates",
     "semantic_projection",
     "score_support",
+    "screen_agent_suggestions",
     "run_support_probe",
     "run_canonical_check",
     "verification_metrics",

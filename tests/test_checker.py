@@ -70,7 +70,12 @@ def test_batch_report_keeps_mechanical_and_semantic_layers_separate():
     assert report.complete is False
     assert report.summary["semantic_assessments"] == 2
     assert report.summary["unresolved_assessments"] == 2
-    assert report.summary["mechanical"]["citation_coverage"] == 0.75
+    coverage = report.summary["mechanical"]["rates"]["citation_coverage"]
+    assert (coverage["numerator"], coverage["denominator"], coverage["value"]) == (
+        3,
+        4,
+        0.75,
+    )
 
 
 def test_missing_resolution_is_visible_source_unavailable():

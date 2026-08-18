@@ -15,6 +15,12 @@ from groundnut.support_review import (
     review_decisions_tsv,
 )
 from groundnut.support_review_html import render_support_review_html
+from groundnut.support_agent_screen import AgentSuggestion, screen_agent_suggestions
+from groundnut.support import ExactSupportDetector
+from groundnut.support_exploration import (
+    compare_agent_explorations,
+    run_agent_exploration,
+)
 from groundnut.support_cases import CaseProvenance
 from groundnut.support_seeds import AttestedSpanSeed, PresentIrrelevantCandidate
 
@@ -179,3 +185,109 @@ def test_offline_reviewer_embeds_only_the_frozen_private_batch():
     assert "default-src 'none'" in html
     assert "https://" not in html
     assert "Download reviewed TSV" in html
+
+
+def test_offline_reviewer_keeps_agent_draft_separate_from_human_decision():
+    current = manifest()
+    row = current.rows[0]
+    suggestion = {
+        "schema": "groundnut-support-agent-suggestion/v1",
+        "input_sha256": row.input_sha256,
+        "agent": "local:test-model",
+        "irrelevant_decision": "accepted",
+        "irrelevant_note": "Different clause.",
+        "paraphrase_text": "A distinct supported restatement.",
+        "paraphrase_note": "Meaning retained.",
+        "paraphrase_lexical_overlap": 0.4,
+        "paraphrase_absent_from_context": True,
+        "contradiction_decision": "accepted",
+        "contradiction_note": "Polarity reversed.",
+        "requires_human_review": True,
+    }
+    html = render_support_review_html(
+        current, {row.input_sha256: suggestion}
+    )
+
+    assert "local:test-model" in html
+    assert "review, do not rubber-stamp" in html
+    assert 'irrelevant_decision: row.irrelevance_review.decision' in html
+
+
+def agent_suggestion(**updates):
+    row = manifest().rows[0]
+    values = {
+        "input_sha256": row.input_sha256,
+        "agent": "local:test-model",
+        "irrelevant_decision": "accepted",
+        "irrelevant_note": "The candidate addresses a different obligation.",
+        "paraphrase_text": "An audited report is due within thirty days.",
+        "paraphrase_note": "The duty and deadline are retained.",
+        "paraphrase_lexical_overlap": 0.4,
+        "paraphrase_absent_from_context": True,
+        "contradiction_decision": "accepted",
+        "contradiction_note": "The proposed mutation reverses the duty.",
+        "requires_human_review": True,
+    }
+    values.update(updates)
+    return AgentSuggestion(**values)
+
+
+def test_agent_screen_is_exploratory_and_structurally_ineligible():
+    current = manifest()
+    screen = screen_agent_suggestions(current, (agent_suggestion(),))
+
+    artifact = screen.to_dict()
+    assert artifact["qualification"] == "exploratory_only"
+    assert artifact["eligible_for_admission"] is False
+    assert artifact["included_group_count"] == 1
+    assert artifact["included_case_count"] == 4
+    assert len(artifact["sha256"]) == 64
+
+
+def test_agent_screen_excludes_disagreement_instead_of_resolving_it():
+    screen = screen_agent_suggestions(
+        manifest(),
+        (agent_suggestion(contradiction_decision="ambiguous"),),
+    )
+
+    assert screen.included_input_sha256 == ()
+    assert screen.excluded[0][1] == ("contradiction_ambiguous",)
+
+
+def test_agent_suggestion_boolean_strings_are_rejected():
+    value = {
+        "schema": "groundnut-support-agent-suggestion/v1",
+        **agent_suggestion().__dict__,
+        "requires_human_review": "true",
+    }
+
+    with pytest.raises(ValueError, match="flags must be booleans"):
+        AgentSuggestion.from_mapping(value)
+
+
+def test_agent_exploration_runs_without_creating_an_admission_result():
+    result = run_agent_exploration(
+        manifest(), (agent_suggestion(),), ExactSupportDetector()
+    )
+
+    assert result["qualification"] == "exploratory_only"
+    assert result["eligible_for_admission"] is False
+    assert result["group_count"] == 1
+    assert result["case_count"] == 4
+    assert result["score"]["accuracy"] == 0.25
+    assert result["score"]["by_kind"]["verbatim_supported"]["accuracy"] == 1.0
+    assert result["score"]["by_kind"]["paraphrase_supported"]["accuracy"] == 0.0
+    assert result["score"]["by_kind"]["contradicted"]["accuracy"] == 0.0
+    assert result["score"]["by_kind"]["present_irrelevant"]["accuracy"] == 0.0
+
+
+def test_agent_exploration_comparison_preserves_non_admission_boundary():
+    run = run_agent_exploration(
+        manifest(), (agent_suggestion(),), ExactSupportDetector()
+    )
+    comparison = compare_agent_explorations({"first": run, "second": run})
+
+    assert comparison["eligible_for_admission"] is False
+    assert comparison["case_count"] == 4
+    assert comparison["results"]["first"]["binary_accuracy"] == 0.5
+    assert comparison["results"]["first"]["unsupported_recall"] == 0.5

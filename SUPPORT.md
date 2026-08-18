@@ -121,7 +121,9 @@ The canonical pilot workflow is executable but stops at the human boundary:
    reserves, emits immutable JSONL, and creates a TSV worksheet containing the
    exact review context and deterministic negation proposal.
 2. `scripts/render_support_review.py` optionally turns that private batch into
-   a self-contained offline reviewer which downloads the same TSV format.
+   a self-contained offline reviewer which downloads the same TSV format. An
+   optional `--suggestions` JSONL sidecar may prefill visibly agent-authored
+   drafts; it cannot alter the frozen rows or create a human decision.
 3. A human rules irrelevance, authors or reviews the paraphrase, and reviews
    the contradiction. Nothing pending is treated as accepted.
 4. `scripts/apply_support_reviews.py` rejects changed source text, questions,
@@ -130,6 +132,21 @@ The canonical pilot workflow is executable but stops at the human boundary:
    in the preregistered order and enforces the frozen lexical-overlap band.
 6. `scripts/freeze_support_plan.py` binds the completed probe to exact policy
    hashes before any learned run.
+
+The offline reviewer shows the 50 target rows first and hides reserves by
+default. Applying a suggestion copies its agent identity into paraphrase
+authorship while requiring a separate human reviewer ID. Human notes remain
+independent. Drafts outside the frozen lexical-overlap band or found verbatim
+in context become ambiguous rather than accepted.
+
+When human adjudication is not available, `scripts/screen_support_suggestions.py`
+provides a deliberately weaker development route. It checks that agent
+suggestions exactly cover the preregistered target rows, excludes every
+rejected or ambiguous group, and emits a self-hashed screen with
+`qualification: exploratory_only` and `eligible_for_admission: false`. This is
+useful for debugging adapters and estimating whether a learned detector is
+worth further work. It cannot create `adjudicated` provenance, promote cases to
+gold, qualify a detector, or change the canonical gate from `NOT MEASURED`.
 
 `run_support_bakeoff` then runs every frozen policy over those identical cases,
 writes complete run artifacts, recomputes each score, and produces one
@@ -160,9 +177,16 @@ invalid or tampered input. Its result is a self-hashed
 
 ## Adapter admission
 
-Groundnut includes benchmark-only adapters for LettuceDetect and MiniCheck, but
-neither model is an adopted dependency or quality claim. Imports load no model
-runtime and tests inject fakes without network access.
+Groundnut includes benchmark-only adapters for AlignScore, LettuceDetect, and
+MiniCheck, but no model is an adopted dependency or quality claim. Imports load
+no model runtime and tests inject fakes without network access.
+
+The AlignScore adapter requires a pinned local checkpoint and pinned local
+RoBERTa backbone metadata. Its NLI mode preserves entailment, neutral, and
+contradiction instead of collapsing them into the upstream convenience score.
+Its separately identified QA mode combines the question and answer and remains
+binary. The two modes have different detector identities and cannot be silently
+substituted.
 
 The Lettuce adapter requires a pinned local model directory for real loading;
 it will not resolve a moving Hugging Face reference. A clean span result is an

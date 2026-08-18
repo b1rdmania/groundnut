@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from groundnut.artifacts import ArtifactProfile, extract_artifact
+from groundnut.artifacts import ArtifactProfile, SegmenterIdentity, extract_artifact
 from groundnut.provenance import sha256_text
 
 
@@ -23,6 +23,22 @@ def test_structured_json_maps_claims_and_binds_profile_and_input(tmp_path):
                         "source_url": None,
                         "source_excerpt": None,
                         "declared_analysis": True,
+                        "provenance_class": "analyst_calculation",
+                        "calculation": {
+                            "formula": "cost = licences * price_per_licence",
+                            "inputs": [
+                                {
+                                    "name": "licences",
+                                    "value": "10",
+                                    "source_claim_ids": ["revenue"],
+                                },
+                                {
+                                    "name": "price_per_licence",
+                                    "value": "$170,000",
+                                },
+                            ],
+                            "note": "Illustrative reconstruction.",
+                        },
                     },
                 ]
             }
@@ -36,7 +52,35 @@ def test_structured_json_maps_claims_and_binds_profile_and_input(tmp_path):
     assert result.claims[0].source.uri == "https://example.test/filing"
     assert result.claims[0].location == "claims[0]"
     assert result.claims[1].declared_analysis is True
-    assert result.to_dict()["schema"] == "groundnut-artifact-extraction/v1"
+    assert result.claims[1].provenance_class == "analyst_calculation"
+    assert result.claims[1].to_dict()["analytical_provenance"] == {
+        "schema": "groundnut-analytical-provenance/v1",
+        "class": "analyst_calculation",
+        "calculation_lineage_status": "declared",
+        "calculation_lineage": {
+            "schema": "groundnut-calculation-lineage/v1",
+            "formula": "cost = licences * price_per_licence",
+            "formula_sha256": sha256_text(
+                "cost = licences * price_per_licence"
+            ),
+            "inputs": [
+                {
+                    "name": "licences",
+                    "value": "10",
+                    "source_claim_ids": ["revenue"],
+                },
+                {
+                    "name": "price_per_licence",
+                    "value": "$170,000",
+                    "source_claim_ids": [],
+                },
+            ],
+            "note": "Illustrative reconstruction.",
+        },
+    }
+    assert result.to_dict()["schema"] == "groundnut-artifact-extraction/v2"
+    assert result.to_dict()["claim_count"] == 2
+    assert result.to_dict()["segmenter"]["key"] == "groundnut.artifact-block-segmenter"
 
 
 def test_profile_ports_a_structured_contract_without_product_code(tmp_path):
@@ -83,6 +127,7 @@ def test_html_recovers_evidence_and_declared_analysis_but_ignores_references(tmp
     assert result.claims[0].excerpt == 'Revenue was "exactly" $4.2m.'
     assert result.claims[1].source is None
     assert result.claims[1].declared_analysis is True
+    assert result.claims[1].provenance_class == "analyst_inference"
     assert "source list only" not in str(result.to_dict())
 
 
@@ -123,3 +168,119 @@ def test_profile_hash_changes_with_parser_contract():
         key="profile", version="1", evidence_comment_prefix="other-source"
     )
     assert default.sha256 != changed.sha256
+
+    changed_segmenter = ArtifactProfile(
+        key="profile",
+        version="1",
+        segmenter=SegmenterIdentity(
+            key="groundnut.artifact-block-segmenter",
+            version="2",
+            strategies=(("structured_json", "one claim per row"),),
+        ),
+    )
+    assert default.sha256 != changed_segmenter.sha256
+
+    changed_exclusions = ArtifactProfile(
+        key="profile",
+        version="1",
+        ignored_container_attributes=("data-host-evidence-exclude",),
+    )
+    assert default.sha256 != changed_exclusions.sha256
+
+
+def test_html_ignores_only_profile_declared_attribute_regions(tmp_path):
+    path = tmp_path / "report.html"
+    path.write_text(
+        '<nav data-groundnut-evidence-exclude><a href="https://example.test/chrome">Chrome</a></nav>'
+        '<p>Claim <a href="https://example.test/evidence">Evidence</a></p>'
+    )
+    [claim] = extract_artifact(path).claims
+    assert claim.source.uri == "https://example.test/evidence"
+
+
+def test_typed_html_provenance_is_preserved_without_becoming_support(tmp_path):
+    path = tmp_path / "typed.html"
+    path.write_text(
+        '<p><span class="groundnut-company-assertion">The company reports six pilots.</span></p>'
+        '<p><span class="groundnut-analyst-calculation">Modelled ARR is £140,000.</span></p>'
+        '<p><span class="groundnut-open-question">What is current ARR?</span></p>'
+    )
+    claims = extract_artifact(path).claims
+    assert [claim.provenance_class for claim in claims] == [
+        "company_assertion",
+        "analyst_calculation",
+        "open_question",
+    ]
+    assert claims[0].declared_analysis is False
+    assert claims[1].declared_analysis is True
+    assert claims[2].declared_analysis is False
+
+
+def test_conflicting_provenance_fails_closed(tmp_path):
+    path = tmp_path / "conflict.html"
+    path.write_text(
+        '<p class="groundnut-company-assertion groundnut-recommendation">Claim</p>'
+    )
+    with pytest.raises(ValueError, match="conflicting provenance"):
+        extract_artifact(path)
+
+    path.write_text(
+        '<p class="groundnut-company-assertion groundnut-declared-analysis">Claim</p>'
+    )
+    with pytest.raises(ValueError, match="legacy declared-analysis"):
+        extract_artifact(path)
+
+
+def test_profile_rejects_non_object_provenance_markers():
+    with pytest.raises(ValueError, match="provenance_class_markers must be an object"):
+        ArtifactProfile.from_mapping(
+            {
+                "key": "bad",
+                "version": "1",
+                "html": {"provenance_class_markers": ["not", "a", "mapping"]},
+            }
+        )
+
+
+def test_calculation_lineage_fails_closed_on_wrong_class_or_reference(tmp_path):
+    path = tmp_path / "bad-calculation.json"
+    calculation = {
+        "formula": "result = input",
+        "inputs": [
+            {"name": "input", "value": "1", "source_claim_ids": ["missing"]}
+        ],
+    }
+    path.write_text(
+        json.dumps(
+            {
+                "claims": [
+                    {
+                        "claim_id": "result",
+                        "claim_text": "Result is one.",
+                        "provenance_class": "analyst_calculation",
+                        "calculation": calculation,
+                    }
+                ]
+            }
+        )
+    )
+    with pytest.raises(ValueError, match="unknown claims"):
+        extract_artifact(path)
+
+    calculation["inputs"][0]["source_claim_ids"] = []
+    path.write_text(
+        json.dumps(
+            {
+                "claims": [
+                    {
+                        "claim_id": "result",
+                        "claim_text": "Result is one.",
+                        "provenance_class": "recommendation",
+                        "calculation": calculation,
+                    }
+                ]
+            }
+        )
+    )
+    with pytest.raises(ValueError, match="requires analyst_calculation"):
+        extract_artifact(path)

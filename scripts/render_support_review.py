@@ -21,6 +21,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--review-jsonl", required=True, type=Path)
     parser.add_argument("--manifest", required=True, type=Path)
+    parser.add_argument("--suggestions", type=Path, help="agent suggestion JSONL")
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args(argv)
 
@@ -29,11 +30,26 @@ def main(argv: list[str] | None = None) -> int:
         manifest = PilotReviewManifest.from_mapping(
             json.loads(args.manifest.read_text()), rows
         )
+        suggestions = {}
+        if args.suggestions:
+            for number, line in enumerate(args.suggestions.read_text().splitlines(), 1):
+                if not line.strip():
+                    continue
+                suggestion = json.loads(line)
+                if suggestion.get("schema") != "groundnut-support-agent-suggestion/v1":
+                    raise ValueError(f"suggestions line {number}: unsupported schema")
+                input_sha256 = str(suggestion["input_sha256"])
+                if input_sha256 in suggestions:
+                    raise ValueError(f"suggestions line {number}: duplicate input hash")
+                suggestions[input_sha256] = suggestion
+        unknown = set(suggestions) - {row.input_sha256 for row in rows}
+        if unknown:
+            raise ValueError("suggestions reference rows outside the frozen batch")
     except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
         print(f"INVALID: {error}")
         return 2
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(render_support_review_html(manifest))
+    args.output.write_text(render_support_review_html(manifest, suggestions))
     print(f"WROTE PRIVATE OFFLINE REVIEWER: {args.output}")
     return 0
 

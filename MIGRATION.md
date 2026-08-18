@@ -24,6 +24,17 @@ until they deliberately adopt a stable Groundnut contract.
   substring labels prevent the invalid detector comparison from recurring.
 - Canonical run manifests binding engine, playbook, evidence, source/snapshot,
   policy, runtime-component, and output-artifact hashes.
+- Typed analytical provenance for external evidence, company assertions,
+  analyst calculations, analyst inferences, recommendations, and open
+  questions, kept independent from support and authority.
+- Hash-bound calculation formulas, unique named inputs, and checked
+  source-claim references, without upgrading declared arithmetic to support.
+- Denominator-safe mechanical metric envelopes with exact and fuzzy anchor
+  populations kept separate.
+- Explicit segmenter identity bound into artifact extraction and canonical run
+  manifests.
+- Generic render-bound evidence parity with explicit excluded regions,
+  renderer/configuration identity, and a self-hashed fail-closed receipt.
 - End-to-end batch claim checking with derived completeness, mixed-state
   reporting, and manifest-ready self-hashed output.
 - Offline-testable LettuceDetect and MiniCheck benchmark adapters with pinned

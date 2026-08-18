@@ -119,6 +119,36 @@ than engine conditionals. Reference apparatus can be excluded explicitly, and
 unsupported or malformed artifacts fail rather than silently becoming empty
 evidence.
 
+Artifact ingestion also preserves an explicit analytical-provenance class.
+External evidence, company assertions, analyst calculations, analyst
+inferences, recommendations, and open questions remain distinct. The class can
+constrain evidence authority but cannot upgrade mechanical anchoring or
+semantic support. Legacy declared-analysis markers map to analyst inference;
+untyped material remains `unclassified` rather than being guessed from nearby
+citations.
+
+Every extraction records a separately versioned and hashed segmenter identity,
+its claim count, and the artifact-profile hash. The canonical manifest binds the
+segmenter as a runtime component in addition to the complete engine-source
+hash. Claim-denominated comparisons must disclose a changed segmenter or engine
+build.
+
+## Render-bound evidence parity
+
+`groundnut-render-receipt/v1` proves that the ordered sequence of source URI,
+exact excerpt, and locator survived from an authored artifact into a rendered
+artifact. It binds both artifact hashes and extraction profiles, both segmenter
+identities, the renderer name/version/configuration hash, claim counts, and the
+complete evidence-sequence hash. Any loss, reorder, or quote/locator drift fails
+before a receipt is produced.
+
+Renderer chrome may be excluded only through attributes or classes named in the
+hashed artifact profile. The default explicit attribute is
+`data-groundnut-evidence-exclude`; report prose is never implicitly excluded.
+The receipt computes no evidence state, semantic verdict, publication gate, or
+recommendation. Groundnut owns the generic comparison; host projects continue
+to own rendering, presentation, audience, and publication authority.
+
 ## Run manifest
 
 `groundnut-run-manifest/v2` is the portable receipt for one run. It binds an
@@ -142,6 +172,18 @@ through character similarity alone. An anchored excerpt always carries
 `support: not_assessed`; presence is not entailment or truth. Semantic judges
 may consume that record through an adapter but cannot rewrite its mechanical
 provenance.
+
+Every mechanical verification rate is a metric envelope carrying its
+numerator, denominator, population, and metric class. Fuzzy-found excerpts are
+reported separately from exact anchors and from absent sources. Coverage is
+also grouped by analytical-provenance class, preventing an uncited analyst
+inference from being silently counted as the same failure as an uncited
+external fact.
+
+An `analyst_calculation` may additionally carry
+`groundnut-calculation-lineage/v1`: an exact formula hash, unique named input
+values, and optional references to other claims in the same artifact. Missing
+lineage is an explicit state. Formula declaration never upgrades support.
 
 Semantic support is a separate, versioned artifact. A support policy pins the
 detector adapter, model, revision, package version, confidence threshold, and
@@ -202,7 +244,7 @@ This prevents evidence from a neighbouring slide or heading from silently
 supporting a conclusion.
 
 Emission and adjudication are separate. The emitter proposes what should be
-attacked; `groundnut-arena-report/v1` still decides attacks and rulings under a
+attacked; `groundnut-arena-report/v2` still decides attacks and rulings under a
 different frozen policy and retains unattacked, unruled, and withheld states.
 
 ## Gate roles

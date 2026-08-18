@@ -1,19 +1,24 @@
 # Groundnut 🥜
 
-**The evidence engine for AI systems that must show their work.**
+**The canonical evidence and claim-checking engine for AI systems that must
+show their work.**
 
 Groundnut turns claims, sources, and a checking policy into a replayable,
 source-bound account of what is supported, contradicted, incomplete,
 inaccessible, or still unassessed. Every material decision retains the evidence
 and identity needed to inspect it later.
 
-The north star is a canonical anti-hallucination and claim-checking engine that
-can sit beneath research agents, diligence systems, document intelligence,
-monitoring, and other high-consequence AI workflows. It owns the portable
-method: acquisition, snapshots, structured extraction, exact provenance,
-semantic support, fail-closed coverage, adversarial review, and reproducible
-evaluation. Products provide their domain policy and presentation layer; they
-should not rebuild the checking engine.
+The north star is one reusable control plane beneath research agents,
+diligence systems, document intelligence, monitoring, and other
+high-consequence AI workflows. Given a claim, the question it is meant to
+answer, and its evidence, Groundnut returns a source-bound account of what the
+evidence supports, contradicts, leaves incomplete, or cannot assess.
+
+Groundnut owns the portable method: acquisition, snapshots, structured
+extraction, exact provenance, semantic support, fail-closed coverage,
+adversarial review, and reproducible evaluation. It may combine the best
+permissively licensed components for each job. Products provide domain policy
+and presentation; they should not rebuild the checking engine.
 
 ## North star
 
@@ -43,6 +48,10 @@ Four design commitments follow:
   outputs are hash-bound so the same run can be reconstructed and challenged.
 - **Earn every quality claim.** Domain configuration is portable; credibility
   is not. Learned components and new domains require their own frozen gates.
+- **Compose measured parts.** No single model needs to solve the whole problem.
+  Groundnut can combine retrieval, segmentation, exact checks, relevance,
+  entailment, contradiction, and adversarial signals while keeping every part
+  labelled, pinned, replayable, and removable.
 
 Groundnut is deliberately domain-configurable. Change the domain pack and the
 same method can review contracts, procurement files, trust instruments,
@@ -67,13 +76,12 @@ becomes success at the next.
 ```mermaid
 flowchart LR
     A["Source reference or file"] --> B["Resolve and snapshot"]
-    B --> C["Domain-pack analysis"]
-    C --> D["Exact anchors and source hashes"]
-    D --> E["Claim-support adapters"]
-    C --> F["Fail-closed coverage"]
-    E --> G["Frozen-policy arena"]
-    F --> G
-    G --> H["Run manifest, report and gate"]
+    B --> C["Segment and extract claims"]
+    C --> D["Exact, numeric and attribution checks"]
+    D --> E["Relevance, support and contradiction signals"]
+    E --> F["Groundnut decision and abstention policy"]
+    F --> G["Frozen-policy arena"]
+    G --> H["Source-bound report, manifest and gate"]
 ```
 
 Groundnut owns the portable method and the artifacts passed between these
@@ -109,6 +117,21 @@ stages:
   manifest, normalized sources and snapshots, frozen policies, runtime
   component configurations, and output artifacts. Dirty builds remain usable
   for development but cannot pass `require_publishable()`.
+- **Typed analytical provenance** — external evidence, company assertions,
+  analyst calculations, analyst inferences, recommendations, and open questions
+  remain distinct without changing semantic support.
+- **Hash-bound calculation lineage** — calculations can retain an exact formula,
+  named inputs, and source-claim references while remaining semantically
+  unassessed until the arithmetic and inputs are checked.
+- **Denominator-safe metrics** — every mechanical verification rate carries its
+  numerator, denominator, population, and metric class. Exact and fuzzy anchors
+  are never collapsed into one validation bucket.
+- **Explicit segmentation identity** — extraction records and run manifests
+  bind the segmenter version and configuration because claim boundaries move
+  every claim-denominated metric.
+- **Render-bound evidence parity** — a self-hashed receipt fails closed unless
+  source URI, excerpt, and locator occurrences survive in order from authored
+  material into the rendered file supplied to a reader.
 
 ### What it does not claim
 
@@ -124,7 +147,7 @@ checking system materially more reliable. Deployment identity, credential
 custody, publication authority, and final human sign-off remain explicit
 boundaries rather than conclusions the checker can manufacture.
 
-## Measured components, optional detectors
+## A measured, composable engine
 
 Groundnut should not train or vendor a new hallucination model when a maintained
 permissively licensed component can satisfy a measured interface. The canonical
@@ -132,17 +155,53 @@ decision path remains deterministic; model-backed checkers belong behind
 optional adapters whose raw outputs, model revision, package version, input
 hashes, and thresholds are recorded.
 
-Current components to benchmark—not adopted quality claims—include:
+Groundnut is intentionally a composed engine. It can take a useful mechanism
+from another project without adopting that project's product, labels, policy,
+or quality claims. Each component must expose raw outputs through a typed
+adapter. Groundnut records its licence, revision, model files, configuration,
+input hashes, thresholds, and role in the final decision.
 
+Current components and candidates include:
+
+- [AlignScore](https://github.com/yuh-zha/AlignScore) (MIT code and checkpoint)
+  for three-way entailment, neutral, and contradiction scoring; benchmark
+  adapter and exploratory run landed;
 - [LettuceDetect](https://github.com/KRLabsOrg/LettuceDetect) (MIT code;
   individual model licences recorded separately) for unsupported span
-  localization and contradiction/numerical typing;
+  localisation and paraphrase-tolerant support signals; two exploratory model
+  runs landed;
 - [MiniCheck](https://github.com/Liyan06/MiniCheck) (Apache-2.0 code; model
   licences checked separately) for sentence-to-document support scoring;
+  exploratory run landed;
+- [SummaC](https://github.com/tingofurro/summac) (Apache-2.0) as the next
+  sentence-pair and long-document consistency candidate;
 - [semchunk](https://github.com/isaacus-dev/semchunk) (MIT) as a candidate
-  tokenizer-aware chunker with offsets;
+  tokenizer-aware chunker with offsets, subject to a controlled same-document
+  merge comparison;
+- [OpenContracts](https://github.com/Open-Source-Legal/OpenContracts) (MIT) as
+  an optional annotation and review workbench; Groundnut's interchange format
+  has landed, but the application is not a runtime dependency;
 - [Inspect AI](https://github.com/UKGovernmentBEIS/inspect_ai) (MIT) as an
   optional research/evaluation runner rather than a runtime dependency.
+
+The first balanced exploration used 46 agent-screened groups and 184 cases.
+It is development evidence, not human gold and not an admission result:
+
+| Method | Three-way accuracy | Macro-F1 | Present-but-irrelevant found |
+|---|---:|---:|---:|
+| Exact normalised substring | 25.0% | 0.167 | 0/46 |
+| LettuceDetect base | 49.5% | 0.221 | 0/46 |
+| LettuceDetect v2 | 48.4% | 0.224 | 0/46 |
+| MiniCheck | 45.1% | 0.259 | 3/46 |
+| AlignScore NLI | **53.8%** | **0.404** | 2/46 |
+| AlignScore, question-conditioned | 44.0% | 0.268 | **8/46** |
+
+The result is useful but not good enough. AlignScore is the strongest
+complete-label candidate so far. Question conditioning is the first signal to
+move the present-but-irrelevant class materially, but 8/46 remains poor. The
+next semantic tranche will combine independent relevance, support, and
+contradiction signals under a Groundnut-owned abstention policy. See
+[`SUPPORT-EXPLORATION.md`](./SUPPORT-EXPLORATION.md).
 
 No component enters the engine because its own benchmark looks good. It must
 beat exact, lexical, numeric, and current-engine baselines on a frozen Groundnut
@@ -163,13 +222,23 @@ Thresholds are fixed before holdout scoring.
 | Independent evidence-authority assessment | Landed |
 | Frozen semantic-support contract and exact baseline | Landed |
 | Paired four-cell detector-transfer probe contract | Landed |
+| Agent-screened development batch (structurally non-admissible) | Landed |
+| Exploratory detector comparison | [Measured; non-admissible](./SUPPORT-EXPLORATION.md) |
 | Canonical run manifest and artifact digests | Landed |
 | End-to-end batch claim checker and hashable report | Landed |
 | Canonical artifact-to-evidence runner | Landed |
 | Versioned JSON process boundary for non-Python consumers | Landed |
+| Typed analytical provenance across artifact, support and authority layers | Landed |
+| Hash-bound formula and named-input lineage for analyst calculations | Landed |
+| Metric envelopes and separate fuzzy-anchor population | Landed |
+| Explicit segmenter identity in extraction and run manifest | Landed |
+| Generic authored-to-rendered evidence-parity receipt and CLI | Landed |
 | Frozen-policy arena and offline adjudication CLI | Landed |
 | Profile-hashed arena task emission with section-contained context | Landed |
-| Benchmark-only LettuceDetect and MiniCheck adapters | Landed; no model adopted |
+| Benchmark-only AlignScore, LettuceDetect, and MiniCheck adapters | Landed; no model adopted |
+| Groundnut-owned multi-signal decision and abstention policy | Next semantic tranche |
+| SummaC sentence-pair consistency adapter | Candidate for next benchmark |
+| semchunk controlled same-document comparison | Required before changing chunking |
 | Reproducible paired-probe runner and score artifact | Landed |
 | Provenance-rich case and frozen preregistration contracts | Landed |
 | LegalBench-RAG seed importer with source-hash holdout exclusion | Landed |
@@ -177,14 +246,21 @@ Thresholds are fixed before holdout scoring.
 | Offline semantic-support admission gate | Landed; awaiting adjudicated cases |
 | Frozen 50-group review pack plus 25 reserves | Landed; awaiting human rulings |
 | Adjudicated four-cell support cases | Blocked only on bounded human review |
-| Controlled chunking and largest-document merge comparison | Required before changing chunking |
-| IC research integration and product/OS ports | Deferred consumers |
+| Controlled largest-document merge comparison | Required before changing chunking |
+| Private IC research shadow adapter | Landed outside this public repository; no cutover |
+| Product v2 and operating-system ports | Deferred consumers |
 
 The mechanical verifier intentionally stops at `not_assessed`. The semantic
 support layer can then report `supported`, `contradicted`, `insufficient`,
 `source_unavailable`, or `not_assessed` in a separate artifact, without
 allowing a model score to overwrite mechanical provenance. The shipped exact
 policy is a baseline, not a learned support claim.
+
+Analytical provenance is a separate axis again. A company assertion cannot
+inherit independent authority from a nearby citation; a recommendation cannot
+be made externally verified by attaching a source; and an analyst calculation
+remains unassessed until its inputs and method are checked. See
+[`ANALYTICAL-PROVENANCE.md`](./ANALYTICAL-PROVENANCE.md).
 
 The detector admission protocol and paired case schema are specified in
 [`SUPPORT.md`](./SUPPORT.md). Every transfer-probe group contains both present
@@ -223,6 +299,10 @@ python3 -m groundnut.canonical_cli < canonical-request.json > canonical-response
 python3 -m groundnut.arena_cli --policy policies/canonical-arena-v1.json \
   --tasks tasks.jsonl --attacks attacks.jsonl --rulings rulings.jsonl \
   --out arena-report.json
+
+# fail closed if rendering loses, reorders, or changes citation evidence
+python3 -m groundnut.render_cli --source report.md --rendered report.html \
+  --renderer-name pandoc --renderer-version 3.8 --out render-receipt.json
 ```
 
 Holdout is rate-limited to one run per 6 hours and is **currently unspent**. Don't spend it until something passes dev.
@@ -375,9 +455,11 @@ GATES.md      🚦 compatibility, support-admission, and domain gate roles
 ## Relationship to downstream work 🔌
 
 Groundnut is the engine, not a shared folder subordinate to a current product.
-IC research is a future proving ground once the core is tight. Product v2s,
-operating-system ports, and open-source packaging are optional later decisions,
-not present milestones.
+IC research now has a private shadow adapter and is the first real proving
+ground, but it does not set Groundnut's architecture or create a second engine.
+There is no production cutover while the canonical semantic-support gate is
+`NOT MEASURED`. Product v2s and operating-system ports remain later consumers,
+not present architecture constraints.
 
 Groundnut may grow an annotation workbench, corpus store, or operator UI where
 that closes a measured reliability gap; size is not a design constraint.

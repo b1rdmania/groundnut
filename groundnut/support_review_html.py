@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import json
+from typing import Any, Mapping
 
 from .support_review import PilotReviewManifest
 
 
-def render_support_review_html(manifest: PilotReviewManifest) -> str:
+def render_support_review_html(
+    manifest: PilotReviewManifest,
+    suggestions: Mapping[str, Mapping[str, Any]] | None = None,
+) -> str:
     payload = {
         "manifest_sha256": manifest.sha256,
         "target_group_count": manifest.target_group_count,
@@ -15,6 +19,7 @@ def render_support_review_html(manifest: PilotReviewManifest) -> str:
         "lexical_overlap_min": manifest.lexical_overlap_min,
         "lexical_overlap_max": manifest.lexical_overlap_max,
         "rows": [row.canonical_payload() for row in manifest.rows],
+        "suggestions": dict(suggestions or {}),
     }
     encoded = json.dumps(payload, sort_keys=True).replace("</", "<\\/")
     return _DOCUMENT.replace("__GROUNDNUT_DATA__", encoded)
@@ -30,7 +35,7 @@ _DOCUMENT = r"""<!doctype html>
 <style>
 :root { color-scheme: light dark; font-family: ui-sans-serif, system-ui, sans-serif; }
 body { margin: 0; background: #11150f; color: #edf3e8; }
-header { position: sticky; top: 0; z-index: 2; padding: 14px 20px; background: #1b2417; border-bottom: 1px solid #526148; }
+header { position: static; padding: 14px 20px; background: #1b2417; border-bottom: 1px solid #526148; }
 main { max-width: 1100px; margin: auto; padding: 20px; }
 .bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .card { border: 1px solid #526148; border-radius: 10px; padding: 16px; margin: 16px 0; background: #182015; }
@@ -43,7 +48,11 @@ button { padding: 9px 14px; border: 1px solid #8eaa7e; border-radius: 6px; backg
 button:hover { background: #405c35; }
 .warning { color: #ffd27a; }
 .small { font-size: 12px; color: #9fb096; }
-@media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+.agent { border-color: #8eaa7e; background: #202d1b; }
+.agent-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.agent pre { white-space: pre-wrap; font: inherit; color: #edf3e8; }
+@media (max-width: 900px) { .agent-grid { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .grid { grid-template-columns: 1fr; } header { padding: 12px; } main { padding: 12px; } }
 </style>
 </head>
 <body>
@@ -52,7 +61,19 @@ button:hover { background: #405c35; }
     <strong>Groundnut support-pilot review</strong>
     <span id="position"></span><span id="progress" class="warning"></span><span class="small">autosaves locally</span>
     <button id="previous">Previous</button><button id="next">Save & next</button>
+    <button id="toggleReserves">Show reserves</button>
     <button id="download">Download reviewed TSV</button>
+  </div>
+
+  <div class="card agent" id="agentCard">
+    <h3>Agent draft — review, do not rubber-stamp</h3>
+    <p class="small" id="agentIdentity"></p>
+    <div class="agent-grid">
+      <div><strong>Irrelevance</strong><pre id="agentIrrelevant"></pre><button id="useIrrelevant">Apply suggestion</button></div>
+      <div><strong>Paraphrase</strong><pre id="agentParaphrase"></pre><button id="useParaphrase">Use draft</button></div>
+      <div><strong>Contradiction</strong><pre id="agentContradiction"></pre><button id="useContradiction">Apply suggestion</button></div>
+    </div>
+    <p><button id="useAll">Apply all three suggestions</button></p>
   </div>
   <div class="small" id="manifest"></div>
 </header>
@@ -102,6 +123,7 @@ for (const id of ['irrelevantDecision','paraphraseDecision','contradictionDecisi
   for (const value of decisions) select.add(new Option(value, value));
 }
 let index = 0;
+let includeReserves = false;
 let state = data.rows.map(row => ({
   input_sha256: row.input_sha256,
   source_id: row.candidate.source_id,
@@ -144,12 +166,45 @@ function save() {
   }
   try { localStorage.setItem(storageKey, JSON.stringify(state)); } catch (_) {}
 }
+function activeLength() { return includeReserves ? state.length : data.target_group_count; }
+function reviewer() {
+  const value = document.getElementById('defaultReviewer').value.trim();
+  if (!value) { alert('Enter your human reviewer ID first, for example human:andy'); return null; }
+  return value;
+}
+function suggestion() { return data.suggestions[state[index].input_sha256] || null; }
+function applyIrrelevant() {
+  const human = reviewer(), draft = suggestion(); if (!human || !draft) return;
+  document.getElementById('irrelevantDecision').value = draft.irrelevant_decision;
+  document.getElementById('irrelevantReviewer').value = human;
+}
+function applyParaphrase() {
+  const human = reviewer(), draft = suggestion(); if (!human || !draft) return;
+  document.getElementById('paraphraseText').value = draft.paraphrase_text;
+  document.getElementById('paraphraseAuthorKind').value = 'agent';
+  document.getElementById('paraphraseAuthorId').value = draft.agent;
+  document.getElementById('paraphraseDecision').value = draft.paraphrase_lexical_overlap >= data.lexical_overlap_min && draft.paraphrase_lexical_overlap <= data.lexical_overlap_max && draft.paraphrase_absent_from_context ? 'accepted' : 'ambiguous';
+  document.getElementById('paraphraseReviewer').value = human; updateOverlap();
+}
+function applyContradiction() {
+  const human = reviewer(), draft = suggestion(); if (!human || !draft) return;
+  document.getElementById('contradictionDecision').value = draft.contradiction_decision;
+  document.getElementById('contradictionReviewer').value = human;
+}
 function load() {
   const row = state[index];
   for (const [id,key] of Object.entries(ids)) document.getElementById(id).value = row[key];
-  document.getElementById('position').textContent = `Row ${index + 1} of ${state.length}`;
+  document.getElementById('position').textContent = `Row ${index + 1} of ${activeLength()}${includeReserves ? ' (including reserves)' : ' targets'}`;
   const ready = state.filter(r => r.irrelevant_decision === 'accepted' && r.paraphrase_decision === 'accepted' && r.contradiction_decision === 'accepted').length;
   document.getElementById('progress').textContent = `${ready}/${data.target_group_count} fully accepted`;
+  const draft = suggestion();
+  document.getElementById('agentCard').hidden = !draft;
+  if (draft) {
+    document.getElementById('agentIdentity').textContent = `${draft.agent} · suggestion only · human approval required`;
+    document.getElementById('agentIrrelevant').textContent = `${draft.irrelevant_decision}: ${draft.irrelevant_note}`;
+    document.getElementById('agentParaphrase').textContent = `${draft.paraphrase_text}\n\n${draft.paraphrase_note}\nOverlap ${Number(draft.paraphrase_lexical_overlap).toFixed(3)} · absent from context ${draft.paraphrase_absent_from_context ? 'yes' : 'NO'}`;
+    document.getElementById('agentContradiction').textContent = `${draft.contradiction_decision}: ${draft.contradiction_note}`;
+  }
   updateOverlap();
 }
 function tokens(text) { return new Set((text.toLocaleLowerCase().match(/[\p{L}\p{N}_]+/gu) || [])); }
@@ -161,9 +216,14 @@ function updateOverlap() {
   document.getElementById('overlap').textContent = `overlap ${score.toFixed(3)} — frozen band ${data.lexical_overlap_min}–${data.lexical_overlap_max} ${valid ? '✓' : '✗'}`;
 }
 document.getElementById('paraphraseText').addEventListener('input', updateOverlap);
-function move(delta) { save(); index = Math.max(0, Math.min(state.length - 1, index + delta)); load(); }
+function move(delta) { save(); index = Math.max(0, Math.min(activeLength() - 1, index + delta)); load(); }
 document.getElementById('previous').onclick = () => move(-1);
 document.getElementById('next').onclick = () => move(1);
+document.getElementById('useIrrelevant').onclick = applyIrrelevant;
+document.getElementById('useParaphrase').onclick = applyParaphrase;
+document.getElementById('useContradiction').onclick = applyContradiction;
+document.getElementById('useAll').onclick = () => { applyIrrelevant(); applyParaphrase(); applyContradiction(); };
+document.getElementById('toggleReserves').onclick = () => { save(); includeReserves = !includeReserves; if (index >= activeLength()) index = activeLength() - 1; document.getElementById('toggleReserves').textContent = includeReserves ? 'Hide reserves' : 'Show reserves'; load(); };
 document.getElementById('manifest').textContent = `Frozen manifest ${data.manifest_sha256}`;
 document.getElementById('contextLabel').textContent = `Exact ${data.max_context_characters.toLocaleString()}-character-or-shorter detector context`;
 const headers = Object.keys(state[0]);
