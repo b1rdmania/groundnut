@@ -180,6 +180,10 @@ Current components and candidates include:
   offset-preserving chunker. Its first same-document structural comparison did
   not clear the current splitter: it made more windows and duplicate quote
   exposures and cut two long quotes. Groundnut has not adopted it;
+- [BGE reranker base](https://huggingface.co/BAAI/bge-reranker-base) (MIT) as
+  an independent question-to-evidence relevance signal. Its first paired
+  exploration separated all four cases in 23 of 46 groups, so Groundnut kept
+  the interface and receipt but did not adopt the model;
 - [OpenContracts](https://github.com/Open-Source-Legal/OpenContracts) (MIT) as
   an optional annotation and review workbench; Groundnut's interchange format
   has landed, but the application is not a runtime dependency;
@@ -243,6 +247,7 @@ Thresholds are fixed before holdout scoring.
 | Groundnut-owned multi-signal decision and abstention policy | Next semantic tranche |
 | SummaC sentence-pair consistency adapter | Landed; offline challenger only |
 | semchunk same-document structural comparison | Landed; tested configuration rejected |
+| Independent question-relevance exploration | Landed; lexical and BGE candidates insufficient |
 | Reproducible paired-probe runner and score artifact | Landed |
 | Provenance-rich case and frozen preregistration contracts | Landed |
 | LegalBench-RAG seed importer with source-hash holdout exclusion | Landed |

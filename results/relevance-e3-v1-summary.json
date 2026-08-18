@@ -1,0 +1,46 @@
+{
+  "schema": "groundnut-relevance-exploration-summary/v1",
+  "qualification": "exploratory_only",
+  "eligible_for_admission": false,
+  "case_contract": {
+    "relevant": [
+      "verbatim_supported",
+      "paraphrase_supported",
+      "contradicted"
+    ],
+    "irrelevant": [
+      "present_irrelevant"
+    ],
+    "reason": "Contradictory evidence can answer the question and remain relevant. Relevance is independent of support."
+  },
+  "group_count": 46,
+  "case_count": 184,
+  "lexical_baseline": {
+    "full_receipt_sha256": "4faad8e1b5191b277b0a428b25ee4d78277bd8f9b58c12d15ab04ce89e302617",
+    "roc_auc": 0.6016068052930057,
+    "average_precision": 0.8300905292251605,
+    "all_three_relevant_above_irrelevant_count": 17,
+    "all_three_relevant_above_irrelevant_rate": 0.3695652173913043,
+    "pairwise_win_rate": {
+      "verbatim_supported": 0.5760869565217391,
+      "paraphrase_supported": 0.6739130434782609,
+      "contradicted": 0.5652173913043478
+    }
+  },
+  "bge_reranker_base": {
+    "model": "BAAI/bge-reranker-base",
+    "revision": "2cfc18c9415c912f9d8155881c133215df768a70",
+    "model_licence_spdx": "MIT",
+    "full_receipt_sha256": "522f1f97847200afeb46ce459155512526968c8dc080740cf4c1c972b9046741",
+    "roc_auc": 0.6132640201638311,
+    "average_precision": 0.8503133211612045,
+    "all_three_relevant_above_irrelevant_count": 23,
+    "all_three_relevant_above_irrelevant_rate": 0.5,
+    "pairwise_win_rate": {
+      "verbatim_supported": 0.5217391304347826,
+      "paraphrase_supported": 0.717391304347826,
+      "contradicted": 0.5
+    }
+  },
+  "decision": "Keep the relevance lane and lossless reranker adapter. Do not adopt or threshold BGE reranker base from this result. Test materially different question-answer relevance mechanisms."
+}

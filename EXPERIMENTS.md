@@ -132,6 +132,22 @@ The primary development target is present-but-irrelevant evidence. The current
 best exploratory result is 8 of 46. Supported-claim recall is a material guard,
 not an optional trade.
 
+E3A corrects the measurement contract. Contradictory evidence is still
+relevant when it answers the question, so verbatim support, paraphrased support,
+and contradiction are the three relevant cases. Present-but-irrelevant is the
+negative case. The scorer sees only the question and the candidate evidence;
+it cannot use a different answer elsewhere in the context window. Results are
+threshold-free because no operating point was preregistered.
+
+The transparent lexical floor reached ROC-AUC 0.602 and ranked all three
+relevant cases above the irrelevant case in 17 of 46 paired groups. The pinned
+MIT `BAAI/bge-reranker-base` model reached ROC-AUC 0.613 and separated all four
+cases in 23 of 46 groups. Its pairwise win rates were 24/46 for verbatim
+support, 33/46 for paraphrase, and 23/46 for contradiction. This is small
+movement, not an adoption result. Keep the independent relevance interface and
+raw receipts; reject this model as the answer. The committed summary is
+`results/relevance-e3-v1-summary.json`.
+
 ### E4 — frozen multi-signal policy
 
 Compose exact, numeric, attribution, relevance, AlignScore, SummaC, MiniCheck,
@@ -178,6 +194,7 @@ required experiment without duplicating substantial machinery.
 | LettuceDetect | Paraphrase tolerance and unsupported spans | Explored |
 | SummaC | Sentence-pair consistency aggregation | Explored; offline challenger only |
 | semchunk | Evidence-window construction | E2A tested; current configuration rejected |
+| BGE reranker base | Independent question-to-evidence relevance | E3A tested; insufficient |
 | OpenContracts | Human annotation and review | Interchange landed; application optional |
 | Inspect AI | Large experiment orchestration | Adoption trigger not met |
 | IC arena | Downstream extrapolation attacks | Private experimental consumer |

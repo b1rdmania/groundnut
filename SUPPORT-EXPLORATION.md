@@ -109,3 +109,24 @@ remain outside the public repository. The seven-method comparison artifact is
 `584fb8b2582cc923403fc485861d82158832ec45e7344937b0a670551317c23b`;
 the SummaC run artifact is
 `2843e6a9c22c34d4510f91101943d4f10e3742d62c290494f22730e59e7d45e6`.
+
+## Independent relevance follow-up
+
+The support table above does not cleanly measure relevance. In particular,
+contradictory evidence can answer the question while disagreeing with the
+claim. E3 therefore uses a separate contract: verbatim support, paraphrase and
+contradiction are relevant; present-but-irrelevant is not. The scorer sees the
+question and the candidate evidence only. No threshold was selected after the
+run.
+
+| Relevance method | ROC-AUC | Average precision | Complete paired groups |
+|---|---:|---:|---:|
+| Query-token recall | 0.602 | 0.830 | 17/46 |
+| BGE reranker base | 0.613 | 0.850 | 23/46 |
+
+“Complete” means that all three relevant variants ranked above the irrelevant
+variant inside the same source-bound group. BGE improved this measure but was
+near chance on verbatim-versus-irrelevant and contradiction-versus-irrelevant
+pairs. The relevance lane is now correctly typed and replayable; neither tested
+scorer is admitted. The summary receipt is
+`results/relevance-e3-v1-summary.json`.
