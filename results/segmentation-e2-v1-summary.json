@@ -1,0 +1,53 @@
+{
+  "schema": "groundnut-segmentation-comparison-summary/v1",
+  "qualification": "exploratory_structure_only",
+  "eligible_for_admission": false,
+  "full_receipt_sha256": "c147ec1421c24845d57dc177a29828c42d944fa73f019573e28c8a711e120071",
+  "corpus_sha256": "be8a1aaebd0cfadfbc3605a7cd863099feb889272571af6f82423648ecf1ed74",
+  "frozen_quotes_sha256": "78bcb9347360252e9f5f311759de8adbd2119b302471a8ef5b71095ec77afd13",
+  "document_count": 306,
+  "documents_with_frozen_quotes": 80,
+  "frozen_quote_count": 2062,
+  "shared_configuration": {
+    "counter": "unicode_code_points",
+    "max_characters": 20000,
+    "overlap_characters": 500
+  },
+  "baseline": {
+    "key": "groundnut.fixed-character-windows",
+    "revision": "1345190ff20eb19979f224a94e81cc96c44488c4d64c0e09c59fdcf38e3f505b",
+    "runtime_seconds": 0.00516557706578169,
+    "segment_count": 978,
+    "multi_segment_document_count": 203,
+    "minimum_non_whitespace_coverage": 1.0,
+    "fully_contained_quote_count": 2062,
+    "boundary_cut_quote_count": 0,
+    "duplicate_quote_exposures": 243
+  },
+  "candidate": {
+    "key": "isaacus-dev/semchunk",
+    "version": "4.1.1",
+    "revision": "dccb2f7fc2248e6266d6cbb1c0d986a3f192c3fe",
+    "licence_spdx": "MIT",
+    "runtime_seconds": 1.2122166581393685,
+    "segment_count": 1494,
+    "multi_segment_document_count": 242,
+    "minimum_non_whitespace_coverage": 1.0,
+    "fully_contained_quote_count": 2060,
+    "boundary_cut_quote_count": 2,
+    "duplicate_quote_exposures": 285
+  },
+  "candidate_cut_failures": [
+    {
+      "document_id": "0eae9a1a5005",
+      "quote_characters": 685,
+      "quote_sha256": "b7f7f8014ace2d14d29e059419f51c1af58a6e50b4136d398f631e91fab1aeb8"
+    },
+    {
+      "document_id": "2d4d8822f713",
+      "quote_characters": 1137,
+      "quote_sha256": "a0e31dc11298ac9a7e4269773413d50a2ea8f4ec530600056389f62b6c8aa520"
+    }
+  ],
+  "decision": "Do not replace the current segmenter with this semchunk configuration. Do not infer extraction quality from this structural run."
+}

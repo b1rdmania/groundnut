@@ -105,6 +105,23 @@ and record offset preservation, claim coverage, runtime, and merge failures.
 
 Do not replace the current segmenter from an uncontrolled cross-run score.
 
+E2A structural result: do not adopt semchunk 4.1.1 with the tested
+20,000-character limit and 500-character overlap. The hash-bound run used all
+306 safe development contracts, including the ten largest, and 2,062 frozen
+grounded quotes from the 80-document working set. Both methods preserved all
+non-whitespace source text. The current splitter produced 978 windows, kept all
+2,062 quotes inside at least one window, and created 243 duplicate quote
+exposures. semchunk produced 1,494 windows, kept 2,060 quotes inside a window,
+cut two long quotes at boundaries, and created 285 duplicate exposures. Its
+measured segmentation time was 1.21 seconds instead of 0.005 seconds.
+
+This is a structural result, not an extraction-quality result. It does not
+authorise a segmenter change. The committed summary is
+`results/segmentation-e2-v1-summary.json`; the full row-level receipt is bound
+by SHA-256 in that summary. A same-backend extraction comparison is E2B and
+should run only for a candidate configuration that first clears the structural
+regressions.
+
 ### E3 — independent question relevance
 
 Build relevance as its own signal. Its question is: “Does this evidence answer
@@ -160,7 +177,7 @@ required experiment without duplicating substantial machinery.
 | MiniCheck | Binary unsupported signal | Explored |
 | LettuceDetect | Paraphrase tolerance and unsupported spans | Explored |
 | SummaC | Sentence-pair consistency aggregation | Explored; offline challenger only |
-| semchunk | Evidence-window construction | Controlled comparison required |
+| semchunk | Evidence-window construction | E2A tested; current configuration rejected |
 | OpenContracts | Human annotation and review | Interchange landed; application optional |
 | Inspect AI | Large experiment orchestration | Adoption trigger not met |
 | IC arena | Downstream extrapolation attacks | Private experimental consumer |
