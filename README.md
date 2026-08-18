@@ -76,12 +76,13 @@ becomes success at the next.
 ```mermaid
 flowchart LR
     A["Source reference or file"] --> B["Resolve and snapshot"]
-    B --> C["Segment and extract claims"]
-    C --> D["Exact, numeric and attribution checks"]
-    D --> E["Relevance, support and contradiction signals"]
-    E --> F["Groundnut decision and abstention policy"]
-    F --> G["Frozen-policy arena"]
-    G --> H["Source-bound report, manifest and gate"]
+    B --> C["Navigate frozen source structure"]
+    C --> D["Segment and extract claims"]
+    D --> E["Exact, numeric and attribution checks"]
+    E --> F["Relevance, support and contradiction signals"]
+    F --> G["Groundnut decision and abstention policy"]
+    G --> H["Frozen-policy arena"]
+    H --> I["Source-bound report, manifest and gate"]
 ```
 
 Groundnut owns the portable method and the artifacts passed between these
@@ -93,6 +94,11 @@ stages:
 - **Domain packs** — versioned prompts, category and document-type taxonomies,
   severities, playbook hashes, and evidence maturity. A configuration can ship
   experimentally without borrowing another domain's score.
+- **Structured evidence navigation** — native or deterministically derived
+  source trees select hash-bound evidence nodes before support checking. Unknown
+  IDs fail, empty selections abstain, and selected text is re-fetched from the
+  frozen source. Navigation never answers or establishes support. See
+  [NAVIGATION.md](./NAVIGATION.md).
 - **Anchored analysis** — extracted findings retain source hashes, exact
   character offsets, category identity, and severity.
 - **Claim verification** — citation accessibility and excerpt presence are
@@ -162,6 +168,14 @@ adapter. Groundnut records its licence, revision, model files, configuration,
 input hashes, thresholds, and role in the final decision.
 
 Current components and candidates include:
+
+- [TreeDex](https://github.com/alisawuffles/treedex) (MIT) and
+  [PageIndex](https://github.com/VectifyAI/PageIndex) (MIT) as vectorless,
+  structured-navigation donors. Groundnut's strict one-shot adapter and
+  hash-bound navigation receipts have landed. The first 100-case development
+  experiment rejected both the lexical floor (8/100 exact evidence coverage)
+  and Qwen3 0.6B arm (3/100); navigation cannot make a support or truth
+  decision;
 
 - [AlignScore](https://github.com/yuh-zha/AlignScore) (MIT code and checkpoint)
   for three-way entailment, neutral, and contradiction scoring; benchmark

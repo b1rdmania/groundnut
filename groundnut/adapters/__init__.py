@@ -9,6 +9,11 @@ from .relevance import (
     RerankerQuestionRelevance,
 )
 from .summac import SummaCAdapter
+from .navigation import (
+    FullInjectionNavigator,
+    LexicalStructureNavigator,
+    TreeDexStyleNavigator,
+)
 
 __all__ = [
     "AlignScoreAdapter",
@@ -18,4 +23,7 @@ __all__ = [
     "LexicalQuestionRelevance",
     "RerankerQuestionRelevance",
     "SummaCAdapter",
+    "FullInjectionNavigator",
+    "LexicalStructureNavigator",
+    "TreeDexStyleNavigator",
 ]

@@ -14,6 +14,15 @@ from .artifacts import (
     extract_artifact,
 )
 from .metrics import MetricEnvelope
+from .navigation import (
+    NavigationIndex,
+    NavigationNode,
+    NavigationReceipt,
+    NavigationSelection,
+    NavigatorIdentity,
+    fetch_selected_nodes,
+)
+from .navigation_cases import NavigationCase
 from .signals import (
     COMPONENT_SIGNAL_SCHEMA,
     SIGNAL_BUNDLE_SCHEMA,
@@ -216,6 +225,12 @@ __all__ = [
     "HttpResolver",
     "MatchOutcome",
     "MetricEnvelope",
+    "NavigationCase",
+    "NavigationIndex",
+    "NavigationNode",
+    "NavigationReceipt",
+    "NavigationSelection",
+    "NavigatorIdentity",
     "MiniCheckAdapter",
     "ParityComparison",
     "PresentIrrelevantCandidate",
@@ -293,4 +308,5 @@ __all__ = [
     "run_canonical_check",
     "verification_metrics",
     "verify_claim",
+    "fetch_selected_nodes",
 ]

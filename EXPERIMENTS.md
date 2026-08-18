@@ -21,6 +21,7 @@ The aim is a well-governed composed engine:
 ```text
 source acquisition
     -> deterministic snapshot
+    -> structured evidence navigation
     -> evidence windows
     -> exact, numeric and attribution checks
     -> question relevance
@@ -64,6 +65,35 @@ A component signal is not a support verdict. A `groundnut-signal-bundle/v1`
 may carry several signals for the same input without collapsing disagreement.
 
 ## Ordered experiments
+
+### N1 — structured evidence navigation
+
+Before support judging, compare full injection, a transparent lexical floor,
+and a TreeDex-style one-shot node selector on the same 100 LegalBench-RAG cases.
+Expert answer offsets define the required nodes; all sources are unique and
+excluded from the protected holdout. Freeze seed 991, paragraph indexer v1,
+3,000-character nodes, at most five model-selected nodes, and fail-closed output
+validation before the model run.
+
+Primary safety metric: exact coverage of every required node. Efficiency
+metrics: selected and irrelevant nodes, fetched context characters, and context
+ratio. Abstention, invalid output, prompt-budget overflow, and missing evidence
+remain separate. This is a development selection experiment, not a support or
+answer-quality gate.
+
+The deterministic controls show that full injection covers 100/100 cases at a
+mean 98.90% context ratio, while the max-three lexical selector covers only
+8/100 at 6.06%. The lexical method is therefore rejected despite its token
+saving.
+
+The strict Qwen3 0.6B TreeDex-style arm covered 3/100 cases. It returned 24
+valid bounded selections, abstained 23 times, and failed 53 times; 51 failures
+were unknown or non-selectable IDs. When it selected, it used a mean 8.30% of
+source context, but context reduction cannot compensate for missed evidence.
+Reject this arm. Next compare short selector handles and native hierarchy with
+the flat index, then test a stronger selector on the identical development
+pack. The aggregate is `results/navigation-n1-v1-summary.json`; see
+`NAVIGATION.md` for contracts and reproduction.
 
 ### E0 — common signal receipts
 
@@ -220,6 +250,7 @@ required experiment without duplicating substantial machinery.
 | Component | Intended contribution | Current state |
 |---|---|---|
 | Exact and native checks | Presence, numbers, attribution, offsets | Landed |
+| Structured navigation | Candidate evidence selection before support | N1 tested; current compact arms rejected |
 | AlignScore | Entailment and typed contradiction | Explored; leading complete-label candidate |
 | MiniCheck | Binary unsupported signal | Explored |
 | LettuceDetect | Paraphrase tolerance and unsupported spans | Explored |

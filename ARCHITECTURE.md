@@ -22,6 +22,22 @@ acquisition, evaluation, annotation and adjudication machinery. This is a
 capability boundary, not a size limit.
 
 The current priority is to make those checking guarantees tight and measured.
+
+## Structured evidence navigation
+
+Navigation sits after deterministic acquisition and before semantic support.
+It selects source nodes for later checkers; it does not answer a question or
+produce a support verdict. `groundnut-navigation-index/v1` binds a native or
+derived tree to exact source offsets and hashes. A navigator returns only node
+IDs through `groundnut-navigation-selection/v1`, and exact text is recovered
+under `groundnut-navigation-receipt/v1` after every identity is checked.
+
+This boundary permits TreeDex- or PageIndex-style vectorless navigation without
+letting a selector's generated prose enter the evidence record. Unknown IDs,
+duplicates, oversized selections, selector exceptions, and prompt-budget
+breaches fail or abstain explicitly. There is no hidden full-document fallback.
+See `NAVIGATION.md` for the frozen experiment contract and donor lineage.
+
 IC research is a future proving ground and consumer once the engine clears its
 own bars. Product ports, deployment rewrites, and public packaging are separate
 later decisions; none drives the core roadmap today.
