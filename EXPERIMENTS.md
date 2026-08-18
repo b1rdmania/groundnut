@@ -73,9 +73,9 @@ to them without changing their published exploratory decisions.
 Exit condition: the same input and component output reproduce byte-identical
 signal and bundle hashes offline.
 
-Current state: the signal and bundle schemas have landed in this tranche.
-SummaC is the first adapter to emit the complete receipt. Existing adapters
-still need migration before E0 is complete.
+Current state: complete. The signal and bundle schemas have landed. AlignScore,
+MiniCheck, LettuceDetect, and SummaC emit the same complete receipt without
+changing their detector labels or normalised raw-output hashes.
 
 ### E1 — SummaC sentence-pair aggregation
 

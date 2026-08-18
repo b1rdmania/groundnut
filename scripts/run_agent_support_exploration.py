@@ -81,6 +81,8 @@ def main() -> None:
             span_threshold=args.threshold if args.threshold is not None else 0.5,
             model_path=args.model_path,
             installed_package_version=args.package_version,
+            model_licence_spdx=args.model_licence_spdx or "NOASSERTION",
+            model_source=args.model_source or args.model_name,
         )
     elif args.detector == "minicheck-flan":
         if not args.model_path or not args.model_name or not args.model_revision:
@@ -92,6 +94,8 @@ def main() -> None:
             model=args.model_name,
             revision=args.model_revision,
             installed_package_version=args.package_version,
+            model_licence_spdx=args.model_licence_spdx or "NOASSERTION",
+            model_source=args.model_source or args.model_name,
         )
     elif args.detector.startswith("alignscore-"):
         if not all(
@@ -115,6 +119,8 @@ def main() -> None:
             backbone_path=args.backbone_path,
             backbone_revision=args.backbone_revision,
             installed_package_version=args.package_version,
+            model_licence_spdx=args.model_licence_spdx or "MIT",
+            model_source=args.model_source or args.model_name,
         )
     else:
         if not all(

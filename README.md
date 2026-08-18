@@ -238,6 +238,7 @@ Thresholds are fixed before holdout scoring.
 | Frozen-policy arena and offline adjudication CLI | Landed |
 | Profile-hashed arena task emission with section-contained context | Landed |
 | Benchmark-only AlignScore, LettuceDetect, and MiniCheck adapters | Landed; no model adopted |
+| Lossless component signal and bundle receipts | Landed across four learned adapters |
 | Groundnut-owned multi-signal decision and abstention policy | Next semantic tranche |
 | SummaC sentence-pair consistency adapter | Landed; offline challenger only |
 | semchunk controlled same-document comparison | Required before changing chunking |

@@ -1,3 +1,6 @@
+import hashlib
+import json
+
 import pytest
 
 from groundnut.adapters import (
@@ -76,6 +79,16 @@ def test_lettuce_clean_output_is_unscored_support_under_explicit_policy():
     assert backend.calls[0]["question"] == "What was revenue?"
     assert backend.calls[0]["min_confidence"] == 0.5
     assert len(result.support.decision.raw_output_sha256) == 64
+    decision, signal = adapter.assess_with_signal(
+        source_text=SOURCE,
+        claim_text=CLAIM,
+        question="What was revenue?",
+    )
+    assert signal.role == "span_localisation"
+    assert signal.raw_output == []
+    assert signal.licence.code_spdx == "MIT"
+    assert decision.raw_output_sha256 == signal.raw_output_sha256
+    assert signal.raw_output_sha256 == _json_sha256([])
 
 
 def test_lettuce_only_maps_explicit_typed_contradiction_to_contradicted():
@@ -142,6 +155,16 @@ def test_minicheck_supported_mapping_records_probability_and_inputs():
     assert result.support.status == "supported"
     assert result.support.decision.confidence == 0.94
     assert scorer.calls == [{"docs": [SOURCE], "claims": [CLAIM]}]
+    decision, signal = adapter.assess_with_signal(
+        source_text=SOURCE,
+        claim_text=CLAIM,
+        question=None,
+    )
+    assert signal.role == "unsupported"
+    assert signal.raw_output == {"label": 1, "support_probability": 0.94}
+    assert signal.licence.code_spdx == "Apache-2.0"
+    assert decision.raw_output_sha256 == signal.raw_output_sha256
+    assert signal.raw_output_sha256 == _json_sha256(signal.raw_output)
 
 
 def test_minicheck_negative_is_insufficient_never_contradicted():
@@ -203,6 +226,17 @@ def test_alignscore_nli_preserves_contradiction_instead_of_collapsing_score():
     assert result.support.status == "contradicted"
     assert result.support.decision.confidence == 0.90
     assert backend.calls[0]["mode"] == "nli"
+    decision, signal = adapter.assess_with_signal(
+        source_text=SOURCE,
+        claim_text=CLAIM,
+        question="What was revenue?",
+    )
+    assert signal.role == "entailment"
+    assert signal.scores["contradicted"] == 0.90
+    assert signal.raw_output["probabilities"] == [0.02, 0.08, 0.90]
+    assert signal.licence.code_spdx == "MIT"
+    assert decision.raw_output_sha256 == signal.raw_output_sha256
+    assert signal.raw_output_sha256 == _json_sha256(signal.raw_output)
 
 
 def test_alignscore_qa_requires_and_passes_the_claim_question():
@@ -211,6 +245,13 @@ def test_alignscore_qa_requires_and_passes_the_claim_question():
 
     assert result.support.status == "insufficient"
     assert backend.calls[0]["question"] == "What was revenue?"
+    _, signal = adapter.assess_with_signal(
+        source_text=SOURCE,
+        claim_text=CLAIM,
+        question="What was revenue?",
+    )
+    assert signal.role == "relevance"
+    assert "not a pure relevance verdict" in signal.note
 
 
 def test_alignscore_qa_without_question_fails_closed():
@@ -303,3 +344,9 @@ def test_summac_requires_injected_scorer_and_fails_closed_on_bad_output():
     result = checked(adapter)
     assert result.support.status == "not_assessed"
     assert result.support.failure == "detector_error:ValueError"
+
+
+def _json_sha256(value):
+    return hashlib.sha256(
+        json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
