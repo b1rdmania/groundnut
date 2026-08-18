@@ -103,6 +103,12 @@ from .support_agent_screen import (
     AgentSupportScreen,
     screen_agent_suggestions,
 )
+from .support_exploration import (
+    COMPARISON_SCHEMA,
+    EXPLORATION_SCHEMA,
+    compare_agent_explorations,
+    run_agent_exploration,
+)
 from .run_manifest import (
     ArtifactDigest,
     DomainDigest,
@@ -172,6 +178,7 @@ __all__ = [
     "ClaimEvidenceAccount",
     "ClaimEvidenceReport",
     "CheckCoverage",
+    "COMPARISON_SCHEMA",
     "CoverageManifest",
     "DocumentType",
     "DEFAULT_ARTIFACT_PROFILE",
@@ -186,6 +193,7 @@ __all__ = [
     "FileResolver",
     "ExactSupportDetector",
     "EngineIdentity",
+    "EXPLORATION_SCHEMA",
     "EvidenceAnnotation",
     "HttpResolver",
     "MatchOutcome",
@@ -237,6 +245,7 @@ __all__ = [
     "apply_review_decisions_tsv",
     "anchor_excerpt",
     "compare_analysis",
+    "compare_agent_explorations",
     "compare_rendered_artifacts",
     "check_claims",
     "build_present_irrelevant_candidates",
@@ -252,6 +261,7 @@ __all__ = [
     "review_decisions_tsv",
     "render_support_review_html",
     "run_support_bakeoff",
+    "run_agent_exploration",
     "sample_present_irrelevant_candidates",
     "semantic_projection",
     "score_support",

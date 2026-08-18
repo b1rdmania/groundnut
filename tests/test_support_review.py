@@ -16,6 +16,11 @@ from groundnut.support_review import (
 )
 from groundnut.support_review_html import render_support_review_html
 from groundnut.support_agent_screen import AgentSuggestion, screen_agent_suggestions
+from groundnut.support import ExactSupportDetector
+from groundnut.support_exploration import (
+    compare_agent_explorations,
+    run_agent_exploration,
+)
 from groundnut.support_cases import CaseProvenance
 from groundnut.support_seeds import AttestedSpanSeed, PresentIrrelevantCandidate
 
@@ -258,3 +263,31 @@ def test_agent_suggestion_boolean_strings_are_rejected():
 
     with pytest.raises(ValueError, match="flags must be booleans"):
         AgentSuggestion.from_mapping(value)
+
+
+def test_agent_exploration_runs_without_creating_an_admission_result():
+    result = run_agent_exploration(
+        manifest(), (agent_suggestion(),), ExactSupportDetector()
+    )
+
+    assert result["qualification"] == "exploratory_only"
+    assert result["eligible_for_admission"] is False
+    assert result["group_count"] == 1
+    assert result["case_count"] == 4
+    assert result["score"]["accuracy"] == 0.25
+    assert result["score"]["by_kind"]["verbatim_supported"]["accuracy"] == 1.0
+    assert result["score"]["by_kind"]["paraphrase_supported"]["accuracy"] == 0.0
+    assert result["score"]["by_kind"]["contradicted"]["accuracy"] == 0.0
+    assert result["score"]["by_kind"]["present_irrelevant"]["accuracy"] == 0.0
+
+
+def test_agent_exploration_comparison_preserves_non_admission_boundary():
+    run = run_agent_exploration(
+        manifest(), (agent_suggestion(),), ExactSupportDetector()
+    )
+    comparison = compare_agent_explorations({"first": run, "second": run})
+
+    assert comparison["eligible_for_admission"] is False
+    assert comparison["case_count"] == 4
+    assert comparison["results"]["first"]["binary_accuracy"] == 0.5
+    assert comparison["results"]["first"]["unsupported_recall"] == 0.5
