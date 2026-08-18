@@ -87,6 +87,20 @@ def test_navigation_index_is_content_bound_and_fetches_exact_nodes():
         fetch_selected_nodes(first, selection, source + " changed")
 
 
+def test_navigation_index_supports_single_paragraph_and_crlf():
+    single = paragraph_navigation_index("single.txt", "One paragraph only.")
+    assert len(single.nodes) == 1
+    assert single.nodes[0].selectable is True
+    assert single.nodes[0].parent_id is None
+
+    crlf = paragraph_navigation_index("crlf.txt", "First.\r\n\r\nSecond.")
+    assert len(crlf.nodes) == 3
+    root = next(node for node in crlf.nodes if not node.selectable)
+    children = [node for node in crlf.nodes if node.selectable]
+    assert len(children) == 2
+    assert all(node.parent_id == root.node_id for node in children)
+
+
 def test_navigation_index_rejects_tampered_self_hash():
     value = paragraph_navigation_index("cuad/agreement.txt", _source()).to_dict()
     value["nodes"][0]["title"] = "Changed"
@@ -198,6 +212,24 @@ def test_treedex_style_selector_errors_and_duplicates_fail_closed():
     assert output_over_budget.status == "failed"
     assert "output-token budget" in output_over_budget.reason
 
+    non_json = TreeDexStyleNavigator(
+        lambda prompt: {"node_ids": [node_id], "bad": {"not-json"}},
+        model="mock-model",
+        revision="fixture",
+        package_version="1",
+    ).select(index, "Question?")
+    assert non_json.status == "failed"
+    assert non_json.raw_output["error_type"] == "TypeError"
+
+    negative_tokens = TreeDexStyleNavigator(
+        lambda prompt: {"node_ids": [node_id], "input_tokens": -1},
+        model="mock-model",
+        revision="fixture",
+        package_version="1",
+    ).select(index, "Question?")
+    assert negative_tokens.status == "failed"
+    assert "negative token count" in negative_tokens.reason
+
 
 def test_short_handles_resolve_strictly_to_content_addressed_nodes():
     index = paragraph_navigation_index("cuad/agreement.txt", _source())
@@ -267,6 +299,34 @@ def test_selectable_handles_leave_structural_nodes_unaddressable():
     surface = json.loads(captured[0].split("Structured index:\n", 1)[1])
     assert surface["roots"][0][0] is None
     assert surface["roots"][0][5] is False
+
+
+def test_selectable_handle_surface_does_not_fall_back_when_map_is_empty():
+    index = paragraph_navigation_index("single.txt", "One paragraph only.")
+    structural = NavigationNode(
+        **{
+            **index.nodes[0].__dict__,
+            "selectable": False,
+        }
+    )
+    structural_index = NavigationIndex(
+        source_id=index.source_id,
+        source_sha256=index.source_sha256,
+        indexer_key=index.indexer_key,
+        indexer_version=index.indexer_version,
+        nodes=(structural,),
+    )
+    prompts = []
+    result = SelectableTreeHandleNavigator(
+        lambda prompt: prompts.append(prompt) or {"node_handles": []},
+        model="mock-model",
+        revision="fixture",
+        package_version="1",
+    ).select(structural_index, "Question?")
+    assert result.status == "abstained"
+    surface = json.loads(prompts[0].split("Structured index:\n", 1)[1])
+    assert surface["legend"][0] == "selector_handle"
+    assert surface["roots"][0][0] is None
 
 
 def test_legalbench_offsets_map_to_gold_navigation_nodes(tmp_path):

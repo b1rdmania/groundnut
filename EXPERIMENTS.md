@@ -201,10 +201,16 @@ E2A structural result: do not adopt semchunk 4.1.1 with the tested
 306 safe development contracts, including the ten largest, and 2,062 frozen
 grounded quotes from the 80-document working set. Both methods preserved all
 non-whitespace source text. The current splitter produced 978 windows, kept all
-2,062 quotes inside at least one window, and created 243 duplicate quote
+2,062 quotes inside at least one window, and created 115 duplicate quote
 exposures. semchunk produced 1,494 windows, kept 2,060 quotes inside a window,
-cut two long quotes at boundaries, and created 285 duplicate exposures. Its
-measured segmentation time was 1.21 seconds instead of 0.005 seconds.
+cut two long quotes at boundaries, and created 85 duplicate exposures. Its
+measured segmentation time was 2.08 seconds instead of 0.02 seconds.
+
+The duplicate-exposure figures supersede the original 243 and 285 totals. The
+first implementation pooled segment identities across repeated occurrences of
+the same quote and inflated both values. Under the corrected occurrence-level
+metric, semchunk reduces duplicate exposure. It remains rejected only because
+the tested configuration cuts two long quotes that the baseline preserves.
 
 This is a structural result, not an extraction-quality result. It does not
 authorise a segmenter change. The committed summary is

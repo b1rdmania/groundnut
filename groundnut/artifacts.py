@@ -587,6 +587,7 @@ def _adjacent_comments(
     )
     evidence = None
     question = None
+    question_seen = False
     remaining = value
     while marker := pattern.match(remaining):
         if marker.group("evidence") is not None:
@@ -594,9 +595,10 @@ def _adjacent_comments(
                 raise ValueError("citation declares more than one adjacent evidence marker")
             evidence = (marker.group("kind").casefold(), marker.group("evidence").strip())
         else:
-            if question is not None:
+            if question_seen:
                 raise ValueError("citation declares more than one adjacent verification question")
-            question = marker.group("question").strip()
+            question_seen = True
+            question = marker.group("question").strip() or None
         remaining = remaining[marker.end() :]
     return evidence, question
 

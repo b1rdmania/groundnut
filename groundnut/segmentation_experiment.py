@@ -200,15 +200,19 @@ def _measure(text: str, segments: Sequence[Segment], quotes: Sequence[str]) -> d
         if not occurrences:
             continue
         grounded += 1
-        containing = {
-            segment_index
+        containing_counts = [
+            sum(
+                segment.start <= start and end <= segment.end
+                for segment in segments
+            )
             for start, end in occurrences
-            for segment_index, segment in enumerate(segments)
-            if segment.start <= start and end <= segment.end
-        }
-        if containing:
+        ]
+        if any(containing_counts):
             contained += 1
-            duplicate_exposures += max(len(containing) - 1, 0)
+            duplicate_exposures += sum(
+                max(containing_count - 1, 0)
+                for containing_count in containing_counts
+            )
         else:
             cut += 1
             cut_quotes.append(

@@ -83,7 +83,9 @@ def paragraph_navigation_index(
     if not source_text.strip():
         raise ValueError("navigation source text must not be empty")
     spans = []
-    for match in re.finditer(r"\S[\s\S]*?(?=\n[ \t]*\n|\Z)", source_text):
+    for match in re.finditer(
+        r"\S[\s\S]*?(?=\r?\n[ \t]*\r?\n|\Z)", source_text
+    ):
         start, end = match.span()
         while end > start and source_text[end - 1].isspace():
             end -= 1
@@ -98,6 +100,22 @@ def paragraph_navigation_index(
         source_end=len(source_text),
         text_sha256=root_text_sha256,
     )
+    if spans == [(0, len(source_text))]:
+        only_node = NavigationNode(
+            node_id=root_id,
+            title=_node_title(source_text),
+            source_start=0,
+            source_end=len(source_text),
+            text_sha256=root_text_sha256,
+            native_id="paragraph:1",
+        )
+        return NavigationIndex(
+            source_id=source_id,
+            source_sha256=source_sha256,
+            indexer_key="groundnut.paragraph-navigation-index",
+            indexer_version="1",
+            nodes=(only_node,),
+        )
     children = []
     for number, (start, end) in enumerate(spans, 1):
         text = source_text[start:end]

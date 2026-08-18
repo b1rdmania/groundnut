@@ -8,6 +8,7 @@ import hashlib
 import json
 from pathlib import Path
 import sys
+from typing import Mapping
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
@@ -84,6 +85,8 @@ def _load_predictions(root: Path) -> dict[str, tuple[str, ...]]:
     rows = {}
     for path in sorted(root.glob("*.json")):
         value = json.loads(path.read_text())
+        if not isinstance(value, Mapping):
+            raise ValueError(f"prediction file must contain an object: {path}")
         findings = value.get("findings", value)
         rows[path.stem] = tuple(
             span

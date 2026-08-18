@@ -15,7 +15,9 @@ RELEVANCE_EXPLORATION_SCHEMA = "groundnut-relevance-exploration/v1"
 
 
 class RelevanceScorer(Protocol):
-    def score(self, *, question: str, evidence_text: str) -> ComponentSignal: ...
+    def score(
+        self, *, question: str, evidence_text: str, claim_text: str = ""
+    ) -> ComponentSignal: ...
 
 
 def run_relevance_exploration(

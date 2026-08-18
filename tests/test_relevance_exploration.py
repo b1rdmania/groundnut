@@ -9,6 +9,7 @@ from groundnut.adapters.relevance import (
     LexicalQuestionRelevance,
     RerankerQuestionRelevance,
 )
+from groundnut.signals import SignalBundle, component_input_sha256
 from groundnut.relevance_exploration import (
     _average_precision,
     _paired_group_ranking,
@@ -30,6 +31,25 @@ def test_lexical_relevance_is_question_to_evidence_only():
     assert relevant.role == "relevance"
     assert relevant.scores["relevant"] > irrelevant.scores["relevant"]
     assert relevant.raw_output_sha256 == relevant.to_dict()["raw_output_sha256"]
+
+
+def test_relevance_signal_can_bind_to_claim_level_bundle():
+    evidence = "This agreement is governed by Delaware law."
+    claim = "Delaware law governs the agreement."
+    question = "What is the governing law?"
+    signal = LexicalQuestionRelevance().score(
+        question=question,
+        evidence_text=evidence,
+        claim_text=claim,
+    )
+    input_sha256 = component_input_sha256(
+        source_text=evidence,
+        claim_text=claim,
+        question=question,
+    )
+    bundle = SignalBundle("claim-1", input_sha256, (signal,))
+    assert bundle.signals[0].input_sha256 == input_sha256
+    assert signal.note.startswith("Transparent query-token recall")
 
 
 def test_threshold_free_metrics_preserve_relevance_independence():

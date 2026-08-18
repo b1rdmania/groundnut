@@ -109,7 +109,7 @@ The LegalBench-RAG corpus is not redistributed by this repository.
 python scripts/build_navigation_pack.py \
   --seeds /path/to/groundnut-cuad-seeds.jsonl \
   --corpus-root /path/to/corpus \
-  --count 100 --unique-sources --sampling-seed 991 \
+  --count 100 --sampling-seed 991 \
   --max-node-characters 3000 \
   --output /path/to/navigation-pack-v1.json
 

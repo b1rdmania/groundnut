@@ -36,7 +36,9 @@ class LexicalQuestionRelevance:
             code_source="https://github.com/b1rdmania/groundnut",
         )
 
-    def score(self, *, question: str, evidence_text: str) -> ComponentSignal:
+    def score(
+        self, *, question: str, evidence_text: str, claim_text: str = ""
+    ) -> ComponentSignal:
         question_tokens = _tokens(question)
         evidence_tokens = _tokens(evidence_text)
         shared = question_tokens & evidence_tokens
@@ -52,7 +54,7 @@ class LexicalQuestionRelevance:
             label="unthresholded",
             scores={"relevant": score},
             input_sha256=component_input_sha256(
-                source_text=evidence_text, claim_text="", question=question
+                source_text=evidence_text, claim_text=claim_text, question=question
             ),
             component=self.identity,
             licence=self.licence,
@@ -103,7 +105,9 @@ class RerankerQuestionRelevance:
             model_source=model_source,
         )
 
-    def score(self, *, question: str, evidence_text: str) -> ComponentSignal:
+    def score(
+        self, *, question: str, evidence_text: str, claim_text: str = ""
+    ) -> ComponentSignal:
         result = self.scorer.score_pair(question, evidence_text)
         score = float(result["score"])
         if not 0.0 <= score <= 1.0:
@@ -114,7 +118,7 @@ class RerankerQuestionRelevance:
             label="unthresholded",
             scores={"relevant": score},
             input_sha256=component_input_sha256(
-                source_text=evidence_text, claim_text="", question=question
+                source_text=evidence_text, claim_text=claim_text, question=question
             ),
             component=self.identity,
             licence=self.licence,
@@ -162,7 +166,9 @@ class ExtractiveQuestionAnswerRelevance:
             model_source=model_source,
         )
 
-    def score(self, *, question: str, evidence_text: str) -> ComponentSignal:
+    def score(
+        self, *, question: str, evidence_text: str, claim_text: str = ""
+    ) -> ComponentSignal:
         result = self.scorer.score_pair(question, evidence_text)
         score = float(result["score"])
         if not 0.0 <= score <= 1.0:
@@ -180,7 +186,7 @@ class ExtractiveQuestionAnswerRelevance:
             label="unthresholded",
             scores={"relevant": score},
             input_sha256=component_input_sha256(
-                source_text=evidence_text, claim_text="", question=question
+                source_text=evidence_text, claim_text=claim_text, question=question
             ),
             component=self.identity,
             licence=self.licence,

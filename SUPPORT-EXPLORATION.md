@@ -105,9 +105,11 @@ post hoc into a tuned policy.
 
 Pinned model revisions and complete per-case decisions are recorded in the
 private self-hashed exploration artifacts; source documents and generated cases
-remain outside the public repository. The seven-method comparison artifact is
-`584fb8b2582cc923403fc485861d82158832ec45e7344937b0a670551317c23b`;
-the SummaC run artifact is
+remain outside the public repository. The public aggregate receipt is
+`results/support-exploration-e1-v1-summary.json`. It binds the published
+numbers to the private seven-method comparison artifact with SHA-256
+`584fb8b2582cc923403fc485861d82158832ec45e7344937b0a670551317c23b`.
+The SummaC run artifact has SHA-256
 `2843e6a9c22c34d4510f91101943d4f10e3742d62c290494f22730e59e7d45e6`.
 
 ## Independent relevance follow-up

@@ -41,7 +41,7 @@ def test_comparison_records_boundary_cuts_and_duplicate_exposure():
     )
     validate_comparison(result)
     row = result["rows"][0]
-    assert row["baseline"]["duplicate_quote_exposures"] == 1
+    assert row["baseline"]["duplicate_quote_exposures"] == 2
     assert row["candidate"]["boundary_cut_quote_count"] == 1
     assert result["eligible_for_admission"] is False
 
@@ -67,3 +67,22 @@ def test_comparison_rejects_bad_offsets_and_tampering():
     changed["document_count"] = 2
     with pytest.raises(ValueError, match="self-hash"):
         validate_comparison(changed)
+
+
+def test_repeated_quote_occurrences_are_not_duplicate_exposures():
+    text = "TARGET middle TARGET"
+
+    def candidate(value: str):
+        return (
+            Segment(0, 6, value[0:6]),
+            Segment(14, 20, value[14:20]),
+        )
+
+    result = compare_segmenters(
+        {"doc": text},
+        {"doc": ("TARGET",)},
+        baseline_spec=_spec("baseline"),
+        candidate_spec=_spec("candidate"),
+        candidate_segmenter=candidate,
+    )
+    assert result["rows"][0]["candidate"]["duplicate_quote_exposures"] == 0

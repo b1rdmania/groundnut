@@ -163,6 +163,15 @@ class _PinnedExtractiveQA:
         context_indexes = [
             index for index, sequence_id in enumerate(sequence_ids) if sequence_id == 1
         ]
+        if not context_indexes:
+            return {
+                "score": 0.0,
+                "answer_start": 0,
+                "answer_end": 0,
+                "answer_sha256": hashlib.sha256(b"").hexdigest(),
+                "best_span_logit": null_logit,
+                "null_logit": null_logit,
+            }
         best_score = float("-inf")
         best = (0, 0)
         for start in context_indexes:

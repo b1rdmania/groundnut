@@ -278,12 +278,16 @@ class TreeDexStyleNavigator:
             )
         try:
             raw = dict(self.selector(prompt))
+            json.dumps(raw, sort_keys=True, separators=(",", ":"), allow_nan=False)
         except Exception as error:
+            error_type = str(
+                getattr(error, "recorded_error_type", type(error).__name__)
+            )
             return NavigationSelection(
                 status="failed",
                 selected_node_ids=(),
-                reason=f"Tree selector failed: {type(error).__name__}",
-                raw_output={"error_type": type(error).__name__},
+                reason=f"Tree selector failed: {error_type}",
+                raw_output={"error_type": error_type},
                 **base,
             )
         selector_field = "node_handles" if uses_handles else "node_ids"
@@ -298,6 +302,17 @@ class TreeDexStyleNavigator:
             if isinstance(raw.get("output_tokens"), int)
             else None
         )
+        if any(
+            value is not None and value < 0
+            for value in (input_tokens, output_tokens)
+        ):
+            return NavigationSelection(
+                status="failed",
+                selected_node_ids=(),
+                reason="Tree selector returned a negative token count.",
+                raw_output=raw,
+                **base,
+            )
         if (
             self.max_output_tokens is not None
             and output_tokens is not None
@@ -415,7 +430,7 @@ def _tree_surface(
         return [
             (
                 handle_by_node_id.get(node.node_id)
-                if handle_by_node_id
+                if handle_by_node_id is not None
                 else node.node_id
             ),
             node.title,
@@ -434,10 +449,14 @@ def _tree_surface(
         "schema": (
             SELECTABLE_HANDLE_TREE_SURFACE_SCHEMA
             if selectable_handles_only
-            else (HANDLE_TREE_SURFACE_SCHEMA if handle_by_node_id else TREE_SURFACE_SCHEMA)
+            else (
+                HANDLE_TREE_SURFACE_SCHEMA
+                if handle_by_node_id is not None
+                else TREE_SURFACE_SCHEMA
+            )
         ),
         "legend": [
-            "selector_handle" if handle_by_node_id else "node_id",
+            "selector_handle" if handle_by_node_id is not None else "node_id",
             "title",
             "native_id",
             "summary",

@@ -120,6 +120,16 @@ def test_markdown_preserves_adjacent_quote_and_locator(tmp_path):
     assert result.claims[1].locator == "table: licence status"
 
 
+def test_empty_verification_question_comment_is_ignored(tmp_path):
+    path = tmp_path / "report.md"
+    path.write_text(
+        "A claim [source](https://example.test/a)"
+        "<!-- groundnut-verification-question: -->\n"
+    )
+    [claim] = extract_artifact(path).claims
+    assert claim.question is None
+
+
 def test_html_recovers_evidence_and_declared_analysis_but_ignores_references(tmp_path):
     path = tmp_path / "report.html"
     path.write_text(
