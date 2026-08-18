@@ -297,7 +297,7 @@ required experiment without duplicating substantial machinery.
 | Component | Intended contribution | Current state |
 |---|---|---|
 | Exact and native checks | Presence, numbers, attribution, offsets | Landed |
-| Structured navigation | Candidate evidence selection before support | N1 tested; current compact arms rejected |
+| Structured navigation | Candidate evidence selection before support | N1-N3 tested; selectable-only interface retained, Qwen3 0.6B rejected |
 | AlignScore | Entailment and typed contradiction | Explored; leading complete-label candidate |
 | MiniCheck | Binary unsupported signal | Explored |
 | LettuceDetect | Paraphrase tolerance and unsupported spans | Explored |
