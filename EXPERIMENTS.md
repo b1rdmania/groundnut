@@ -149,6 +149,20 @@ material movement and still not an adoption result. Keep v2-m3 as an offline
 challenger and keep searching. The committed summary is
 `results/relevance-e3-v1-summary.json`.
 
+E3B tested extractive answerability. Pinned
+`deepset/roberta-base-squad2` reached ROC-AUC 0.750 and separated 31 of 46
+complete groups. Its pairwise win rates were 39/46 for verbatim support, 40/46
+for paraphrase, and 35/46 for contradiction. This is the leading
+question-relevance challenger and remains exploratory rather than admitted.
+
+E3C applied BGE v2-m3 to 96 claim/excerpt pairs from one private IC report. It
+was an unlabelled envelope, not a benchmark. Exact, ambiguous and failed fuzzy
+anchor strata all had high median semantic-relatedness scores. Semantic
+relevance therefore cannot repair or replace mechanical anchoring. The public
+aggregate receipt is `results/ic-relevance-envelope-v1-summary.json`; the
+row-level receipt remains private. Current IC claim records have no verification
+question, so future profiles need that field before applying extractive QA.
+
 ### E4 — frozen multi-signal policy
 
 Compose exact, numeric, attribution, relevance, AlignScore, SummaC, MiniCheck,
@@ -196,6 +210,7 @@ required experiment without duplicating substantial machinery.
 | SummaC | Sentence-pair consistency aggregation | Explored; offline challenger only |
 | semchunk | Evidence-window construction | E2A tested; current configuration rejected |
 | BGE rerankers | Independent question-to-evidence relevance | E3A tested; v2-m3 is offline challenger |
+| Extractive QA | Independent question answerability | E3B tested; leading offline challenger |
 | OpenContracts | Human annotation and review | Interchange landed; application optional |
 | Inspect AI | Large experiment orchestration | Adoption trigger not met |
 | IC arena | Downstream extrapolation attacks | Private experimental consumer |

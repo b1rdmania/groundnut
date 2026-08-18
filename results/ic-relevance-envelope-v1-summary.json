@@ -1,0 +1,20 @@
+{
+  "schema": "groundnut-private-relevance-envelope-summary/v1",
+  "qualification": "unlabelled_observation_only",
+  "eligible_for_admission": false,
+  "disclosure": "Aggregate observation over one private IC research report. No claim text, source text, company identity, URL, or local path is published here. Mechanical anchor strata are not semantic labels.",
+  "component": {
+    "model": "BAAI/bge-reranker-v2-m3",
+    "revision": "953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e",
+    "model_licence_spdx": "Apache-2.0"
+  },
+  "full_private_receipt_sha256": "d7e487376fa3c5255db10938e0d4b5f95a4f43e97c2da8f20383c15b13cc483c",
+  "case_count": 96,
+  "summary": {
+    "anchor_found": {"count": 63, "median": 0.9772270917892456, "mean": 0.7768439180200937},
+    "anchor_ambiguous": {"count": 13, "median": 0.9302009344100952, "mean": 0.6907312428722014},
+    "anchor_not_found": {"count": 11, "median": 0.9678020477294922, "mean": 0.6435737647539512},
+    "anchor_null": {"count": 9, "median": 0.9748358726501465, "mean": 0.6745464449955357}
+  },
+  "decision": "Semantic relevance cannot replace mechanical excerpt anchoring. Preserve both signals. Future IC claim profiles need an explicit verification question before question-answer relevance can be evaluated honestly."
+}

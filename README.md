@@ -185,6 +185,10 @@ Current components and candidates include:
   independent question-to-evidence relevance signals. v2-m3 separated all four
   cases in 27 of 46 paired groups, the best relevance result so far. It remains
   an offline challenger and is not an adopted judge;
+- [RoBERTa base SQuAD2](https://huggingface.co/deepset/roberta-base-squad2)
+  (CC-BY-4.0 model) as an extractive answerability signal. It reached ROC-AUC
+  0.750 and correctly ordered 31 of 46 paired groups, the best independent
+  relevance result so far. It remains an offline challenger;
 - [OpenContracts](https://github.com/Open-Source-Legal/OpenContracts) (MIT) as
   an optional annotation and review workbench; Groundnut's interchange format
   has landed, but the application is not a runtime dependency;
@@ -249,6 +253,8 @@ Thresholds are fixed before holdout scoring.
 | SummaC sentence-pair consistency adapter | Landed; offline challenger only |
 | semchunk same-document structural comparison | Landed; tested configuration rejected |
 | Independent question-relevance exploration | Landed; lexical and BGE candidates insufficient |
+| Extractive question-answer relevance | Landed; leading challenger, not admitted |
+| Private IC claim/excerpt relevance envelope | Landed; confirms relevance cannot replace anchoring |
 | Reproducible paired-probe runner and score artifact | Landed |
 | Provenance-rich case and frozen preregistration contracts | Landed |
 | LegalBench-RAG seed importer with source-hash holdout exclusion | Landed |

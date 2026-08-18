@@ -5,6 +5,7 @@ import json
 import pytest
 
 from groundnut.adapters.relevance import (
+    ExtractiveQuestionAnswerRelevance,
     LexicalQuestionRelevance,
     RerankerQuestionRelevance,
 )
@@ -69,6 +70,31 @@ def test_reranker_preserves_raw_logit_and_licence():
     signal = scorer.score(question="What law?", evidence_text="Delaware law")
     assert signal.raw_output["logit"] == 1.5
     assert signal.licence.model_spdx == "MIT"
+
+
+def test_extractive_qa_preserves_answerability_without_support_claim():
+    class FakeScorer:
+        def score_pair(self, question, evidence_text):
+            return {
+                "score": 0.8,
+                "answer_start": 0,
+                "answer_end": 8,
+                "answer_sha256": "a" * 64,
+                "best_span_logit": 4.0,
+                "null_logit": 2.0,
+            }
+
+    scorer = ExtractiveQuestionAnswerRelevance(
+        scorer=FakeScorer(),
+        model="example/qa",
+        revision="abc123",
+        package_version="5.0",
+        model_licence_spdx="CC-BY-4.0",
+        model_source="https://example.test/qa",
+    )
+    signal = scorer.score(question="What law?", evidence_text="Delaware")
+    assert signal.scores["relevant"] == 0.8
+    assert "does not decide" in signal.note
 
 
 def test_relevance_receipt_rejects_tampering():

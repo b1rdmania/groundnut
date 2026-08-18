@@ -124,3 +124,69 @@ class RerankerQuestionRelevance:
                 "only and does not decide support, contradiction, or truth."
             ),
         )
+
+
+class ExtractiveQuestionAnswerRelevance:
+    """Expose answerability from a pinned extractive-QA model as relevance."""
+
+    def __init__(
+        self,
+        *,
+        scorer: PairReranker,
+        model: str,
+        revision: str,
+        package_version: str,
+        model_licence_spdx: str,
+        model_source: str,
+    ) -> None:
+        self.scorer = scorer
+        self.identity = DetectorIdentity(
+            adapter="groundnut.question-relevance.extractive-qa.v1",
+            model=model,
+            revision=revision,
+            package="transformers",
+            package_version=package_version,
+            configuration_sha256=configuration_sha256(
+                {
+                    "input_order": ["question", "evidence_text"],
+                    "max_length": 512,
+                    "max_answer_tokens": 64,
+                    "score": "sigmoid(best_context_span_logit-null_logit)",
+                }
+            ),
+        )
+        self.licence = ComponentLicence(
+            code_spdx="Apache-2.0",
+            code_source="https://github.com/huggingface/transformers",
+            model_spdx=model_licence_spdx,
+            model_source=model_source,
+        )
+
+    def score(self, *, question: str, evidence_text: str) -> ComponentSignal:
+        result = self.scorer.score_pair(question, evidence_text)
+        score = float(result["score"])
+        if not 0.0 <= score <= 1.0:
+            raise ValueError("extractive-QA answerability must be between zero and one")
+        raw = {
+            "answer_start": int(result["answer_start"]),
+            "answer_end": int(result["answer_end"]),
+            "answer_sha256": str(result["answer_sha256"]),
+            "best_span_logit": float(result["best_span_logit"]),
+            "null_logit": float(result["null_logit"]),
+            "answerability": score,
+        }
+        return ComponentSignal(
+            role="relevance",
+            label="unthresholded",
+            scores={"relevant": score},
+            input_sha256=component_input_sha256(
+                source_text=evidence_text, claim_text="", question=question
+            ),
+            component=self.identity,
+            licence=self.licence,
+            raw_output=raw,
+            note=(
+                "Extractive-QA answerability over the candidate evidence only. "
+                "It does not decide whether the extracted answer supports the claim."
+            ),
+        )

@@ -124,10 +124,18 @@ run.
 | Query-token recall | 0.602 | 0.830 | 17/46 |
 | BGE reranker base | 0.613 | 0.850 | 23/46 |
 | BGE reranker v2-m3 | **0.676** | **0.861** | **27/46** |
+| RoBERTa base SQuAD2 answerability | **0.750** | **0.905** | **31/46** |
 
 “Complete” means that all three relevant variants ranked above the irrelevant
 variant inside the same source-bound group. v2-m3 improved every pairwise
-comparison, but still failed to order 19 of 46 complete groups. The relevance
-lane is now correctly typed and replayable; no tested scorer is admitted. The
-summary receipt is
+comparison. Extractive QA improved again, but still failed to order 15 of 46
+complete groups. The relevance lane is now correctly typed and replayable; no
+tested scorer is admitted. The summary receipt is
 `results/relevance-e3-v1-summary.json`.
+
+One private IC report supplied a separate, unlabelled claim/excerpt envelope.
+BGE v2-m3 assigned high semantic-relatedness scores to exact anchors and to
+ambiguous or failed fuzzy anchors. Related text need not be the quoted text and
+need not support the full claim. Relevance is therefore additive to mechanical
+anchoring, never a replacement. The aggregate disclosure is
+`results/ic-relevance-envelope-v1-summary.json`.

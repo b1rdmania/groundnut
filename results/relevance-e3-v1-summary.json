@@ -57,5 +57,20 @@
       "contradicted": 0.6304347826086957
     }
   },
-  "decision": "Keep the relevance lane and lossless reranker adapter. Retain BGE reranker v2-m3 as the current offline challenger. Do not adopt or threshold any tested scorer from this exploratory result."
+  "roberta_base_squad2": {
+    "model": "deepset/roberta-base-squad2",
+    "revision": "adc3b06f79f797d1c575d5479d6f5efe54a9e3b4",
+    "model_licence_spdx": "CC-BY-4.0",
+    "full_receipt_sha256": "bcb95d0e72cf8da3d7a11907b68442ee44f434388d21e17e519c6f26c7b0bab2",
+    "roc_auc": 0.7496849401386263,
+    "average_precision": 0.9046657279411677,
+    "all_three_relevant_above_irrelevant_count": 31,
+    "all_three_relevant_above_irrelevant_rate": 0.6739130434782609,
+    "pairwise_win_rate": {
+      "verbatim_supported": 0.8478260869565217,
+      "paraphrase_supported": 0.8695652173913043,
+      "contradicted": 0.7608695652173914
+    }
+  },
+  "decision": "Keep the relevance lane and lossless adapters. Retain extractive QA as the leading question-relevance challenger and BGE v2-m3 as a claim-to-passage challenger. Do not adopt or threshold either from this exploratory result."
 }
