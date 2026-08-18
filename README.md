@@ -79,20 +79,13 @@ flowchart LR
 
 Groundnut owns:
 
-- explicit acquisition and tamper-detecting source snapshots;
-- structured navigation with source-bound node IDs and fail-closed selection;
-- versioned domain packs and evidence-maturity disclosures;
-- claim extraction with exact offsets and explicit segmenter identity;
-- mechanical citation, excerpt, number, and attribution checks;
-- separate relevance, support, contradiction, and authority signals;
-- typed analytical provenance and calculation lineage;
-- denominator-safe metrics that keep exact, fuzzy, absent, and inaccessible
-  populations separate;
-- frozen decision and abstention policies;
-- adversarial tasks, rulings, disagreement, and withheld outcomes;
-- render-parity receipts that stop citation evidence disappearing from the
-  delivered report;
-- one hash-bound run manifest for sources, policies, components, and outputs.
+- acquisition, snapshots, navigation, segmentation, and exact source anchors;
+- mechanical checks and separate relevance, support, contradiction, and
+  authority signals;
+- versioned domain packs, analytical provenance, and calculation lineage;
+- frozen decision, abstention, and adversarial-review policies;
+- render-parity checks that stop evidence disappearing from delivered reports;
+- one replayable manifest for sources, policies, components, and outputs.
 
 Groundnut does not own deployment identity, credentials, publication
 authority, or final human sign-off. It may grow a review interface or storage
@@ -115,63 +108,26 @@ not code size. See [ARCHITECTURE.md](./ARCHITECTURE.md).
 - **Publish numbers, not protected data.** Corpora and private report rows stay
   outside this repository.
 
-## Measured component work
+## Measured, replaceable components
 
 Groundnut adopts useful mechanisms, not donor product claims. External
 components produce typed signals. Groundnut preserves their raw outputs and
 owns the final decision.
 
-| Component or donor | Intended contribution | Current decision |
-|---|---|---|
-| TreeDex and PageIndex | Vectorless structured navigation | Interface retained; Qwen3 0.6B selector rejected |
-| AlignScore | Entailment and typed contradiction | Leading complete-label challenger; not admitted |
-| MiniCheck | Binary unsupported signal | Retained as an experimental signal |
-| LettuceDetect | Paraphrase tolerance and unsupported spans | Retained as an experimental signal |
-| SummaC | Sentence-pair consistency | Offline challenger only |
-| BGE rerankers | Question-to-evidence relevance | v2-m3 retained offline; not admitted |
-| RoBERTa SQuAD2 | Extractive answerability | Leading relevance challenger; not admitted |
-| semchunk | Evidence-window construction | Tested configuration rejected |
-| OpenContracts | Human annotation and review | Interchange supported; no runtime dependency |
-| Inspect AI | Large experiment orchestration | Adoption trigger not met |
+Groundnut has explored TreeDex, PageIndex, AlignScore, MiniCheck,
+LettuceDetect, SummaC, BGE rerankers, extractive QA, semchunk, OpenContracts,
+and Inspect AI. No learned component is admitted as the semantic judge.
+Selectable-only navigation handles are retained as infrastructure, but the
+tested Qwen3 0.6B selector is rejected.
 
-The semantic exploration contains 46 agent-screened groups and 184 balanced
-cases. It is development evidence, not human gold.
-
-| Method | Three-way accuracy | Macro-F1 | Present-but-irrelevant found |
-|---|---:|---:|---:|
-| Exact normalised substring | 25.0% | 0.167 | 0/46 |
-| LettuceDetect base | 49.5% | 0.221 | 0/46 |
-| LettuceDetect v2 | 48.4% | 0.224 | 0/46 |
-| MiniCheck | 45.1% | 0.259 | 3/46 |
-| SummaC-ZS | 43.5% | 0.240 | 0/46 |
-| AlignScore NLI | **53.8%** | **0.404** | 2/46 |
-| AlignScore, question-conditioned | 44.0% | 0.268 | **8/46** |
-
-The best independent relevance challenger reached ROC-AUC 0.750 and correctly
-ordered 31 of 46 complete paired groups. This is useful movement, but it still
-missed 15 groups and remains outside the admitted policy. See
-[SUPPORT-EXPLORATION.md](./SUPPORT-EXPLORATION.md).
-
-### Navigation experiments
-
-The frozen navigation pack contains 100 holdout-excluded LegalBench-RAG CUAD
-cases from unique documents.
-
-| Navigator | Exact evidence coverage | Valid selections | Failures |
-|---|---:|---:|---:|
-| Full injection | 100/100 | 100 | 0 |
-| Lexical structure, max 3 | 8/100 | 100 | 0 |
-| Qwen3 0.6B with content IDs | 3/100 | 24 | 53 |
-| Qwen3 0.6B with all-node short handles | 8/100 | 44 | 50 |
-| Qwen3 0.6B with selectable-only handles | 13/100 | 79 | 9 |
-
-Selectable-only handles removed 43 structural-node failures. They are now the
-frozen experimental interface. The model remains rejected because it misses
-required evidence in 87 cases. See [NAVIGATION.md](./NAVIGATION.md).
+The measurements and donor decisions live in
+[EXPERIMENTS.md](./EXPERIMENTS.md),
+[SUPPORT-EXPLORATION.md](./SUPPORT-EXPLORATION.md), and
+[NAVIGATION.md](./NAVIGATION.md). Public aggregate receipts live in `results/`.
 
 ## Three separate gates
 
-Groundnut does not swap a metric after seeing a result.
+Groundnut does not swap a metric after seeing a result:
 
 1. **Compatibility extraction gate.** This is the original 41-category CUAD
    extractor gate. Its best recorded run still fails macro-F1 and
@@ -182,44 +138,17 @@ Groundnut does not swap a metric after seeing a result.
    development set and protected holdout. Configuration portability is not
    evidence of quality.
 
-The compatibility result remains public:
-
-| Criterion | Bar | Best recorded value | State |
-|---|---:|---:|---|
-| Macro-F1 | at least 0.55 | 0.4916 | Fail |
-| Normalised quote grounding | at least 0.95 | 0.9744 | Pass |
-| High-severity precision | at least 0.70 | 0.6834 | Fail |
-
-The grounding value does not establish truth. Exact quotation rates are lower,
-and filtered runs can score 1.0 by construction because unmatched spans are
-removed. See [GATES.md](./GATES.md) and [FINDINGS.md](./FINDINGS.md).
+The exact bars, results, and grounding caveats remain public in
+[GATES.md](./GATES.md) and [FINDINGS.md](./FINDINGS.md).
 
 ## Run it
 
 ```bash
 python3.12 -m pytest -q
 
-# compatibility extractor gate
-harness/gate.sh dev
-
-# canonical domain-pack extraction
-python3 -m pipeline.run --domain trust_obligations --in contracts --out results
-
 # canonical claim-checking process boundary
 python3 -m groundnut.canonical_cli \
   < canonical-request.json > canonical-response.json
-
-# deterministic adversarial adjudication
-python3 -m groundnut.arena_cli \
-  --policy policies/canonical-arena-v1.json \
-  --tasks tasks.jsonl --attacks attacks.jsonl --rulings rulings.jsonl \
-  --out arena-report.json
-
-# verify that rendering preserved every citation, quotation, and locator
-python3 -m groundnut.render_cli \
-  --source report.md --rendered report.html \
-  --renderer-name pandoc --renderer-version 3.8 \
-  --out render-receipt.json
 ```
 
 `groundnut.canonical_cli` is the stable JSON boundary for Python, TypeScript,
@@ -231,6 +160,10 @@ unmeasured.
 The CUAD corpus and gold answers are not in this repository. Rebuild the corpus
 from its manifest with `scripts/fetch_corpus.py`. Do not spend the protected
 holdout until a preregistered development gate passes.
+
+Specialist CLIs for compatibility extraction, support evaluation, arena
+adjudication, annotation, navigation, and render parity are documented beside
+their contracts.
 
 ## Repository guide
 
