@@ -1,6 +1,11 @@
 import pytest
 
-from groundnut.adapters import AlignScoreAdapter, LettuceDetectAdapter, MiniCheckAdapter
+from groundnut.adapters import (
+    AlignScoreAdapter,
+    LettuceDetectAdapter,
+    MiniCheckAdapter,
+    SummaCAdapter,
+)
 from groundnut.sources import ResolvedSource, SourceReference, SourceResolution
 from groundnut.support import SupportPolicy, assess_claim_support
 from groundnut.verification import Claim, verify_claim
@@ -212,5 +217,89 @@ def test_alignscore_qa_without_question_fails_closed():
     adapter, _ = alignscore("qa", [0.1, 0.9])
     result = checked(adapter)
 
+    assert result.support.status == "not_assessed"
+    assert result.support.failure == "detector_error:ValueError"
+
+
+class FakeSummaC:
+    def __init__(self, score, image=None):
+        self.score = score
+        self.image = image
+        self.calls = []
+
+    def score_one(self, **kwargs):
+        self.calls.append(kwargs)
+        if self.image is None:
+            return self.score
+        return {"score": self.score, "image": self.image}
+
+
+def summac(score, threshold=0.0):
+    scorer = FakeSummaC(score)
+    adapter = SummaCAdapter(
+        scorer=scorer,
+        model="summac-zs-vitc",
+        revision="abcdef0123456789",
+        installed_package_version="0.0.4",
+        model_licence_spdx="Apache-2.0",
+        model_source="https://example.test/summac-zs-vitc",
+        threshold=threshold,
+    )
+    return adapter, scorer
+
+
+def test_summac_preserves_raw_signal_before_binary_support_mapping():
+    adapter, scorer = summac(0.62)
+    scorer.image = [[[0.81]], [[0.19]], [[0.0]]]
+
+    signal = adapter.assess_signal(
+        source_text=SOURCE,
+        claim_text=CLAIM,
+        question="What was revenue?",
+    )
+    result = checked(adapter, question="What was revenue?")
+
+    assert signal.role == "entailment"
+    assert signal.label == "supported"
+    assert signal.raw_output["raw_consistency_score"] == 0.62
+    assert signal.raw_output["normalized_consistency_score"] == 0.81
+    assert signal.raw_output["published_output"]["image"] == scorer.image
+    assert signal.raw_output["question_used"] is False
+    assert signal.licence.code_spdx == "Apache-2.0"
+    assert result.support.status == "supported"
+    assert result.support.decision.raw_output_sha256 == signal.raw_output_sha256
+    assert scorer.calls[0] == {"original": SOURCE, "generated": CLAIM}
+
+
+def test_summac_negative_is_insufficient_and_never_types_contradiction():
+    adapter, _ = summac(-0.6)
+    result = checked(adapter, question="What was revenue?")
+
+    assert result.support.status == "insufficient"
+    assert result.support.decision.confidence == 0.8
+    assert "cannot distinguish contradiction" in result.support.decision.reason
+    assert "question relevance" in result.support.decision.reason
+
+
+def test_summac_threshold_is_part_of_component_identity():
+    first, _ = summac(0.6, threshold=0.0)
+    second, _ = summac(0.6, threshold=0.2)
+
+    assert first.identity.configuration_sha256 != second.identity.configuration_sha256
+
+
+def test_summac_requires_injected_scorer_and_fails_closed_on_bad_output():
+    with pytest.raises(ValueError, match="pinned scorer"):
+        SummaCAdapter(
+            scorer=None,
+            model="summac-zs-vitc",
+            revision="abcdef0123456789",
+            installed_package_version="0.0.4",
+            model_licence_spdx="Apache-2.0",
+            model_source="https://example.test/summac-zs-vitc",
+        )
+
+    adapter, _ = summac(1.2)
+    result = checked(adapter)
     assert result.support.status == "not_assessed"
     assert result.support.failure == "detector_error:ValueError"

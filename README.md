@@ -173,8 +173,9 @@ Current components and candidates include:
 - [MiniCheck](https://github.com/Liyan06/MiniCheck) (Apache-2.0 code; model
   licences checked separately) for sentence-to-document support scoring;
   exploratory run landed;
-- [SummaC](https://github.com/tingofurro/summac) (Apache-2.0) as the next
-  sentence-pair and long-document consistency candidate;
+- [SummaC](https://github.com/tingofurro/summac) (Apache-2.0) for a
+  sentence-pair consistency signal; benchmark adapter and exploratory run
+  landed, retained only as an offline challenger;
 - [semchunk](https://github.com/isaacus-dev/semchunk) (MIT) as a candidate
   tokenizer-aware chunker with offsets, subject to a controlled same-document
   merge comparison;
@@ -193,6 +194,7 @@ It is development evidence, not human gold and not an admission result:
 | LettuceDetect base | 49.5% | 0.221 | 0/46 |
 | LettuceDetect v2 | 48.4% | 0.224 | 0/46 |
 | MiniCheck | 45.1% | 0.259 | 3/46 |
+| SummaC-ZS | 43.5% | 0.240 | 0/46 |
 | AlignScore NLI | **53.8%** | **0.404** | 2/46 |
 | AlignScore, question-conditioned | 44.0% | 0.268 | **8/46** |
 
@@ -237,7 +239,7 @@ Thresholds are fixed before holdout scoring.
 | Profile-hashed arena task emission with section-contained context | Landed |
 | Benchmark-only AlignScore, LettuceDetect, and MiniCheck adapters | Landed; no model adopted |
 | Groundnut-owned multi-signal decision and abstention policy | Next semantic tranche |
-| SummaC sentence-pair consistency adapter | Candidate for next benchmark |
+| SummaC sentence-pair consistency adapter | Landed; offline challenger only |
 | semchunk controlled same-document comparison | Required before changing chunking |
 | Reproducible paired-probe runner and score artifact | Landed |
 | Provenance-rich case and frozen preregistration contracts | Landed |
@@ -448,6 +450,7 @@ ARCHITECTURE.md 🏗️ scope, invariants, boundaries, and deterministic contrac
 MIGRATION.md  🧭 canonical-engine priorities and deferred consumers
 PARITY.md     🟰 semantic equivalence contract for any future host adapter
 SUPPORT.md    🧪 semantic outcomes, paired probes, and detector admission
+EXPERIMENTS.md 🧬 component experiments, transplant rules, and build order
 ANNOTATION.md 🖍️ LegalBench-RAG seeds and OpenContracts review interchange
 GATES.md      🚦 compatibility, support-admission, and domain gate roles
 ```

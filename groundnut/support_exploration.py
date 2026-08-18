@@ -51,25 +51,35 @@ def run_agent_exploration(
             case_id = hashlib.sha256(
                 f"{review.input_sha256}:{kind}".encode()
             ).hexdigest()[:24]
-            decision = detector.assess(
-                source_text=review.context_text,
-                claim_text=claim,
-                question=review.candidate.question,
-            )
+            assess_with_signal = getattr(detector, "assess_with_signal", None)
+            signal = None
+            if callable(assess_with_signal):
+                decision, signal = assess_with_signal(
+                    source_text=review.context_text,
+                    claim_text=claim,
+                    question=review.candidate.question,
+                )
+            else:
+                decision = detector.assess(
+                    source_text=review.context_text,
+                    claim_text=claim,
+                    question=review.candidate.question,
+                )
             gold.append(SupportGold(case_id, expected, kind))
             predictions.append(_Prediction(case_id, decision.label))
-            rows.append(
-                {
-                    "case_id": case_id,
-                    "input_sha256": review.input_sha256,
-                    "kind": kind,
-                    "expected_status": expected,
-                    "actual_status": decision.label,
-                    "context_sha256": sha256_text(review.context_text),
-                    "claim_sha256": sha256_text(claim),
-                    "decision": decision.to_dict(),
-                }
-            )
+            row = {
+                "case_id": case_id,
+                "input_sha256": review.input_sha256,
+                "kind": kind,
+                "expected_status": expected,
+                "actual_status": decision.label,
+                "context_sha256": sha256_text(review.context_text),
+                "claim_sha256": sha256_text(claim),
+                "decision": decision.to_dict(),
+            }
+            if signal is not None:
+                row["component_signal"] = signal.to_dict()
+            rows.append(row)
     payload = {
         "schema": EXPLORATION_SCHEMA,
         "qualification": "exploratory_only",
