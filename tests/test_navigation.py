@@ -4,10 +4,15 @@ import pytest
 
 from groundnut.adapters.navigation import (
     FullInjectionNavigator,
+    HANDLE_TREE_SURFACE_SCHEMA,
     LexicalStructureNavigator,
     TREE_SURFACE_SCHEMA,
+    SELECTABLE_HANDLE_TREE_SURFACE_SCHEMA,
+    SelectableTreeHandleNavigator,
     TreeDexStyleNavigator,
+    TreeHandleNavigator,
     _tree_surface,
+    _short_handle_map,
 )
 from groundnut.navigation import (
     NavigationIndex,
@@ -192,6 +197,76 @@ def test_treedex_style_selector_errors_and_duplicates_fail_closed():
     ).select(index, "Question?")
     assert output_over_budget.status == "failed"
     assert "output-token budget" in output_over_budget.reason
+
+
+def test_short_handles_resolve_strictly_to_content_addressed_nodes():
+    index = paragraph_navigation_index("cuad/agreement.txt", _source())
+    handle_map = _short_handle_map(index)
+    handle_by_id = {node_id: handle for handle, node_id in handle_map.items()}
+    selectable = next(node for node in index.nodes if node.selectable)
+    selected_handle = handle_by_id[selectable.node_id]
+    prompts = []
+
+    navigator = TreeHandleNavigator(
+        lambda prompt: prompts.append(prompt) or {"node_handles": [selected_handle]},
+        model="mock-model",
+        revision="fixture",
+        package_version="1",
+        max_nodes=2,
+    )
+    result = navigator.select(index, "What is the delivery obligation?")
+    assert result.status == "selected"
+    assert result.selected_node_ids == (selectable.node_id,)
+    assert result.raw_output["node_handles"] == [selected_handle]
+    assert result.raw_output["resolved_node_ids"] == [selectable.node_id]
+    assert selectable.node_id not in prompts[0]
+    assert HANDLE_TREE_SURFACE_SCHEMA in prompts[0]
+
+    repeated = _short_handle_map(index)
+    assert repeated == handle_map
+    assert list(handle_map) == sorted(handle_map)
+
+    unknown = TreeHandleNavigator(
+        lambda prompt: {"node_handles": ["n9999"]},
+        model="mock-model",
+        revision="fixture",
+        package_version="1",
+    ).select(index, "Question?")
+    assert unknown.status == "failed"
+    assert unknown.raw_output["invalid_node_handles"] == ["n9999"]
+
+    root = next(node for node in index.nodes if not node.selectable)
+    root_handle = handle_by_id[root.node_id]
+    nonselectable = TreeHandleNavigator(
+        lambda prompt: {"node_handles": [root_handle]},
+        model="mock-model",
+        revision="fixture",
+        package_version="1",
+    ).select(index, "Question?")
+    assert nonselectable.status == "failed"
+
+
+def test_selectable_handles_leave_structural_nodes_unaddressable():
+    index = paragraph_navigation_index("cuad/agreement.txt", _source())
+    handle_map = _short_handle_map(index, selectable_only=True)
+    assert len(handle_map) == sum(node.selectable for node in index.nodes)
+    root = next(node for node in index.nodes if not node.selectable)
+    assert root.node_id not in set(handle_map.values())
+
+    captured = []
+    navigator = SelectableTreeHandleNavigator(
+        lambda prompt: captured.append(prompt) or {"node_handles": ["n0001"]},
+        model="mock-model",
+        revision="fixture",
+        package_version="1",
+    )
+    result = navigator.select(index, "Question?")
+    assert result.status == "selected"
+    assert result.selected_node_ids == (handle_map["n0001"],)
+    assert SELECTABLE_HANDLE_TREE_SURFACE_SCHEMA in captured[0]
+    surface = json.loads(captured[0].split("Structured index:\n", 1)[1])
+    assert surface["roots"][0][0] is None
+    assert surface["roots"][0][5] is False
 
 
 def test_legalbench_offsets_map_to_gold_navigation_nodes(tmp_path):

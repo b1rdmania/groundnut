@@ -11,7 +11,11 @@ import sys
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-from groundnut.adapters.navigation import TreeDexStyleNavigator  # noqa: E402
+from groundnut.adapters.navigation import (  # noqa: E402
+    TreeDexStyleNavigator,
+    TreeHandleNavigator,
+    SelectableTreeHandleNavigator,
+)
 from groundnut.navigation_cases import load_navigation_pack  # noqa: E402
 from groundnut.navigation_eval import (  # noqa: E402
     run_navigation_evaluation,
@@ -48,7 +52,12 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("recorded result has no output for navigation prompt")
         return dict(raw_by_prompt[prompt_hash])
 
-    navigator = TreeDexStyleNavigator(
+    navigator_class = {
+        None: TreeDexStyleNavigator,
+        "short_handle": TreeHandleNavigator,
+        "selectable_short_handle": SelectableTreeHandleNavigator,
+    }[configuration.get("selector_id_mode")]
+    navigator = navigator_class(
         replay,
         model=configuration["model"],
         revision=configuration["model_revision"],

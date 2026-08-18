@@ -12,7 +12,11 @@ from urllib.request import Request, urlopen
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-from groundnut.adapters.navigation import TreeDexStyleNavigator  # noqa: E402
+from groundnut.adapters.navigation import (  # noqa: E402
+    TreeDexStyleNavigator,
+    TreeHandleNavigator,
+    SelectableTreeHandleNavigator,
+)
 from groundnut.navigation_cases import load_navigation_pack  # noqa: E402
 from groundnut.navigation_eval import run_navigation_evaluation  # noqa: E402
 
@@ -28,6 +32,7 @@ class OllamaJSONSelector:
         seed: int,
         max_output_tokens: int,
         max_nodes: int,
+        selection_field: str,
     ) -> None:
         self.url = url.rstrip("/")
         self.model = model
@@ -36,6 +41,7 @@ class OllamaJSONSelector:
         self.seed = seed
         self.max_output_tokens = max_output_tokens
         self.max_nodes = max_nodes
+        self.selection_field = selection_field
 
     def __call__(self, prompt: str) -> dict:
         body = json.dumps(
@@ -46,13 +52,13 @@ class OllamaJSONSelector:
                 "format": {
                     "type": "object",
                     "properties": {
-                        "node_ids": {
+                        self.selection_field: {
                             "type": "array",
                             "items": {"type": "string"},
                             "maxItems": self.max_nodes,
                         },
                     },
-                    "required": ["node_ids"],
+                    "required": [self.selection_field],
                     "additionalProperties": False,
                 },
                 "think": False,
@@ -97,6 +103,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--timeout-seconds", type=int, default=300)
     parser.add_argument("--seed", type=int, default=991)
     parser.add_argument("--workers", type=int, default=1)
+    parser.add_argument(
+        "--selector-id-mode",
+        choices=("node-id", "short-handle", "selectable-handle"),
+        default="node-id",
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
 
@@ -108,8 +119,18 @@ def main(argv: list[str] | None = None) -> int:
         seed=args.seed,
         max_output_tokens=args.max_output_tokens,
         max_nodes=args.max_nodes,
+        selection_field=(
+            "node_handles"
+            if args.selector_id_mode != "node-id"
+            else "node_ids"
+        ),
     )
-    navigator = TreeDexStyleNavigator(
+    navigator_class = {
+        "node-id": TreeDexStyleNavigator,
+        "short-handle": TreeHandleNavigator,
+        "selectable-handle": SelectableTreeHandleNavigator,
+    }[args.selector_id_mode]
+    navigator = navigator_class(
         selector,
         model=args.model,
         revision=args.model_revision,

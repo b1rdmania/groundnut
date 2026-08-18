@@ -128,3 +128,46 @@ identity and result hash.
 `scripts/replay_navigation_ollama_result.py` revalidates frozen raw outputs
 through the current adapter without another model call. It exists for auditable
 metadata corrections and offline replay, not for changing model decisions.
+
+## N2 preregistration — short selector handles
+
+N1 exposed 24-character content IDs to the model and 51 of 53 failures were
+unknown or non-selectable IDs. N2 keeps those IDs in every canonical receipt
+but replaces them in the model-facing tree with deterministic source-order
+handles (`n0001`, `n0002`, and so on). Valid handles resolve back to the exact
+content IDs before evidence is fetched. Unknown, duplicate, excessive, and
+non-selectable handles fail closed.
+
+N2 reuses the identical 100 cases, Qwen3 0.6B model blob, maximum five nodes,
+100,000-character prompt limit, 128-token output limit, temperature zero and
+seed 991. It changes only the surface schema, prompt and selector identity.
+The preregistered interface target is at most five unknown-handle failures, at
+least 24 valid selections, and no regression from N1's 3/100 exact coverage.
+Meeting that target does not admit the navigator; it only establishes whether
+short handles fixed the measured copying failure.
+
+N2 passed that narrow target: unknown identities fell from 51 to 4, valid
+selections rose from 24 to 44, exact coverage rose from 3/100 to 8/100, and
+navigation input fell from 876,463 to 758,645 tokens. It remains rejected.
+Forty-three failures were valid handles resolving to non-selectable structural
+nodes.
+
+N3 therefore leaves structural rows visible but assigns handles only to
+selectable evidence nodes. It reuses every other N2 input. The preregistered
+interface target is zero structural-node failures, at most five unknown-handle
+failures, at least 44 valid selections, and at least 8/100 exact coverage.
+
+N3 removed the measured structural-addressing failure and improved evidence
+coverage, but it did not pass every preregistered interface target. Structural
+node failures fell from 43 to zero, valid selections rose from 44 to 79, and
+exact coverage rose from 8/100 to 13/100. The model produced unknown handles in
+six cases, one above the frozen maximum. It abstained in 12 cases and failed in
+nine. When it selected, it returned a mean 4.92 nodes, of which 4.76 were
+irrelevant, using 6.95% of source context.
+
+The result keeps selectable-only handles as the safer experimental interface,
+not as an admitted navigator. Thirteen percent exact coverage is unsafe. The
+next model comparison must use this fixed interface and the identical frozen
+pack; it must not spend another run tuning handles against these same cases.
+The N1-to-N3 aggregate is
+`results/navigation-interface-n1-n3-v1-summary.json`.

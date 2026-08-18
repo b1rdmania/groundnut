@@ -12,6 +12,8 @@ from .summac import SummaCAdapter
 from .navigation import (
     FullInjectionNavigator,
     LexicalStructureNavigator,
+    SelectableTreeHandleNavigator,
+    TreeHandleNavigator,
     TreeDexStyleNavigator,
 )
 
@@ -25,5 +27,7 @@ __all__ = [
     "SummaCAdapter",
     "FullInjectionNavigator",
     "LexicalStructureNavigator",
+    "SelectableTreeHandleNavigator",
+    "TreeHandleNavigator",
     "TreeDexStyleNavigator",
 ]

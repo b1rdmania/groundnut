@@ -95,6 +95,53 @@ the flat index, then test a stronger selector on the identical development
 pack. The aggregate is `results/navigation-n1-v1-summary.json`; see
 `NAVIGATION.md` for contracts and reproduction.
 
+### N2 — short selector handles
+
+N2 changes only the identity exposed to the selector. Content-addressed node
+IDs remain canonical in the index, selection and fetch receipt, but the model
+sees source-ordered handles such as `n0007`. Groundnut resolves a valid handle
+back to its hash; unknown handles and handles for non-selectable nodes still
+fail.
+
+Use the identical N1 pack, Qwen3 0.6B model blob, question, titles, node limit,
+prompt budget, output budget, temperature and seed. The prompt and surface
+schemas change and receive new hashes. Worker count is operational and does
+not affect a decision receipt.
+
+This is an interface experiment, not an admission run. Before seeing N2
+results, success means all three conditions hold:
+
+- unknown-handle failures are at most 5, versus 51 unknown-ID failures in N1;
+- valid bounded selections are at least 24;
+- exact gold coverage is at least 3/100 and does not regress from N1.
+
+Even a successful interface result remains inadmissible until evidence recall
+clears a separately frozen safety bar with a stronger selector.
+
+N2 result: the interface target passed. Unknown selector identities fell from
+51 to 4, valid selections rose from 24 to 44, and exact coverage rose from
+3/100 to 8/100. Navigation input tokens fell from 876,463 to 758,645. The
+navigator remains rejected: 8% recall is unsafe, and 43 failures were valid
+handles that resolved to non-selectable structural nodes.
+
+### N3 — selectable handles only
+
+N3 removes model-facing handles from structural nodes while retaining those
+rows and edges in the tree. The same N2 pack, model blob, budgets, temperature,
+seed and maximum selection apply. Before the run, interface success means zero
+resolved structural-node failures, at most five unknown-handle failures, at
+least 44 valid selections, and no regression below N2's 8/100 exact coverage.
+This remains development interface work and cannot admit the navigator.
+
+N3 result: the design removed all 43 structural-node failures, increased valid
+selections from 44 to 79, and raised exact coverage from 8/100 to 13/100. It
+passed those three targets. Six cases contained unknown handles, missing the
+frozen maximum by one. The selector still returned a mean 4.76 irrelevant
+nodes whenever it selected. Keep selectable-only handles as the experimental
+interface, reject Qwen3 0.6B as the navigator, and freeze the interface while a
+stronger selector is compared on the identical pack. The aggregate is
+`results/navigation-interface-n1-n3-v1-summary.json`.
+
 ### E0 — common signal receipts
 
 Implement the component signal and bundle schemas. Migrate benchmark adapters

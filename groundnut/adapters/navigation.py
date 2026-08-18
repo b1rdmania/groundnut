@@ -17,6 +17,10 @@ from ..provenance import sha256_text
 
 _TOKEN = re.compile(r"[a-z0-9]+")
 TREE_SURFACE_SCHEMA = "groundnut-compact-navigation-tree/v1"
+HANDLE_TREE_SURFACE_SCHEMA = "groundnut-compact-navigation-handle-tree/v1"
+SELECTABLE_HANDLE_TREE_SURFACE_SCHEMA = (
+    "groundnut-compact-navigation-selectable-handle-tree/v1"
+)
 _STOP = {
     "a", "an", "and", "are", "as", "at", "be", "between", "by", "consider",
     "contract", "does", "for", "from", "in", "is", "it", "of", "on", "or",
@@ -141,6 +145,7 @@ class TreeDexStyleNavigator:
         max_output_tokens: int | None = None,
         input_token_counter: Callable[[str], int] | None = None,
         runtime_configuration: Mapping[str, Any] | None = None,
+        selector_id_mode: str = "node_id",
     ) -> None:
         if max_nodes < 1:
             raise ValueError("tree navigator max_nodes must be positive")
@@ -153,37 +158,99 @@ class TreeDexStyleNavigator:
             raise ValueError("tree navigator output budget must be positive")
         self.max_output_tokens = max_output_tokens
         self.input_token_counter = input_token_counter
+        if selector_id_mode not in {
+            "node_id",
+            "short_handle",
+            "selectable_short_handle",
+        }:
+            raise ValueError("unknown tree navigator selector identity mode")
+        self.selector_id_mode = selector_id_mode
+        uses_handles = selector_id_mode != "node_id"
+        selectable_handles_only = selector_id_mode == "selectable_short_handle"
+        adapter = (
+            "groundnut.navigation.treedex-selectable-handle"
+            if selectable_handles_only
+            else (
+                "groundnut.navigation.treedex-short-handle"
+                if uses_handles
+                else "groundnut.navigation.treedex-style"
+            )
+        )
+        adapter_revision = "1" if uses_handles else "3"
+        surface_schema = (
+            SELECTABLE_HANDLE_TREE_SURFACE_SCHEMA
+            if selectable_handles_only
+            else (HANDLE_TREE_SURFACE_SCHEMA if uses_handles else TREE_SURFACE_SCHEMA)
+        )
+        prompt_template = (
+            _SELECTABLE_HANDLE_PROMPT
+            if selectable_handles_only
+            else (_HANDLE_PROMPT if uses_handles else _TREEDEX_PROMPT)
+        )
+        configuration = {
+            "model": model,
+            "model_revision": revision,
+            "max_nodes": max_nodes,
+            "max_prompt_characters": max_prompt_characters,
+            "max_output_tokens": max_output_tokens,
+            "selection": (
+                "one-shot compact tree with deterministic short handles"
+                if uses_handles
+                else "one-shot compact tree"
+            ),
+            "tree_surface_schema": surface_schema,
+            "prompt_template_sha256": sha256_text(prompt_template),
+            "unknown_ids": "fail",
+            "empty_selection": "abstain",
+            "answer_generation": False,
+            "mechanism_donor": "alisawuffles/treedex",
+            "mechanism_donor_revision": (
+                "cb506162ef9e14eac41ba032d3a21879aa2c8770e"
+            ),
+            "mechanism_donor_spdx": "MIT",
+            "runtime": dict(runtime_configuration or {}),
+        }
+        if uses_handles:
+            configuration.update(
+                {
+                    "selector_id_mode": selector_id_mode,
+                    "selector_handle_scheme": (
+                        "selectable-source-order nNNNN; receipt resolves to content node id"
+                        if selectable_handles_only
+                        else "source-order nNNNN; receipt resolves to content node id"
+                    ),
+                }
+            )
         self.identity = NavigatorIdentity(
-            adapter="groundnut.navigation.treedex-style",
-            revision="3",
+            adapter=adapter,
+            revision=adapter_revision,
             package=model,
             package_version=package_version,
             code_spdx="Apache-2.0",
             code_source="https://github.com/b1rdmania/groundnut",
-            configuration={
-                "model": model,
-                "model_revision": revision,
-                "max_nodes": max_nodes,
-                "max_prompt_characters": max_prompt_characters,
-                "max_output_tokens": max_output_tokens,
-                "selection": "one-shot compact tree",
-                "tree_surface_schema": TREE_SURFACE_SCHEMA,
-                "prompt_template_sha256": sha256_text(_TREEDEX_PROMPT),
-                "unknown_ids": "fail",
-                "empty_selection": "abstain",
-                "answer_generation": False,
-                "mechanism_donor": "alisawuffles/treedex",
-                "mechanism_donor_revision": (
-                    "cb506162ef9e14eac41ba032d3a21879aa2c8770e"
-                ),
-                "mechanism_donor_spdx": "MIT",
-                "runtime": dict(runtime_configuration or {}),
-            },
+            configuration=configuration,
         )
 
     def select(self, index: NavigationIndex, question: str) -> NavigationSelection:
-        surface = _tree_surface(index)
-        prompt = _TREEDEX_PROMPT.format(
+        uses_handles = self.selector_id_mode != "node_id"
+        selectable_handles_only = (
+            self.selector_id_mode == "selectable_short_handle"
+        )
+        node_id_by_handle = _short_handle_map(
+            index, selectable_only=selectable_handles_only
+        )
+        handle_by_node_id = {value: key for key, value in node_id_by_handle.items()}
+        surface = _tree_surface(
+            index,
+            handle_by_node_id=handle_by_node_id if uses_handles else None,
+            selectable_handles_only=selectable_handles_only,
+        )
+        prompt_template = (
+            _SELECTABLE_HANDLE_PROMPT
+            if selectable_handles_only
+            else (_HANDLE_PROMPT if uses_handles else _TREEDEX_PROMPT)
+        )
+        prompt = prompt_template.format(
             question=question,
             max_nodes=self.max_nodes,
             tree=json.dumps(surface, sort_keys=True, separators=(",", ":")),
@@ -219,7 +286,8 @@ class TreeDexStyleNavigator:
                 raw_output={"error_type": type(error).__name__},
                 **base,
             )
-        ids = raw.get("node_ids")
+        selector_field = "node_handles" if uses_handles else "node_ids"
+        ids = raw.get(selector_field)
         input_tokens = (
             int(raw["input_tokens"])
             if isinstance(raw.get("input_tokens"), int)
@@ -248,7 +316,7 @@ class TreeDexStyleNavigator:
             return NavigationSelection(
                 status="failed",
                 selected_node_ids=(),
-                reason="Tree selector returned an invalid node_ids field.",
+                reason=f"Tree selector returned an invalid {selector_field} field.",
                 raw_output=raw,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
@@ -275,6 +343,19 @@ class TreeDexStyleNavigator:
                 **base,
             )
         by_id = index.by_id
+        if uses_handles:
+            invalid_handles = [handle for handle in ids if handle not in node_id_by_handle]
+            if invalid_handles:
+                return NavigationSelection(
+                    status="failed",
+                    selected_node_ids=(),
+                    reason="Tree selector returned unknown short handles.",
+                    raw_output={**raw, "invalid_node_handles": invalid_handles},
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    **base,
+                )
+            ids = [node_id_by_handle[handle] for handle in ids]
         invalid = [
             node_id
             for node_id in ids
@@ -291,24 +372,52 @@ class TreeDexStyleNavigator:
                 **base,
             )
         ordered = tuple(sorted(ids, key=lambda node_id: by_id[node_id].source_start))
+        resolved_raw = (
+            {**raw, "resolved_node_ids": list(ordered)} if uses_handles else raw
+        )
         return NavigationSelection(
             status="selected",
             selected_node_ids=ordered,
             reason="Tree selector returned a valid bounded node set.",
-            raw_output=raw,
+            raw_output=resolved_raw,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             **base,
         )
 
 
-def _tree_surface(index: NavigationIndex) -> dict[str, Any]:
+class TreeHandleNavigator(TreeDexStyleNavigator):
+    """TreeDex-style selector using short handles resolved to content IDs."""
+
+    def __init__(self, selector: TreeSelector, **kwargs: Any) -> None:
+        super().__init__(selector, selector_id_mode="short_handle", **kwargs)
+
+
+class SelectableTreeHandleNavigator(TreeDexStyleNavigator):
+    """Short-handle selector that never assigns handles to structural nodes."""
+
+    def __init__(self, selector: TreeSelector, **kwargs: Any) -> None:
+        super().__init__(
+            selector, selector_id_mode="selectable_short_handle", **kwargs
+        )
+
+
+def _tree_surface(
+    index: NavigationIndex,
+    *,
+    handle_by_node_id: Mapping[str, str] | None = None,
+    selectable_handles_only: bool = False,
+) -> dict[str, Any]:
     by_id = index.by_id
 
     def row(node_id: str) -> list[Any]:
         node = by_id[node_id]
         return [
-            node.node_id,
+            (
+                handle_by_node_id.get(node.node_id)
+                if handle_by_node_id
+                else node.node_id
+            ),
             node.title,
             node.native_id,
             node.summary,
@@ -322,9 +431,13 @@ def _tree_surface(index: NavigationIndex) -> dict[str, Any]:
         key=lambda node: node.source_start,
     )
     return {
-        "schema": TREE_SURFACE_SCHEMA,
+        "schema": (
+            SELECTABLE_HANDLE_TREE_SURFACE_SCHEMA
+            if selectable_handles_only
+            else (HANDLE_TREE_SURFACE_SCHEMA if handle_by_node_id else TREE_SURFACE_SCHEMA)
+        ),
         "legend": [
-            "node_id",
+            "selector_handle" if handle_by_node_id else "node_id",
             "title",
             "native_id",
             "summary",
@@ -333,6 +446,19 @@ def _tree_surface(index: NavigationIndex) -> dict[str, Any]:
             "children",
         ],
         "roots": [row(root.node_id) for root in roots],
+    }
+
+
+def _short_handle_map(
+    index: NavigationIndex, *, selectable_only: bool = False
+) -> dict[str, str]:
+    ordered = sorted(index.nodes, key=lambda node: (node.source_start, node.node_id))
+    if selectable_only:
+        ordered = [node for node in ordered if node.selectable]
+    width = max(4, len(str(len(ordered))))
+    return {
+        f"n{position:0{width}d}": node.node_id
+        for position, node in enumerate(ordered, 1)
     }
 
 
@@ -345,6 +471,33 @@ Select at most {max_nodes} nodes from the structured index that are likely to
 contain evidence needed to answer the question. Return only a JSON object with
 `node_ids`. Return an empty node_ids list when the index does not contain
 suitable evidence. Never invent a node id. Do not return an answer or rationale.
+
+Question: {question}
+
+Structured index:
+{tree}
+"""
+
+_HANDLE_PROMPT = """You are a document navigation system, not an answer generator.
+Select at most {max_nodes} nodes from the structured index that are likely to
+contain evidence needed to answer the question. Return only a JSON object with
+`node_handles`. Return an empty node_handles list when the index does not
+contain suitable evidence. Copy handles exactly from the index. Do not return
+an answer, rationale, content hash, native id, or title.
+
+Question: {question}
+
+Structured index:
+{tree}
+"""
+
+_SELECTABLE_HANDLE_PROMPT = """You are a document navigation system, not an answer generator.
+Select at most {max_nodes} evidence nodes from the structured index that are
+likely to answer the question. Return only a JSON object with `node_handles`.
+Only non-null selector_handle values are selectable. Rows with a null handle
+are structural containers and must never be returned. Return an empty
+node_handles list when no suitable evidence exists. Copy handles exactly. Do
+not return an answer, rationale, content hash, native id, or title.
 
 Question: {question}
 

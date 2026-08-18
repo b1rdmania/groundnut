@@ -172,10 +172,11 @@ Current components and candidates include:
 - [TreeDex](https://github.com/alisawuffles/treedex) (MIT) and
   [PageIndex](https://github.com/VectifyAI/PageIndex) (MIT) as vectorless,
   structured-navigation donors. Groundnut's strict one-shot adapter and
-  hash-bound navigation receipts have landed. The first 100-case development
-  experiment rejected both the lexical floor (8/100 exact evidence coverage)
-  and Qwen3 0.6B arm (3/100); navigation cannot make a support or truth
-  decision;
+  hash-bound navigation receipts have landed. Three frozen interface runs
+  moved Qwen3 0.6B from 3/100 to 13/100 exact evidence coverage by replacing
+  content IDs with selectable-only short handles. That is a safer interface,
+  not an admissible navigator: the model remains rejected, and navigation
+  cannot make a support or truth decision;
 
 - [AlignScore](https://github.com/yuh-zha/AlignScore) (MIT code and checkpoint)
   for three-way entailment, neutral, and contradiction scoring; benchmark
