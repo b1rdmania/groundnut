@@ -149,6 +149,8 @@ hashes, and thresholds are recorded.
 
 Current components to benchmark—not adopted quality claims—include:
 
+- [AlignScore](https://github.com/yuh-zha/AlignScore) (MIT code and checkpoint)
+  for three-way entailment, neutral, and contradiction scoring;
 - [LettuceDetect](https://github.com/KRLabsOrg/LettuceDetect) (MIT code;
   individual model licences recorded separately) for unsupported span
   localization and contradiction/numerical typing;

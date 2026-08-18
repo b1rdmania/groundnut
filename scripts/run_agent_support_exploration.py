@@ -12,7 +12,11 @@ REPO = Path(__file__).resolve().parent.parent
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
-from groundnut.adapters import LettuceDetectAdapter, MiniCheckAdapter  # noqa: E402
+from groundnut.adapters import (  # noqa: E402
+    AlignScoreAdapter,
+    LettuceDetectAdapter,
+    MiniCheckAdapter,
+)
 from groundnut.support import ExactSupportDetector  # noqa: E402
 from groundnut.support_agent_screen import AgentSuggestion  # noqa: E402
 from groundnut.support_exploration import run_agent_exploration  # noqa: E402
@@ -25,9 +29,20 @@ def main() -> None:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--suggestions", type=Path, required=True)
     parser.add_argument(
-        "--detector", choices=("exact", "lettuce", "minicheck-flan"), required=True
+        "--detector",
+        choices=(
+            "exact",
+            "lettuce",
+            "minicheck-flan",
+            "alignscore-nli",
+            "alignscore-qa",
+        ),
+        required=True,
     )
     parser.add_argument("--model-path", type=Path)
+    parser.add_argument("--checkpoint-path", type=Path)
+    parser.add_argument("--backbone-path", type=Path)
+    parser.add_argument("--backbone-revision")
     parser.add_argument("--model-name")
     parser.add_argument("--model-revision")
     parser.add_argument("--package-version", default="0.2.3")
@@ -59,7 +74,7 @@ def main() -> None:
             model_path=args.model_path,
             installed_package_version=args.package_version,
         )
-    else:
+    elif args.detector == "minicheck-flan":
         if not args.model_path or not args.model_name or not args.model_revision:
             parser.error(
                 "minicheck-flan requires --model-path, --model-name, --model-revision"
@@ -68,6 +83,29 @@ def main() -> None:
             scorer=_PinnedMiniCheckFlanScorer(args.model_path),
             model=args.model_name,
             revision=args.model_revision,
+            installed_package_version=args.package_version,
+        )
+    else:
+        if not all(
+            (
+                args.checkpoint_path,
+                args.backbone_path,
+                args.backbone_revision,
+                args.model_name,
+                args.model_revision,
+            )
+        ):
+            parser.error(
+                "AlignScore requires --checkpoint-path, --backbone-path, "
+                "--backbone-revision, --model-name, and --model-revision"
+            )
+        detector = AlignScoreAdapter(
+            mode="nli" if args.detector == "alignscore-nli" else "qa",
+            model=args.model_name,
+            revision=args.model_revision,
+            checkpoint_path=args.checkpoint_path,
+            backbone_path=args.backbone_path,
+            backbone_revision=args.backbone_revision,
             installed_package_version=args.package_version,
         )
     result = run_agent_exploration(manifest, suggestions, detector)

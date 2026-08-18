@@ -177,9 +177,16 @@ invalid or tampered input. Its result is a self-hashed
 
 ## Adapter admission
 
-Groundnut includes benchmark-only adapters for LettuceDetect and MiniCheck, but
-neither model is an adopted dependency or quality claim. Imports load no model
-runtime and tests inject fakes without network access.
+Groundnut includes benchmark-only adapters for AlignScore, LettuceDetect, and
+MiniCheck, but no model is an adopted dependency or quality claim. Imports load
+no model runtime and tests inject fakes without network access.
+
+The AlignScore adapter requires a pinned local checkpoint and pinned local
+RoBERTa backbone metadata. Its NLI mode preserves entailment, neutral, and
+contradiction instead of collapsing them into the upstream convenience score.
+Its separately identified QA mode combines the question and answer and remains
+binary. The two modes have different detector identities and cannot be silently
+substituted.
 
 The Lettuce adapter requires a pinned local model directory for real loading;
 it will not resolve a moving Hugging Face reference. A clean span result is an

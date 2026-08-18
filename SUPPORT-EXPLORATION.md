@@ -11,6 +11,8 @@ supported paraphrase, contradiction, and present-but-irrelevant text.
 | LettuceDetect base ModernBERT | 49.5% | 0.221 | 49.5% | 0.0% |
 | LettuceDetect v2 mmBERT base | 48.4% | 0.224 | 52.7% | 8.7% |
 | MiniCheck Flan-T5-Large | 45.1% | 0.259 | 65.2% | 43.5% |
+| AlignScore-base, three-way NLI | **53.8%** | **0.404** | 64.1% | 39.1% |
+| AlignScore-base, question-conditioned binary | 44.0% | 0.268 | 50.5% | 21.7% |
 
 The three-way score keeps `contradicted` separate from `insufficient`.
 LettuceDetect without its taxonomy head and MiniCheck are binary detectors, so
@@ -24,20 +26,34 @@ neither can satisfy that contract alone.
 | Lettuce base | 46/46 | 45/46 | 0/46 | 0/46 |
 | Lettuce v2 | 46/46 | 43/46 | 0/46 | 0/46 |
 | MiniCheck | 40/46 | 40/46 | 0/46 | 3/46 |
+| AlignScore NLI | 43/46 | 39/46 | **15/46** | 2/46 |
+| AlignScore question-conditioned | 37/46 | 36/46 | 0/46 | **8/46** |
 
 MiniCheck marked 37/46 contradiction mutations as unsupported, but its binary
 interface cannot call them contradictions. Its gain is real at the binary
 support boundary and insufficient for Groundnut's full account.
 
+AlignScore's published three-way NLI head is the strongest complete-label
+candidate measured here. The separately preregistered question-conditioned use
+of its QA-trained binary head found more irrelevant evidence, but rejected 19
+supported cases and cannot type contradictions. The two results are not merged
+post hoc into a tuned policy.
+
 ## Decision
 
-- Do not adopt any tested detector as Groundnut's semantic judge.
+- Do not adopt any tested detector as Groundnut's semantic judge yet.
+- Retain AlignScore NLI as the leading candidate core: it is the first tested
+  component to improve the full three-way task materially and type a useful
+  number of contradictions.
+- Treat question conditioning as a required independent stage. Its 8/46 result
+  is still poor, but it is the first material movement on the measured engine
+  gap.
 - Retain LettuceDetect's paraphrase-tolerance result as evidence for a
   candidate-retrieval or secondary-support signal.
 - Retain MiniCheck's stronger binary unsupported signal as a candidate input to
   a Groundnut-owned decision policy, never as the final verdict.
-- Prioritize the present-but-irrelevant class: every learned method remained at
-  0–3 correct out of 46, which is the clearest measured engine gap.
+- Prioritize the present-but-irrelevant class: the best result is now 8/46,
+  which remains the clearest measured engine gap.
 - A later human-adjudicated run must confirm any decision before admission.
 
 Pinned model revisions and complete per-case decisions are recorded in the

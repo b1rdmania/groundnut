@@ -126,7 +126,7 @@ from .runner import (
     execute_canonical_check,
     run_canonical_check,
 )
-from .adapters import LettuceDetectAdapter, MiniCheckAdapter
+from .adapters import AlignScoreAdapter, LettuceDetectAdapter, MiniCheckAdapter
 from .support_runner import ProbeContextDigest, SupportProbeRun, run_support_probe
 from .verification import (
     ANALYTICAL_PROVENANCE_SCHEMA,
@@ -145,6 +145,7 @@ from .verification import (
 
 __all__ = [
     "AnalysisResult",
+    "AlignScoreAdapter",
     "AgentSuggestion",
     "AgentSupportScreen",
     "ANALYTICAL_PROVENANCE_SCHEMA",

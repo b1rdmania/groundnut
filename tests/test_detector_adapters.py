@@ -1,6 +1,6 @@
 import pytest
 
-from groundnut.adapters import LettuceDetectAdapter, MiniCheckAdapter
+from groundnut.adapters import AlignScoreAdapter, LettuceDetectAdapter, MiniCheckAdapter
 from groundnut.sources import ResolvedSource, SourceReference, SourceResolution
 from groundnut.support import SupportPolicy, assess_claim_support
 from groundnut.verification import Claim, verify_claim
@@ -164,3 +164,53 @@ def test_minicheck_requires_preloaded_pinned_scorer():
             revision="abcdef0123456789",
             installed_package_version="1.0.0",
         )
+
+
+class FakeAlignScore:
+    def __init__(self, probabilities):
+        self.probabilities = probabilities
+        self.calls = []
+
+    def predict(self, **kwargs):
+        self.calls.append(kwargs)
+        return {
+            "probabilities": self.probabilities,
+            "selected_chunk_sha256": "a" * 64,
+        }
+
+
+def alignscore(mode, probabilities):
+    backend = FakeAlignScore(probabilities)
+    adapter = AlignScoreAdapter(
+        mode=mode,
+        model="yzha/AlignScore-base",
+        revision="8509e78d25bb914939fc585c626500c9b2944249",
+        backend=backend,
+        installed_package_version="0.1.3+a0936d5afee6",
+    )
+    return adapter, backend
+
+
+def test_alignscore_nli_preserves_contradiction_instead_of_collapsing_score():
+    adapter, backend = alignscore("nli", [0.02, 0.08, 0.90])
+    result = checked(adapter, question="What was revenue?")
+
+    assert result.support.status == "contradicted"
+    assert result.support.decision.confidence == 0.90
+    assert backend.calls[0]["mode"] == "nli"
+
+
+def test_alignscore_qa_requires_and_passes_the_claim_question():
+    adapter, backend = alignscore("qa", [0.85, 0.15])
+    result = checked(adapter, question="What was revenue?")
+
+    assert result.support.status == "insufficient"
+    assert backend.calls[0]["question"] == "What was revenue?"
+
+
+def test_alignscore_qa_without_question_fails_closed():
+    adapter, _ = alignscore("qa", [0.1, 0.9])
+    result = checked(adapter)
+
+    assert result.support.status == "not_assessed"
+    assert result.support.failure == "detector_error:ValueError"
