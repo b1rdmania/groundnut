@@ -5,6 +5,39 @@ It cannot qualify a detector or change the canonical support gate from
 `NOT MEASURED`. The 46 groups contain 184 balanced cases: verbatim support,
 supported paraphrase, contradiction, and present-but-irrelevant text.
 
+## North star
+
+Given a claim, the question it is meant to answer, and its cited evidence,
+Groundnut should produce a source-bound account of whether the evidence:
+
+- supports the claim;
+- contradicts the claim;
+- is relevant but insufficient; or
+- is present in the source but irrelevant to the question.
+
+Groundnut must not turn “the evidence supports this claim” into “the claim is
+true.” It is the referee between an AI-written statement and its cited source,
+not an oracle. The immediate product test is whether it can stop a confident
+research model from attaching a real citation to an inference that citation
+does not actually support.
+
+The balanced probe makes four distinctions structural:
+
+| Case | What a trustworthy judge must notice |
+|---|---|
+| Verbatim support | The words are present and answer the question. |
+| Paraphrased support | The words differ but the supported meaning is retained. |
+| Contradiction | The evidence materially disagrees with the claim. |
+| Present but irrelevant | The words are present but answer a different question. |
+
+Success is not the highest aggregate model score. A candidate must improve
+every material case kind—especially present-but-irrelevant evidence—without
+silently sacrificing supported claims. Exact matching, learned detectors, and
+question relevance may each contribute a signal; Groundnut owns the final
+policy, provenance, fail-closed behaviour, and visible disagreement.
+
+## Results
+
 | Method | 3-way accuracy | Macro-F1 | Binary accuracy | Unsupported recall |
 |---|---:|---:|---:|---:|
 | Exact normalized substring | 25.0% | 0.167 | 50.0% | 50.0% |
