@@ -171,3 +171,28 @@ next model comparison must use this fixed interface and the identical frozen
 pack; it must not spend another run tuning handles against these same cases.
 The N1-to-N3 aggregate is
 `results/navigation-interface-n1-n3-v1-summary.json`.
+
+## N4 preregistration — stronger selector, frozen interface
+
+N4 tests model capacity rather than changing the navigation contract again.
+It replaces Qwen3 0.6B with the Apache-2.0 Qwen3 8B model blob
+`sha256-a3de86cd1c132c822487ededd47a324c50491393e6565cd14bafa40d0b8e686f`.
+The 100-case pack, selectable-only handle surface, prompt, five-node limit,
+100,000-character prompt limit, 32,768-token context, 128-token output limit,
+temperature zero and seed 991 remain fixed.
+
+Before the first N4 model call, a result is worth further selector work only if
+all of these development targets hold:
+
+- exact coverage is at least 26/100, double N3's 13/100;
+- mean required-node recall is at least 0.26;
+- at least 75 cases return a valid bounded selection;
+- structural-node failures remain zero;
+- unknown-handle failures are at most five; and
+- mean context ratio when selected is at most 10%.
+
+These targets test material movement under a stronger model. They are not an
+admission bar. A passing N4 selector still cannot replace full evidence without
+a separately preregistered safety threshold on evidence it has not shaped.
+The local run uses one worker so concurrent requests cannot change the resource
+envelope.

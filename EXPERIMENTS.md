@@ -142,6 +142,20 @@ interface, reject Qwen3 0.6B as the navigator, and freeze the interface while a
 stronger selector is compared on the identical pack. The aggregate is
 `results/navigation-interface-n1-n3-v1-summary.json`.
 
+### N4 — stronger selector on the frozen interface
+
+N4 changes only the selector model from Qwen3 0.6B to the pinned Apache-2.0
+Qwen3 8B blob. It reuses N3's 100 cases, selectable-only handles, prompt,
+budgets, maximum five nodes, temperature zero and seed 991. The run is
+sequential with one worker.
+
+Before the first model call, further selector work requires every development
+target to pass: exact coverage at least 26/100, mean required-node recall at
+least 0.26, at least 75 valid selections, zero structural-node failures, at
+most five unknown-handle failures, and mean selected-case context ratio at
+most 10%. This tests capacity movement only. It cannot admit compact navigation
+without a separately frozen safety bar on evidence not used to shape N1-N4.
+
 ### E0 — common signal receipts
 
 Implement the component signal and bundle schemas. Migrate benchmark adapters
