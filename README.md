@@ -244,13 +244,14 @@ Thresholds are fixed before holdout scoring.
 | Hash-bound formula and named-input lineage for analyst calculations | Landed |
 | Metric envelopes and separate fuzzy-anchor population | Landed |
 | Explicit segmenter identity in extraction and run manifest | Landed |
-| Optional hash-bound `verification_question` in structured claims | Landed |
+| Optional hash-bound `verification_question` in structured claims and citation comments | Landed |
 | Generic authored-to-rendered evidence-parity receipt and CLI | Landed |
 | Frozen-policy arena and offline adjudication CLI | Landed |
 | Profile-hashed arena task emission with section-contained context | Landed |
 | Benchmark-only AlignScore, LettuceDetect, and MiniCheck adapters | Landed; no model adopted |
 | Lossless component signal and bundle receipts | Landed across four learned adapters |
-| Groundnut-owned multi-signal decision and abstention policy | Next semantic tranche |
+| Groundnut-owned pre-admission multi-signal abstention policy | Landed; first private replay withheld safely |
+| Frozen admitted multi-signal decision policy | Next semantic tranche |
 | SummaC sentence-pair consistency adapter | Landed; offline challenger only |
 | semchunk same-document structural comparison | Landed; tested configuration rejected |
 | Independent question-relevance exploration | Landed; lexical and BGE candidates insufficient |

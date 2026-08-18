@@ -53,6 +53,10 @@ as the canonical claim's `question`, bound into support inputs and available to
 independent relevance components. Groundnut does not derive it silently from
 the claim or report section. Older artifacts without the field remain valid;
 question-dependent components must abstain when it is absent.
+Markdown and rendered HTML can carry the same field in an adjacent
+`groundnut-verification-question` comment after the citation evidence marker.
+Both marker names are profile configuration, so a consumer such as an IC
+writer can use its own convention without adding product logic to the engine.
 
 The built-in adapters cover local text and simple HTTP text/HTML. Paywalls,
 unreachable sources, and unsupported PDFs remain explicit failure states.
@@ -117,8 +121,9 @@ manifest and separates deterministic replay from marked integration work.
 `groundnut-artifact-profile/v1` maps generic structured fields and rendered
 evidence conventions into canonical claims. `extract_artifact` accepts
 structured JSON, Markdown citations, and rendered HTML, retaining source
-identity, quotes, locators, declared analysis, input hash, profile hash, and
-artifact location. The parser does not fetch, anchor, assess support, or assign
+identity, quotes, locators, verification questions, declared analysis, input
+hash, profile hash, and artifact location. The parser does not fetch, anchor,
+assess support, or assign
 a domain outcome; those remain later and independently recorded stages.
 
 Consumer-specific field names and HTML conventions belong in a profile rather

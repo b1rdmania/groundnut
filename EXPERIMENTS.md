@@ -163,11 +163,27 @@ aggregate receipt is `results/ic-relevance-envelope-v1-summary.json`; the
 row-level receipt remains private. Current IC claim records have no verification
 question, so future profiles need that field before applying extractive QA.
 
+E3D composed the existing mechanical run, exact support baseline, and all 96
+unlabelled component observations over the same private report. The report had
+105 claims and no explicit verification questions. The fail-closed shadow
+policy retained 10 source-unavailable results, 32 inconclusive anchors as
+`needs_validation`, and withheld a semantic outcome for the other 63 claims.
+It did not reinterpret the older report's prose as a question and did not let
+high learned scores repair anchoring. The aggregate is
+`results/ic-composed-shadow-v1-summary.json`; the self-hashed row receipt stays
+private.
+
 ### E4 — frozen multi-signal policy
 
-Compose exact, numeric, attribution, relevance, AlignScore, SummaC, MiniCheck,
-and LettuceDetect signals with explicit rules. Preserve each raw signal. Emit
-`not_assessed` or a visible disagreement instead of averaging uncertainty away.
+The pre-admission shadow composer now preserves mechanical anchoring, the exact
+baseline, and arbitrary experimental signals under explicit fail-closed rules.
+It emits `source_unavailable`, `needs_validation`, `not_assessed`, or
+`withheld`; it does not average uncertainty away. The first private replay is
+E3D.
+
+Next, compose exact, numeric, attribution, relevance, AlignScore, SummaC,
+MiniCheck, and LettuceDetect signals behind a frozen admission policy. A
+component may influence an outcome only after its own gate passes.
 
 Freeze the policy, thresholds, component revisions, licences, input contract,
 primary metric, minimum improvement, and material-kind regression limits before
