@@ -55,9 +55,10 @@ Groundnut has a strong control system and an unfinished semantic judge.
 - Structured navigation now has a strict, hash-bound interface. Short handles
   increased exact evidence coverage from 3/100 to 13/100 with Qwen3 0.6B. That
   model is still rejected because 13% recall is unsafe.
-- The first private IC report proved that the controls can catch quote drift
-  and prevent evidence loss during rendering. It did not prove semantic
-  accuracy.
+- The first private IC report exercised the controls end to end. The composer
+  held every claim rather than assert one: 63 withheld, 32 needing validation,
+  10 with unavailable sources, and no verification questions present. That is
+  the fail-closed path working, not a measurement of semantic accuracy.
 
 The immediate job is to measure the semantic-support layer properly. The next
 navigation job is to test a stronger selector against the same frozen 100-case
@@ -130,8 +131,9 @@ The measurements and donor decisions live in
 Groundnut does not swap a metric after seeing a result:
 
 1. **Compatibility extraction gate.** This is the original 41-category CUAD
-   extractor gate. Its best recorded run still fails macro-F1 and
-   high-severity precision.
+   extractor gate. It carries four bars. Its best recorded run fails macro-F1
+   and high-severity precision, passes quote grounding, and has no published
+   perturbation-probe gap. An unpublished bar scores as unmet, not as passed.
 2. **Canonical semantic-support gate.** Current state: **NOT MEASURED**. It can
    change only after a preregistered run on accepted, human-reviewed cases.
 3. **Domain qualification gates.** Each exact domain pack needs its own labelled
@@ -196,6 +198,11 @@ publication decisions outside this public repository.
 ## Licence and attribution
 
 Groundnut code is Apache 2.0. See [LICENSE](./LICENSE).
+
+No explored component is admitted, so no component licence currently
+propagates. Each carries its own terms and some are not Apache 2.0 —
+the leading relevance challenger is CC BY 4.0. Licences are recorded per
+component in the `results/` receipts and must be cleared before admission.
 
 The compatibility corpus is CUAD v1, copyright The Atticus Project, licensed
 under CC BY 4.0. Groundnut does not redistribute the contract text.
