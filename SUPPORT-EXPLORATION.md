@@ -123,10 +123,11 @@ run.
 |---|---:|---:|---:|
 | Query-token recall | 0.602 | 0.830 | 17/46 |
 | BGE reranker base | 0.613 | 0.850 | 23/46 |
+| BGE reranker v2-m3 | **0.676** | **0.861** | **27/46** |
 
 “Complete” means that all three relevant variants ranked above the irrelevant
-variant inside the same source-bound group. BGE improved this measure but was
-near chance on verbatim-versus-irrelevant and contradiction-versus-irrelevant
-pairs. The relevance lane is now correctly typed and replayable; neither tested
-scorer is admitted. The summary receipt is
+variant inside the same source-bound group. v2-m3 improved every pairwise
+comparison, but still failed to order 19 of 46 complete groups. The relevance
+lane is now correctly typed and replayable; no tested scorer is admitted. The
+summary receipt is
 `results/relevance-e3-v1-summary.json`.

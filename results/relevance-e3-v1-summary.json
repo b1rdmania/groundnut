@@ -42,5 +42,20 @@
       "contradicted": 0.5
     }
   },
-  "decision": "Keep the relevance lane and lossless reranker adapter. Do not adopt or threshold BGE reranker base from this result. Test materially different question-answer relevance mechanisms."
+  "bge_reranker_v2_m3": {
+    "model": "BAAI/bge-reranker-v2-m3",
+    "revision": "953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e",
+    "model_licence_spdx": "Apache-2.0",
+    "full_receipt_sha256": "50986a8b7b7a2766f232c289fecea51a27112e0681c99465d7d51760eb51a493",
+    "roc_auc": 0.6761184625078765,
+    "average_precision": 0.8611752589333719,
+    "all_three_relevant_above_irrelevant_count": 27,
+    "all_three_relevant_above_irrelevant_rate": 0.5869565217391305,
+    "pairwise_win_rate": {
+      "verbatim_supported": 0.6956521739130435,
+      "paraphrase_supported": 0.7391304347826086,
+      "contradicted": 0.6304347826086957
+    }
+  },
+  "decision": "Keep the relevance lane and lossless reranker adapter. Retain BGE reranker v2-m3 as the current offline challenger. Do not adopt or threshold any tested scorer from this exploratory result."
 }

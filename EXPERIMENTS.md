@@ -142,10 +142,11 @@ threshold-free because no operating point was preregistered.
 The transparent lexical floor reached ROC-AUC 0.602 and ranked all three
 relevant cases above the irrelevant case in 17 of 46 paired groups. The pinned
 MIT `BAAI/bge-reranker-base` model reached ROC-AUC 0.613 and separated all four
-cases in 23 of 46 groups. Its pairwise win rates were 24/46 for verbatim
-support, 33/46 for paraphrase, and 23/46 for contradiction. This is small
-movement, not an adoption result. Keep the independent relevance interface and
-raw receipts; reject this model as the answer. The committed summary is
+cases in 23 groups. The stronger Apache-2.0 `BAAI/bge-reranker-v2-m3` reached
+ROC-AUC 0.676 and separated 27 groups. Its pairwise win rates were 32/46 for
+verbatim support, 34/46 for paraphrase, and 29/46 for contradiction. This is
+material movement and still not an adoption result. Keep v2-m3 as an offline
+challenger and keep searching. The committed summary is
 `results/relevance-e3-v1-summary.json`.
 
 ### E4 — frozen multi-signal policy
@@ -194,7 +195,7 @@ required experiment without duplicating substantial machinery.
 | LettuceDetect | Paraphrase tolerance and unsupported spans | Explored |
 | SummaC | Sentence-pair consistency aggregation | Explored; offline challenger only |
 | semchunk | Evidence-window construction | E2A tested; current configuration rejected |
-| BGE reranker base | Independent question-to-evidence relevance | E3A tested; insufficient |
+| BGE rerankers | Independent question-to-evidence relevance | E3A tested; v2-m3 is offline challenger |
 | OpenContracts | Human annotation and review | Interchange landed; application optional |
 | Inspect AI | Large experiment orchestration | Adoption trigger not met |
 | IC arena | Downstream extrapolation attacks | Private experimental consumer |

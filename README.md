@@ -180,10 +180,11 @@ Current components and candidates include:
   offset-preserving chunker. Its first same-document structural comparison did
   not clear the current splitter: it made more windows and duplicate quote
   exposures and cut two long quotes. Groundnut has not adopted it;
-- [BGE reranker base](https://huggingface.co/BAAI/bge-reranker-base) (MIT) as
-  an independent question-to-evidence relevance signal. Its first paired
-  exploration separated all four cases in 23 of 46 groups, so Groundnut kept
-  the interface and receipt but did not adopt the model;
+- [BGE reranker base](https://huggingface.co/BAAI/bge-reranker-base) (MIT) and
+  [v2-m3](https://huggingface.co/BAAI/bge-reranker-v2-m3) (Apache-2.0) as
+  independent question-to-evidence relevance signals. v2-m3 separated all four
+  cases in 27 of 46 paired groups, the best relevance result so far. It remains
+  an offline challenger and is not an adopted judge;
 - [OpenContracts](https://github.com/Open-Source-Legal/OpenContracts) (MIT) as
   an optional annotation and review workbench; Groundnut's interchange format
   has landed, but the application is not a runtime dependency;
