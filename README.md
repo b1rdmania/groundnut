@@ -31,10 +31,10 @@ claims + evidence universe + frozen policy
 
 The goal is not one perfect model. Groundnut can combine deterministic checks,
 navigation, relevance, entailment, contradiction, and adversarial review. Each
-part must remain labelled, pinned, measured, replayable, and removable.
+part stays labelled, pinned, measured, replayable, and removable.
 
 Products supply domain policy, credentials, audience, and presentation. They
-should not rebuild the checking engine.
+must not rebuild the checking engine.
 
 ## Where it stands, in plain English
 
@@ -47,22 +47,22 @@ Groundnut has a strong control system and an unfinished semantic judge.
   published gate still fails. Groundnut does not hide or reinterpret that
   result.
 - The canonical semantic-support gate is **NOT MEASURED**. The required
-  human-adjudicated benchmark is not complete, so Groundnut makes no production
+  human-adjudicated benchmark is not complete. Groundnut makes no production
   quality claim for semantic support.
 - Seven learned approaches have been explored. None is admitted as the final
   judge. AlignScore is the strongest complete-label candidate. Extractive QA is
   the strongest independent relevance candidate.
 - Structured navigation now has a strict, hash-bound interface. Short handles
   increased exact evidence coverage from 3/100 to 13/100 with Qwen3 0.6B. That
-  model is still rejected because 13% recall is unsafe.
+  model is still rejected, because 13% recall is unsafe.
 - The first private IC report exercised the controls end to end. The composer
   held every claim rather than assert one: 63 withheld, 32 needing validation,
   10 with unavailable sources, and no verification questions present. That is
-  the fail-closed path working, not a measurement of semantic accuracy.
+  the fail-closed path at work, not a measurement of semantic accuracy.
 
 The immediate job is to measure the semantic-support layer properly. The next
-navigation job is to test a stronger selector against the same frozen 100-case
-pack without changing the interface.
+navigation job is a test of a stronger selector against the same frozen 100-case
+pack, without a change to the interface.
 
 ## Engine shape
 
@@ -80,32 +80,32 @@ flowchart LR
 
 Groundnut owns:
 
-- acquisition, snapshots, navigation, segmentation, and exact source anchors;
+- acquisition, snapshots, navigation, segmentation, and exact source anchors
 - mechanical checks and separate relevance, support, contradiction, and
-  authority signals;
-- versioned domain packs, analytical provenance, and calculation lineage;
-- frozen decision, abstention, and adversarial-review policies;
-- render-parity checks that stop evidence disappearing from delivered reports;
-- one replayable manifest for sources, policies, components, and outputs.
+  authority signals
+- versioned domain packs, analytical provenance, and calculation lineage
+- frozen decision, abstention, and adversarial-review policies
+- render-parity checks that stop evidence disappearing from delivered reports
+- one replayable manifest for sources, policies, components, and outputs
 
-Groundnut does not own deployment identity, credentials, publication
-authority, or final human sign-off. It may grow a review interface or storage
-layer when that directly improves checking quality. The boundary is authority,
-not code size. See [ARCHITECTURE.md](./ARCHITECTURE.md).
+Groundnut does not own deployment identity, credentials, publication authority,
+or final human sign-off. It can grow a review interface or storage layer when
+that directly improves checking quality. The boundary is authority, not code
+size. Read [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## Rules that do not move
 
 - **Evidence before confidence.** A high score cannot repair missing evidence.
 - **Fail closed.** Missing sources, missing checks, invalid model output, and
-  judge disagreement remain visible.
+  judge disagreement stay visible.
 - **Replay everything.** Every material input, policy, component, decision, and
-  output has an identity and hash.
+  output has an identity and a hash.
 - **Earn every quality claim.** A portable configuration does not inherit
   another domain's score.
 - **Freeze before scoring.** Cases, policies, thresholds, metrics, and stopping
   rules are fixed before an admission run.
-- **No network in deterministic tests.** Live acquisition is explicit and its
-  successful output is snapshotted.
+- **No network in deterministic tests.** Live acquisition is explicit. The
+  engine snapshots its successful output.
 - **Publish numbers, not protected data.** Corpora and private report rows stay
   outside this repository.
 
@@ -118,17 +118,18 @@ owns the final decision.
 Groundnut has explored TreeDex, PageIndex, AlignScore, MiniCheck,
 LettuceDetect, SummaC, BGE rerankers, extractive QA, semchunk, OpenContracts,
 and Inspect AI. No learned component is admitted as the semantic judge.
-Selectable-only navigation handles are retained as infrastructure, but the
-tested Qwen3 0.6B selector is rejected.
+Selectable-only navigation handles are retained as infrastructure. The tested
+Qwen3 0.6B selector is rejected.
 
 The measurements and donor decisions live in
-[EXPERIMENTS.md](./EXPERIMENTS.md),
-[SUPPORT-EXPLORATION.md](./SUPPORT-EXPLORATION.md), and
-[NAVIGATION.md](./NAVIGATION.md). Public aggregate receipts live in `results/`.
+[EXPERIMENTS.md](./docs/EXPERIMENTS.md),
+[SUPPORT-EXPLORATION.md](./docs/SUPPORT-EXPLORATION.md), and
+[NAVIGATION.md](./docs/NAVIGATION.md). Public aggregate receipts live in
+`results/`.
 
 ## Three separate gates
 
-Groundnut does not swap a metric after seeing a result:
+Groundnut does not swap a metric after it sees a result:
 
 1. **Compatibility extraction gate.** This is the original 41-category CUAD
    extractor gate. It carries four bars. Its best recorded run fails macro-F1
@@ -140,32 +141,27 @@ Groundnut does not swap a metric after seeing a result:
    development set and protected holdout. Configuration portability is not
    evidence of quality.
 
-The exact bars, results, and grounding caveats remain public in
-[GATES.md](./GATES.md) and [FINDINGS.md](./FINDINGS.md).
+The exact bars, results, and grounding caveats stay public in
+[GATES.md](./GATES.md) and [FINDINGS.md](./docs/FINDINGS.md).
 
-## Run it
-
-```bash
-python3.12 -m pytest -q
-
-# canonical claim-checking process boundary
-python3 -m groundnut.canonical_cli \
-  < canonical-request.json > canonical-response.json
-```
+## Interfaces
 
 `groundnut.canonical_cli` is the stable JSON boundary for Python, TypeScript,
-and other hosts. Replay-only acquisition is the default. Live acquisition must
-be enabled explicitly, and successful live results are archived before replay.
-Only the frozen exact-support baseline is admitted while the support gate is
-unmeasured.
+and other hosts. Its request and response schemas are
+`groundnut-canonical-request/v1` and `groundnut-canonical-response/v1`.
+Replay-only acquisition is the default. Live acquisition is explicit, and the
+engine archives a successful live result before replay. Only the frozen
+exact-support baseline is admitted while the support gate is unmeasured.
 
-The CUAD corpus and gold answers are not in this repository. Rebuild the corpus
-from its manifest with `scripts/fetch_corpus.py`. Do not spend the protected
-holdout until a preregistered development gate passes.
+Specialist CLIs cover compatibility extraction, support evaluation, arena
+adjudication, annotation, navigation, and render parity. Each one is documented
+beside its contract.
 
-Specialist CLIs for compatibility extraction, support evaluation, arena
-adjudication, annotation, navigation, and render parity are documented beside
-their contracts.
+The deterministic test suite is offline and needs Python 3.12 and `pytest`.
+
+The CUAD corpus and gold answers are not in this repository.
+`scripts/fetch_corpus.py` rebuilds the corpus from its manifest. The protected
+holdout stays unspent until a preregistered development gate passes.
 
 ## Repository guide
 
@@ -176,14 +172,20 @@ their contracts.
 | `policies/` | Frozen support and arena policies |
 | `pipeline/`, `harness/` | Compatibility extractor and historical gate |
 | `tests/` | Offline deterministic conformance suite |
-| `results/` | Public aggregate experiment results; never private source rows |
+| `results/` | Public aggregate experiment results, never private source rows |
+| `docs/` | Contracts, experiments, and measurement records |
+| `docs/history/` | Superseded extraction-project documents, kept for provenance |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | Scope, authority boundary, and invariants |
-| [EXPERIMENTS.md](./EXPERIMENTS.md) | Experiment order, transplant rules, and decisions |
-| [SUPPORT.md](./SUPPORT.md) | Semantic-support contracts and admission protocol |
-| [NAVIGATION.md](./NAVIGATION.md) | Structured-navigation contracts and N1-N3 results |
 | [GATES.md](./GATES.md) | Compatibility, semantic-support, and domain gate roles |
-| [ANNOTATION.md](./ANNOTATION.md) | LegalBench-RAG and OpenContracts review workflow |
-| [ANALYTICAL-PROVENANCE.md](./ANALYTICAL-PROVENANCE.md) | Evidence, assertion, calculation, inference, and recommendation types |
+
+Inside `docs/`: [EXPERIMENTS.md](./docs/EXPERIMENTS.md) holds experiment order,
+transplant rules, and decisions. [SUPPORT.md](./docs/SUPPORT.md) holds the
+semantic-support contracts and the admission protocol.
+[NAVIGATION.md](./docs/NAVIGATION.md) holds the navigation contracts and the
+N1-N3 results. [ANNOTATION.md](./docs/ANNOTATION.md) holds the LegalBench-RAG
+and OpenContracts review workflow.
+[ANALYTICAL-PROVENANCE.md](./docs/ANALYTICAL-PROVENANCE.md) holds the evidence,
+assertion, calculation, inference, and recommendation types.
 
 ## Downstream use
 
@@ -192,16 +194,16 @@ architecture and it is not a production cutover. Atlas, other product v2s, and
 operating-system ports are possible later consumers.
 
 Hosts can integrate through the canonical JSON boundary and domain profiles.
-They should keep private company data, credentials, audience rules, and
-publication decisions outside this public repository.
+They keep private company data, credentials, audience rules, and publication
+decisions outside this public repository.
 
 ## Licence and attribution
 
-Groundnut code is Apache 2.0. See [LICENSE](./LICENSE).
+Groundnut code is Apache 2.0. Read [LICENSE](./LICENSE).
 
 No explored component is admitted, so no component licence currently
-propagates. Each carries its own terms and some are not Apache 2.0 —
-the leading relevance challenger is CC BY 4.0. Licences are recorded per
+propagates. Each component carries its own terms and some are not Apache 2.0.
+The leading relevance challenger is CC BY 4.0. Licences are recorded per
 component in the `results/` receipts and must be cleared before admission.
 
 The compatibility corpus is CUAD v1, copyright The Atticus Project, licensed

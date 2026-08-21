@@ -88,7 +88,7 @@ or deployment policy.
 
 Existing product deployments, a future v2, an operating-system port, and an
 open-source release are possible consumers—not current milestones. Any future
-adapter must pass the generic semantic contract in `PARITY.md` before replacing
+adapter must pass the generic semantic contract in `PARITY.md` before it replaces
 a host path, but building such an adapter is deliberately not on the critical
 path.
 
@@ -98,7 +98,7 @@ The legacy four-criterion CUAD gate is retained unchanged as the compatibility
 extractor gate, not Groundnut's product acceptance bar. Its current failure is
 still published. The canonical semantic-support gate is explicitly
 `NOT MEASURED` until the adjudicated probe is frozen; this is a documented gate
-split, not a quiet metric replacement. See `GATES.md`.
+split, not a quiet metric replacement. See `../GATES.md`.
 
 - Fix prediction/gold scoring to enforce one-to-one matches under a reviewed
   harness change.

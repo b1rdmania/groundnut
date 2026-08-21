@@ -164,7 +164,7 @@ replacement extraction benchmarks for the compatibility pipeline. Groundnut's
 canonical remit now includes semantic claim support, which the 41-category
 span-extraction gate does not measure. The new four-cell support benchmark is a
 separate product measurement, not a substitute score for the old extractor.
-Both gates and the unchanged historical failure are retained; see `GATES.md`.
+Both gates and the unchanged historical failure are retained. Read `../GATES.md`.
 
 ---
 
