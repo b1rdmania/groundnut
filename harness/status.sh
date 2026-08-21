@@ -5,7 +5,7 @@ START_FILE="runs/started-at"
 [ -f "$START_FILE" ] || date +%s > "$START_FILE"
 start=$(cat "$START_FILE"); now=$(date +%s)
 h=$(( (now - start) / 3600 )); m=$(( ((now - start) % 3600) / 60 ))
-echo "elapsed: ${h}h ${m}m (budget in goal.md: 12h)"
+echo "elapsed: ${h}h ${m}m (budget in docs/history/goal.md: 12h)"
 echo "--- score history (last 10) ---"
 [ -f runs/history.csv ] && tail -10 runs/history.csv || echo "(no scores yet)"
 echo "--- token burn (runs/usage.jsonl) ---"
