@@ -103,6 +103,8 @@ def plan(*, group_count=1, context=120, probe_hash=None):
         probe_sha256=probe_hash or probe().sha256,
         source_pool_sha256="1" * 64,
         excluded_pool_sha256="2" * 64,
+        review_manifest_sha256="c" * 64,
+        build_attempt=1,
         max_context_characters=context,
         primary_metric="macro_f1",
         minimum_improvement=0.05,

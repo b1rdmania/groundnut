@@ -12,6 +12,8 @@ def plan():
         probe_sha256="c" * 64,
         source_pool_sha256="a" * 64,
         excluded_pool_sha256="b" * 64,
+        review_manifest_sha256="9" * 64,
+        build_attempt=1,
         max_context_characters=4096,
         primary_metric="macro_f1",
         minimum_improvement=0.05,

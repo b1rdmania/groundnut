@@ -109,6 +109,7 @@ def run_support_bakeoff(
             plan,
             baseline,
             RecordedProbeRun.from_mapping(runs[key].to_dict()),
+            probe=probe,
         )
         for key in sorted(plan.detector_policy_keys)
     }
