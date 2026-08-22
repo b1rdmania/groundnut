@@ -28,15 +28,17 @@ claim-checking engine.
 Current status: **NOT MEASURED**.
 
 This gate admits an optional support detector, not a whole domain pack. Before
-the first learned run, `groundnut-support-probe-plan/v2` freezes:
+the first learned run, `groundnut-support-probe-plan/v3` freezes:
 
 - exact probe hash and group count
 - sampling seed
 - safe source-pool and complete exclusion-pool hashes
 - context-window size
 - baseline and candidate policy keys and exact configuration hashes
-- primary metric and minimum meaningful improvement
+- primary metric (`macro_f1` or `accuracy`) and minimum meaningful improvement
 - allowed lexical-overlap band for supported paraphrases
+- the review-manifest hash and the build attempt number from the probe build
+  receipt, so a rebuilt probe cannot be frozen as if it were the first
 
 The present-but-irrelevant candidate batch can be sampled before the plan is
 frozen. Only human-adjudicated negatives enter the final probe. The
@@ -47,16 +49,35 @@ A candidate is admissible only if it meets three conditions. It is complete. It
 improves the preregistered primary metric by at least the frozen difference. It
 does not regress on any material case kind. Cached outputs must reproduce the decision offline.
 
+"Material case kind" is every one of the four kinds, with strict no-regression
+on per-kind accuracy, hardcoded in `groundnut/support_admission.py`. It is not a
+plan field and cannot be relaxed per plan. Because the exact baseline scores
+at or near 1.0 on `verbatim_supported`, a bare learned detector will fail this
+rule by construction; only a composed policy that keeps the exact check can
+pass. That is the intended boundary.
+
+Accepted review decisions require a `human:` reviewer id, and an agent-authored
+paraphrase cannot be accepted by its own author. Probe builds write a
+`groundnut-support-probe-build/v2` receipt recording rows walked, rejected,
+ambiguous, and the attempt number.
+
+The preregistered plan for the first measurement is
+`docs/plans/support-admission-plan-v1.md`. No reviewer is currently assigned;
+until one is, this gate stays NOT MEASURED.
+
 The executable consumer is:
 
 ```bash
 python3 -m groundnut.support_gate_cli \
   --plan support-plan.json \
+  --probe support-pilot-cases.jsonl \
   --baseline exact-run.json \
   --candidate detector-run.json \
   --out admission.json
 ```
 
+It loads the frozen probe and rejects any run whose gold rows are not exactly
+its cases; a run's own `probe_sha256` field is never trusted on its own.
 It recomputes scores from the recorded gold and assessment rows instead of
 trusting the score field carried by either run.
 

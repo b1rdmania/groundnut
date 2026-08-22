@@ -3,13 +3,17 @@
 Groundnut is the canonical anti-hallucination and checking engine. A host gives
 it source documents, a versioned domain pack, and a model backend. Groundnut
 returns source-anchored findings, honest coverage, and the evidence disclosure
-carried by that pack. It is a standalone engine, not an extraction library
-whose roadmap is set by any current deployment.
+carried by that pack. Its roadmap is not set by any current deployment. The
+`groundnut` package still imports the compatibility `pipeline` package for
+chunking, extraction, and prompts (`groundnut/engine.py`); separating them is
+open work, not a done fact.
 
-Canonical responses also acknowledge which categories were evaluated in each
+Compatibility extraction responses (`analyse_text`, the legacy path used by
+`pipeline/run.py`) also acknowledge which categories were evaluated in each
 source segment. A missing finding becomes `checked_clear` only when every
 segment completed and explicitly acknowledged that category. If not, the
-result is `incomplete`.
+result is `incomplete`. The canonical check path does not use coverage
+acknowledgements.
 
 ## Boundary
 
@@ -45,9 +49,11 @@ later decisions. None of them drives the core roadmap today.
 Groundnut owns:
 
 - domain-pack validation and versioned playbook hashes
-- document normalization, segmentation, classification, and extraction
+- document normalization, segmentation, and (compatibility path) classification
+  and extraction
 - backend interfaces and deterministic source anchoring
-- coverage, report, corpus, annotation, and adjudication primitives
+- coverage (compatibility path), corpus, annotation, and adjudication
+  primitives; there is no report-producing stage yet
 - evaluation and arena interfaces, including frozen policies and provenance
 
 Groundnut can ship persistence and user interfaces when they directly support

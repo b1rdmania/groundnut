@@ -130,8 +130,11 @@ The canonical pilot workflow is executable but stops at the human boundary:
    proposals, missing rows, duplicate rows, and reviewer-free acceptances.
 5. `scripts/build_support_probe.py` promotes the first 50 fully accepted rows
    in the preregistered order and enforces the frozen lexical-overlap band.
-6. `scripts/freeze_support_plan.py` binds the completed probe to exact policy
-   hashes before any learned run.
+6. `scripts/freeze_support_plan.py` binds the completed probe, its build
+   receipt, and the review manifest to exact policy hashes before any learned
+   run. The canonical path executes only detectors listed in
+   `groundnut/admitted_detectors.py`; a passing admission artifact is the
+   precondition for adding one.
 
 The offline reviewer shows the 50 target rows first and hides reserves by
 default. Applying a suggestion copies its agent identity into paraphrase
@@ -154,7 +157,7 @@ self-hashed admission decision per candidate. External packages remain
 benchmark surfaces; the bake-off does not adopt them into Groundnut.
 
 `run_support_probe` executes any frozen detector over those cases only under a
-`groundnut-support-probe-plan/v2`. The plan freezes N, sampling seed, the exact
+`groundnut-support-probe-plan/v3`. The plan freezes N, sampling seed, the exact
 probe hash, source and exclusion pool hashes, context size, baseline and
 detector policy keys plus their exact configuration hashes, primary metric,
 minimum meaningful improvement, and permitted paraphrase-overlap band before a
