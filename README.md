@@ -65,6 +65,11 @@ against an adversary, and an unfinished semantic judge.
   10 with unavailable sources, and no verification questions present. That is
   the fail-closed path at work, not a measurement of semantic accuracy.
 
+- The claim ledger (`docs/LEDGER.md`) puts every prose unit of a report in one
+  of three buckets: cited and verified, cited but drifted, own reasoning. On
+  the first real report: 329 units, 63 / 42 / 224. That is the product shape;
+  the semantic judge slots into the middle bucket when one is admitted.
+
 The immediate job is to measure the semantic-support layer properly. The next
 navigation job is a test of a stronger selector against the same frozen 100-case
 pack, without a change to the interface.
