@@ -11,7 +11,8 @@ from typing import Any
 from typing import Mapping
 
 
-PLAN_SCHEMA = "groundnut-support-probe-plan/v2"
+PLAN_SCHEMA = "groundnut-support-probe-plan/v3"
+PRIMARY_METRICS = frozenset({"macro_f1", "accuracy"})
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -24,6 +25,8 @@ class SupportProbePlan:
     probe_sha256: str
     source_pool_sha256: str
     excluded_pool_sha256: str
+    review_manifest_sha256: str
+    build_attempt: int
     max_context_characters: int
     primary_metric: str
     minimum_improvement: float
@@ -59,9 +62,14 @@ class SupportProbePlan:
                 self.probe_sha256,
                 self.source_pool_sha256,
                 self.excluded_pool_sha256,
+                self.review_manifest_sha256,
             )
         ):
-            raise ValueError("probe plan probe/pool hashes must be lowercase SHA-256")
+            raise ValueError("probe plan probe/pool/manifest hashes must be lowercase SHA-256")
+        if self.build_attempt < 1:
+            raise ValueError("probe plan build attempt must be at least 1")
+        if self.primary_metric not in PRIMARY_METRICS:
+            raise ValueError(f"unsupported admission primary metric: {self.primary_metric}")
         if not self.baseline_policy_keys or not self.detector_policy_keys:
             raise ValueError("probe plan must freeze baseline and detector policies")
         all_policy_keys = self.baseline_policy_keys + self.detector_policy_keys
@@ -89,6 +97,8 @@ class SupportProbePlan:
             "probe_sha256": self.probe_sha256,
             "source_pool_sha256": self.source_pool_sha256,
             "excluded_pool_sha256": self.excluded_pool_sha256,
+            "review_manifest_sha256": self.review_manifest_sha256,
+            "build_attempt": self.build_attempt,
             "max_context_characters": self.max_context_characters,
             "primary_metric": self.primary_metric,
             "minimum_improvement": self.minimum_improvement,
@@ -135,6 +145,8 @@ class SupportProbePlan:
             probe_sha256=str(value["probe_sha256"]),
             source_pool_sha256=str(value["source_pool_sha256"]),
             excluded_pool_sha256=str(value["excluded_pool_sha256"]),
+            review_manifest_sha256=str(value["review_manifest_sha256"]),
+            build_attempt=int(value["build_attempt"]),
             max_context_characters=int(value["max_context_characters"]),
             primary_metric=str(value["primary_metric"]),
             minimum_improvement=float(value["minimum_improvement"]),

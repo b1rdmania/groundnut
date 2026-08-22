@@ -16,7 +16,8 @@ from .domain import DomainPack
 from .run_manifest import EngineIdentity
 from .runner import execute_canonical_check
 from .sources import HttpResolver, SnapshotFirstResolver, SnapshotStore
-from .support import ExactSupportDetector, SupportPolicy
+from .admitted_detectors import build_admitted_detector
+from .support import SupportPolicy
 
 
 REQUEST_SCHEMA = "groundnut-canonical-request/v1"
@@ -98,9 +99,7 @@ def execute_request(
             request.get("support_policy"), base=base, label="support_policy"
         )
     )
-    detector = ExactSupportDetector()
-    if support_policy.detector != detector.identity:
-        raise ValueError("canonical CLI currently admits only the frozen exact baseline")
+    detector = build_admitted_detector(support_policy.detector)
     authority_policy = AuthorityPolicy.from_mapping(
         _load_mapping(
             request.get("authority_policy"), base=base, label="authority_policy"

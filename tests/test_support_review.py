@@ -1,3 +1,4 @@
+import dataclasses
 import csv
 import io
 import json
@@ -6,6 +7,7 @@ import pytest
 
 from groundnut.provenance import sha256_text
 from groundnut.support_review import (
+    build_pilot_probe_with_receipt,
     PilotReviewManifest,
     PilotReviewRow,
     apply_review_decisions_tsv,
@@ -86,14 +88,14 @@ def manifest():
     )
 
 
-def completed_rows():
-    current = manifest()
+def completed_rows(current=None, overrides=None, per_row=None):
+    current = current or manifest()
     text = review_decisions_tsv(current.rows)
     reader = csv.DictReader(io.StringIO(text), dialect="excel-tab")
     output = io.StringIO(newline="")
     writer = csv.DictWriter(output, fieldnames=reader.fieldnames, dialect="excel-tab")
     writer.writeheader()
-    for row in reader:
+    for index, row in enumerate(reader):
         row.update(
             {
                 "irrelevant_decision": "accepted",
@@ -105,6 +107,8 @@ def completed_rows():
                 "paraphrase_reviewer_id": "human:r1",
                 "contradiction_decision": "accepted",
                 "contradiction_reviewer_id": "human:r1",
+                **(overrides or {}),
+                **((per_row or {}).get(index, {})),
             }
         )
         writer.writerow(row)
@@ -150,6 +154,70 @@ def test_completed_review_builds_a_valid_balanced_probe():
     }
     contexts = probe.contexts({"doc.txt": SOURCE}, len(SOURCE))
     assert len(set(contexts.values())) == 1
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"irrelevant_reviewer_id": "agent:gpt-x"},
+        {"paraphrase_reviewer_id": "agent:gpt-x"},
+        {"contradiction_reviewer_id": "agent:gpt-x"},
+        {"paraphrase_reviewer_id": "human:"},
+        {"paraphrase_author_id": "human:r1", "paraphrase_author_kind": "agent"},
+    ],
+)
+def test_accepted_decisions_require_a_separate_human_reviewer(overrides):
+    with pytest.raises(ValueError, match="human: reviewer|cannot be its author"):
+        completed_rows(overrides=overrides)
+
+
+def test_human_may_author_and_accept_their_own_paraphrase():
+    _, rows = completed_rows(
+        overrides={"paraphrase_author_id": "human:r1", "paraphrase_author_kind": "human"}
+    )
+    assert all(row.ready for row in rows)
+
+
+def test_reserve_replacement_is_recorded_in_the_build_receipt():
+    second = dataclasses.replace(
+        candidate(), candidate_id="candidate-2", target_seed_id="seed-b", source_id="other.txt"
+    )
+    second_seed = dataclasses.replace(seed(), seed_id="seed-b", source_id="other.txt")
+    sources = {"doc.txt": SOURCE, "other.txt": SOURCE}
+    current = prepare_review_manifest(
+        (candidate(), second),
+        sources,
+        target_group_count=1,
+        reserve_count=1,
+        sampling_seed=991,
+        max_context_characters=len(SOURCE),
+        source_pool_sha256="a" * 64,
+        excluded_pool_sha256="b" * 64,
+        lexical_overlap_min=0.2,
+        lexical_overlap_max=0.8,
+    )
+    first_rejected = {
+        index: {"irrelevant_decision": "rejected"}
+        for index, row in enumerate(current.rows)
+        if row.candidate.candidate_id == current.rows[0].candidate.candidate_id
+    }
+    current, rows = completed_rows(current, per_row=first_rejected)
+    reviewed = PilotReviewManifest.from_mapping(current.to_dict(), rows)
+    probe, receipt = build_pilot_probe_with_receipt(
+        reviewed, (seed(), second_seed), sources, build_attempt=2
+    )
+
+    assert probe.group_count == 1
+    assert receipt.to_dict() == {
+        "schema": "groundnut-support-probe-build/v2",
+        "probe_sha256": probe.sha256,
+        "review_manifest_sha256": reviewed.sha256,
+        "build_attempt": 2,
+        "rows_walked": 2,
+        "selected": 1,
+        "rejected": 1,
+        "ambiguous": 0,
+    }
 
 
 def test_pending_review_cannot_be_promoted():

@@ -114,3 +114,22 @@ def test_module_cli_fails_closed_with_machine_readable_error():
     assert result.returncode == 2
     assert result.stdout == ""
     assert json.loads(result.stderr)["schema"] == ERROR_SCHEMA
+
+
+def test_canonical_path_refuses_unadmitted_detectors():
+    from groundnut.admitted_detectors import (
+        admitted_detector_identities,
+        build_admitted_detector,
+    )
+    from groundnut.support import DetectorIdentity, ExactSupportDetector
+
+    assert list(admitted_detector_identities()) == [ExactSupportDetector.identity]
+    foreign = DetectorIdentity(
+        adapter="groundnut.alignscore",
+        model="nli",
+        revision="1",
+        package="alignscore",
+        package_version="0.1",
+    )
+    with pytest.raises(ValueError, match="not admitted to the canonical path"):
+        build_admitted_detector(foreign)
