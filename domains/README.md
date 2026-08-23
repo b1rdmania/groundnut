@@ -8,6 +8,9 @@ in Groundnut. All three currently declare `experimental` evidence status:
   existing 41-category evaluation taxonomy and cannot inherit that score.
 - `grant_compliance` and `trust_obligations` have demonstration corpora but no
   labelled evaluation or frozen acceptance bar.
+- `ic_research` is the one-category shadow pack for investment-committee
+  research reports, used by `python3 -m groundnut.ic_loop`. It carries no
+  IC-domain quality claim.
 
 Run a built-in pack with:
 

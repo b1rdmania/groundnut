@@ -124,3 +124,39 @@ def test_ledger_cli_writes_json_and_markdown(tmp_path):
     assert "$184,000" in text
     assert "not a statement that the claim is true" in text
     assert render_ledger_markdown(build_claim_ledger(execution, artifact.read_text())) == text
+
+
+def test_ic_loop_replays_offline_and_writes_the_four_artifacts(tmp_path):
+    from groundnut.ic_loop import main as loop_main
+
+    artifact, _ = _run(tmp_path)
+    out = tmp_path / "loop"
+    out.mkdir()
+    (out / "snapshots").mkdir()
+    for item in (tmp_path / "snapshots").iterdir():
+        (out / "snapshots" / item.name).write_bytes(item.read_bytes())
+    code = loop_main(["--report", str(artifact), "--out", str(out), "--replay-only"])
+    assert code == 0
+    for name in ("request.json", "run.json", "ledger.json", "ledger.md"):
+        assert (out / name).exists()
+    request = json.loads((out / "request.json").read_text())
+    assert request["acquisition_mode"] == "replay_only"
+    assert request["domain"]["key"] == "ic_research"
+    ledger = json.loads((out / "ledger.json").read_text())
+    assert ledger["counts"]["units"] == 6
+
+
+def test_ic_loop_refuses_network_without_consent(tmp_path, monkeypatch):
+    from groundnut import ic_loop
+
+    artifact, _ = _run(tmp_path)
+    out = tmp_path / "loop"
+    out.mkdir()
+    calls = []
+    monkeypatch.setattr(
+        ic_loop, "execute_request",
+        lambda request, **kw: calls.append(kw) or {"schema": "groundnut-canonical-error/v1"},
+    )
+    code = ic_loop.main(["--report", str(artifact), "--out", str(out), "--replay-only"])
+    assert code == 2
+    assert calls == [{"base_directory": out, "allow_live": False}]
