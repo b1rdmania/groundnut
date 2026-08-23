@@ -48,6 +48,15 @@ run hash and the artifact hash and fails if either differs. The profile must
 be the one the run used; pipelines that emit `ic-source-quote` comments set
 `evidence_comment_prefix` to `ic-source`.
 
+## Live run, 23 August
+
+Same report, empty snapshot directory, `snapshot_preferred`: 67 seconds, 74 of
+85 sources fetched and archived, 11 failed (5 × HTTP 403, 2 × 404, one PDF,
+one 999, one redirect loop). Ledger 63 / 42 / 296, identical to the 17 August
+replay. HTTPS fetches use a certifi CA bundle when one is installed, because
+some Python builds have no system trust store and would otherwise report every
+source as unreachable.
+
 ## Segmentation
 
 Every count depends on the segmenter, whose identity is hashed into the

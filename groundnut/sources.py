@@ -120,6 +120,27 @@ def html_to_text(value: str) -> str:
     return parser.text()
 
 
+def default_opener() -> Callable:
+    """urlopen with a certifi CA bundle when one is installed.
+
+    Some Python builds ship without a usable system trust store and fail every
+    HTTPS fetch with ``CERTIFICATE_VERIFY_FAILED``; the ledger then reports
+    every source as unreachable, which is a tooling fact, not an evidence fact.
+    """
+    try:
+        import certifi
+    except ImportError:  # pragma: no cover - depends on the host environment
+        return urllib.request.urlopen
+    import ssl
+
+    context = ssl.create_default_context(cafile=certifi.where())
+
+    def opener(request, *, timeout):
+        return urllib.request.urlopen(request, timeout=timeout, context=context)
+
+    return opener
+
+
 class HttpResolver:
     """Small standard-library HTTP adapter; no provider credentials involved."""
 
@@ -127,10 +148,10 @@ class HttpResolver:
         self,
         *,
         timeout: int = 20,
-        opener: Callable = urllib.request.urlopen,
+        opener: Callable | None = None,
     ) -> None:
         self.timeout = timeout
-        self.opener = opener
+        self.opener = opener or default_opener()
 
     def resolve(self, reference: SourceReference) -> SourceResolution:
         request = urllib.request.Request(
