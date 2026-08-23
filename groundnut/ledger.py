@@ -43,7 +43,7 @@ DRIFT_REASONS = ("quote_not_found", "quote_ambiguous", "no_excerpt", "source_una
 OWN_KINDS = ("declared", "numeric", "narrative")
 
 _NUMERIC = re.compile(r"(?<![\w/])(?:[£$€]\s?\d|\d+(?:\.\d+)?\s?(?:%|x\b|×|m\b|bn\b|k\b)|\b\d{1,3}(?:,\d{3})+\b|\b\d+(?:\.\d+)?\b)")
-_SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z\"'(\[])")
+_SENTENCE_END = re.compile(r"(?P<end>[.!?][*_\"')\]]*)\s+(?=[A-Z\"'(\[*_])")
 _HEADING = re.compile(r"^\s{0,3}#{1,6}\s")
 _HR = re.compile(r"^\s{0,3}([-*_])(?:\s*\1){2,}\s*$")
 _TABLE = re.compile(r"^\s*\|")
@@ -380,7 +380,7 @@ def _raw_sentences(line: str) -> list[str]:
     pieces = []
     start = 0
     for match in _SENTENCE_END.finditer(masked):
-        pieces.append(line[start : match.start()])
+        pieces.append(line[start : match.end("end")])
         start = match.end()
     pieces.append(line[start:])
     return [piece for piece in pieces if piece.strip()]
@@ -390,7 +390,12 @@ def _sentences(line: str, segmenter: LedgerSegmenter) -> list[str]:
     cleaned = _clean(line)
     if not cleaned:
         return []
-    units = _SENTENCE_END.split(cleaned)
+    units = []
+    start = 0
+    for match in _SENTENCE_END.finditer(cleaned):
+        units.append(cleaned[start : match.end("end")])
+        start = match.end()
+    units.append(cleaned[start:])
     return [unit.strip() for unit in units if len(unit.split()) >= segmenter.min_words]
 
 
