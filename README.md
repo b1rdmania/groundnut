@@ -67,7 +67,7 @@ against an adversary, and an unfinished semantic judge.
 
 - The claim ledger (`docs/LEDGER.md`) puts every prose unit of a report in one
   of three buckets: cited and verified, cited but drifted, own reasoning. On
-  the first real report: 382 units, 63 / 42 / 277. That is the product shape;
+  the first real report: 397 units, 63 / 42 / 292. That is the product shape;
   the semantic judge slots into the middle bucket when one is admitted.
 
 The immediate job is to measure the semantic-support layer properly. The next

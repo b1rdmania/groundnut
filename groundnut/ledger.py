@@ -67,7 +67,7 @@ class LedgerSegmenter:
             "min_words": self.min_words,
             "rules": [
                 "frontmatter, headings, horizontal rules, table rows, and fenced code are not claims",
-                                "prose lines split into sentences; a sentence with a citation is one cited unit per citation; list items are one unit each",
+                                "prose lines and list items split into sentences; a sentence with a citation is one cited unit per citation",
                 f"units under {self.min_words} words are dropped",
                 "HTML comments and inline markdown are stripped before counting words",
             ],
@@ -377,8 +377,6 @@ def _raw_sentences(line: str) -> list[str]:
     """
     masked = _COMMENT.sub(lambda m: " " * len(m.group(0)), line)
     masked = _MD_LINK.sub(lambda m: "x" * len(m.group(0)), masked)
-    if _LIST.match(line):
-        return [line]
     pieces = []
     start = 0
     for match in _SENTENCE_END.finditer(masked):
@@ -392,10 +390,7 @@ def _sentences(line: str, segmenter: LedgerSegmenter) -> list[str]:
     cleaned = _clean(line)
     if not cleaned:
         return []
-    if _LIST.match(line):
-        units = [cleaned]
-    else:
-        units = _SENTENCE_END.split(cleaned)
+    units = _SENTENCE_END.split(cleaned)
     return [unit.strip() for unit in units if len(unit.split()) >= segmenter.min_words]
 
 
