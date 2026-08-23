@@ -40,18 +40,21 @@ be the one the run used; pipelines that emit `ic-source-quote` comments set
 
 Every count depends on the segmenter, whose identity is hashed into the
 ledger. Rules: frontmatter, headings, horizontal rules, table rows, and fenced
-code are not claims; a line with an HTTP citation is one cited unit per
-citation (the artifact segmenter's rule); other prose lines split into
-sentences; list items are one unit each; units under eight words are dropped.
+code are not claims; prose lines split into sentences; a sentence with an
+HTTP citation is one cited unit per citation; uncited sentences in the same
+paragraph are their own units; list items are one unit each; units under
+eight words are dropped.
 
-Known coarseness: a cited line carries its whole line as the unit text, so a
-paragraph with two citations appears twice, and uncited sentences inside a
-cited paragraph are not separated out.
+Known coarseness: a sentence with two citations appears twice, once per
+citation.
 
 ## First real ledger
 
 RxClarity research report (private), 22 August 2026, exact baseline detector,
-replay from the 17 August snapshots: 329 units — 63 cited and verified, 42
-cited but drifted (11 not found, 13 ambiguous, 8 no excerpt, 10 source
-unavailable), 224 own reasoning (66 numeric, 158 narrative). Private rows stay
+replay from the 17 August snapshots, segmenter v2: 382 units — 63 cited and
+verified, 42 cited but drifted (11 not found, 13 ambiguous, 8 no excerpt, 10
+source unavailable), 277 own reasoning (74 numeric, 203 narrative). Segmenter
+v1, which kept whole cited paragraphs as one unit, reported 329 / 63 / 42 /
+224; the difference is the uncited sentences that v1 hid inside cited
+paragraphs. Private rows stay
 in the IC run directory; only these aggregates are public.

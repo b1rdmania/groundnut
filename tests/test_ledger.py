@@ -26,7 +26,7 @@ Opening remark that is short.
 
 The company reported that [revenue was 4.2 million](https://example.test/filing "Source") <!-- groundnut-source-quote: Revenue was 4.2 million. --> in the last filing.
 
-The company also said [headcount doubled](https://example.test/filing "Source") <!-- groundnut-source-quote: Headcount tripled in the period. --> over the same period.
+The company also said [headcount doubled](https://example.test/filing "Source") <!-- groundnut-source-quote: Headcount tripled in the period. --> over the same period. From that we infer the team will reach forty people by the end of next year.
 
 At a $26,000 price and $20,000 of switching cost the condition requires value above $184,000 per year. The founders are clearly capable of executing on this plan in our view.
 
@@ -73,13 +73,18 @@ def test_ledger_puts_every_prose_unit_in_exactly_one_bucket(tmp_path):
     ledger = build_claim_ledger(execution, artifact.read_text())
 
     by_detail = ledger.counts["by_detail"]
-    assert ledger.counts["units"] == 5
+    assert ledger.counts["units"] == 6
     assert by_detail == {
         "cited_verified:found": 1,
         "cited_drifted:quote_not_found": 1,
         "own_reasoning:numeric": 1,
-        "own_reasoning:narrative": 2,
+        "own_reasoning:narrative": 3,
     }
+    inferred = [row for row in ledger.rows if row.text.startswith("From that we infer")]
+    assert inferred and inferred[0].bucket == "own_reasoning"
+    drifted = [row for row in ledger.rows if row.bucket == "cited_drifted"]
+    assert drifted[0].text.startswith("The company also said headcount doubled")
+    assert "From that we infer" not in drifted[0].text
     assert sum(ledger.counts["by_bucket"].values()) == ledger.counts["units"]
     assert {row.bucket for row in ledger.rows} <= set(BUCKETS)
     cited = [row for row in ledger.rows if row.bucket.startswith("cited")]

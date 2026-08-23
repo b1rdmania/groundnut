@@ -57,7 +57,7 @@ MIN_WORDS = 8
 @dataclass(frozen=True)
 class LedgerSegmenter:
     key: str = "groundnut.ledger-prose-segmenter"
-    version: str = "1"
+    version: str = "2"
     min_words: int = MIN_WORDS
 
     def canonical_payload(self) -> dict[str, Any]:
@@ -67,8 +67,7 @@ class LedgerSegmenter:
             "min_words": self.min_words,
             "rules": [
                 "frontmatter, headings, horizontal rules, table rows, and fenced code are not claims",
-                "a line with an HTTP citation is one cited unit, as in the artifact segmenter",
-                "other prose lines split into sentences; list items are one unit each",
+                                "prose lines split into sentences; a sentence with a citation is one cited unit per citation; list items are one unit each",
                 f"units under {self.min_words} words are dropped",
                 "HTML comments and inline markdown are stripped before counting words",
             ],
@@ -181,22 +180,30 @@ def build_claim_ledger(
     rows: list[LedgerRow] = []
     counter = 0
     for line_number, line in _prose_lines(artifact_text):
-        cited = list(_LINK.finditer(line))
-        if cited:
-            for index, _ in enumerate(cited):
-                location = f"line {line_number}"
-                key = (location, index)
-                if key not in accounts:
-                    raise ValueError(
-                        f"run has no account for citation {index + 1} on {location}; "
-                        "run and artifact were produced with different segmenters"
+        location = f"line {line_number}"
+        citation_index = 0
+        for raw_sentence in _raw_sentences(line):
+            links = list(_LINK.finditer(raw_sentence))
+            if links:
+                for _ in links:
+                    key = (location, citation_index)
+                    if key not in accounts:
+                        raise ValueError(
+                            f"run has no account for citation {citation_index + 1} on "
+                            f"{location}; run and artifact were produced with different "
+                            "segmenters"
+                        )
+                    citation_index += 1
+                    counter += 1
+                    rows.append(
+                        _cited_row(
+                            f"u{counter}", line_number, raw_sentence, accounts.pop(key), profile
+                        )
                     )
+                continue
+            for sentence in _sentences(raw_sentence, segmenter):
                 counter += 1
-                rows.append(_cited_row(f"u{counter}", line_number, line, accounts.pop(key), profile))
-            continue
-        for sentence in _sentences(line, segmenter):
-            counter += 1
-            rows.append(_own_row(f"u{counter}", line_number, sentence, line, profile))
+                rows.append(_own_row(f"u{counter}", line_number, sentence, line, profile))
     if accounts:
         leftover = sorted(f"{loc}#{idx + 1}" for loc, idx in accounts)
         raise ValueError(f"run accounts not found in artifact: {leftover[:5]}")
@@ -360,6 +367,25 @@ def _prose_lines(text: str):
         if _HEADING.match(line) or _HR.match(line) or _TABLE.match(line):
             continue
         yield number, line
+
+
+def _raw_sentences(line: str) -> list[str]:
+    """Split a line into sentences with links and comments left intact.
+
+    Comments are masked so a full stop inside a quoted excerpt does not end a
+    sentence; the split positions are then applied to the original text.
+    """
+    masked = _COMMENT.sub(lambda m: " " * len(m.group(0)), line)
+    masked = _MD_LINK.sub(lambda m: "x" * len(m.group(0)), masked)
+    if _LIST.match(line):
+        return [line]
+    pieces = []
+    start = 0
+    for match in _SENTENCE_END.finditer(masked):
+        pieces.append(line[start : match.start()])
+        start = match.end()
+    pieces.append(line[start:])
+    return [piece for piece in pieces if piece.strip()]
 
 
 def _sentences(line: str, segmenter: LedgerSegmenter) -> list[str]:
