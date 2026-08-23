@@ -57,6 +57,12 @@ replay. HTTPS fetches use a certifi CA bundle when one is installed, because
 some Python builds have no system trust store and would otherwise report every
 source as unreachable.
 
+PDF sources are read through their text layer (pypdf); scanned PDFs with no
+text layer stay `pdf_unsupported`. With that, the Citeline investor-day PDF
+resolved and its quotation was found: 64 / 41 / 296 on the 23 August rerun.
+Two more sources happened to fail that run (live sites vary between fetches);
+the snapshot directory is what makes a run reproducible, not the internet.
+
 ## Segmentation
 
 Every count depends on the segmenter, whose identity is hashed into the
