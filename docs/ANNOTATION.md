@@ -119,8 +119,15 @@ python3 scripts/build_support_probe.py \
   --manifest /path/to/support-pilot-review.jsonl.manifest.json \
   --seeds /path/to/groundnut-support-seeds.jsonl \
   --corpus-root /path/to/data/corpus \
-  --output /path/to/support-pilot-cases.jsonl
+  --output /path/to/support-pilot-cases.jsonl \
+  --build-attempt 1
 ```
+
+`--build-attempt` is 1 for the first build of a review manifest and must be
+incremented on every rebuild. The build writes
+`support-pilot-cases.jsonl.build.json`, a receipt with rows walked, rejected,
+ambiguous, selected, and the attempt number; `freeze_support_plan.py` requires
+it and binds it into the plan.
 
 Pending rows fail closed. Accepted irrelevance, paraphrase, and contradiction
 decisions each require a reviewer identity; agent-authored paraphrases retain

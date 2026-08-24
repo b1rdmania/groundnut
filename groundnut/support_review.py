@@ -13,7 +13,13 @@ import re
 from typing import Any, Iterable, Mapping
 
 from .provenance import sha256_text
-from .support_cases import CASE_KINDS, CaseProvenance, SupportCase, SupportProbe
+from .support_cases import (
+    CASE_KINDS,
+    CaseProvenance,
+    SupportCase,
+    SupportProbe,
+    contexts_sha256,
+)
 from .support_seeds import AttestedSpanSeed, PresentIrrelevantCandidate
 
 
@@ -21,6 +27,7 @@ REVIEW_SCHEMA = "groundnut-support-pilot-review/v1"
 REVIEW_MANIFEST_SCHEMA = "groundnut-support-pilot-review-manifest/v1"
 DECISIONS = {"pending", "accepted", "rejected", "ambiguous"}
 AUTHOR_KINDS = {"human", "agent"}
+HUMAN_REVIEWER_PREFIX = "human:"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _NEGATION_PATTERNS = (
     (re.compile(r"\b(shall|must|will|should|may|can)\s+not\b", re.I), r"\1"),
@@ -98,10 +105,10 @@ class PilotReviewRow:
         object.__setattr__(self, "input_sha256", expected_hash)
 
     def _validate_review_fields(self) -> None:
-        if self.irrelevant_decision == "accepted" and not _present(
+        if self.irrelevant_decision == "accepted" and not _human_reviewer(
             self.irrelevant_reviewer_id
         ):
-            raise ValueError("accepted irrelevant ruling requires a reviewer")
+            raise ValueError("accepted irrelevant ruling requires a human: reviewer")
         paraphrase_fields = (
             self.paraphrase_text,
             self.paraphrase_author_kind,
@@ -112,12 +119,17 @@ class PilotReviewRow:
                 raise ValueError("accepted paraphrase requires text and author identity")
             if self.paraphrase_author_kind not in AUTHOR_KINDS:
                 raise ValueError("accepted paraphrase author must be human or agent")
-            if not _present(self.paraphrase_reviewer_id):
-                raise ValueError("accepted paraphrase requires a human reviewer")
-        if self.contradiction_decision == "accepted" and not _present(
+            if not _human_reviewer(self.paraphrase_reviewer_id):
+                raise ValueError("accepted paraphrase requires a human: reviewer")
+            if (
+                self.paraphrase_author_kind == "agent"
+                and self.paraphrase_reviewer_id == self.paraphrase_author_id
+            ):
+                raise ValueError("accepted agent paraphrase reviewer cannot be its author")
+        if self.contradiction_decision == "accepted" and not _human_reviewer(
             self.contradiction_reviewer_id
         ):
-            raise ValueError("accepted contradiction requires a reviewer")
+            raise ValueError("accepted contradiction requires a human: reviewer")
 
     @property
     def ready(self) -> bool:
@@ -454,19 +466,82 @@ def apply_review_decisions_tsv(
     return tuple(reviewed[row.input_sha256] for row in frozen)
 
 
+def _human_reviewer(value: str | None) -> bool:
+    return (
+        _present(value)
+        and value.startswith(HUMAN_REVIEWER_PREFIX)
+        and bool(value[len(HUMAN_REVIEWER_PREFIX) :].strip())
+    )
+
+
+@dataclass(frozen=True)
+class PilotBuildReceipt:
+    """What the build walked past to fill the target; makes retries visible."""
+
+    schema: str
+    probe_sha256: str
+    review_manifest_sha256: str
+    build_attempt: int
+    contexts_sha256: str
+    rows_walked: int
+    selected: int
+    rejected: int
+    ambiguous: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return dict(self.__dict__)
+
+
+BUILD_RECEIPT_SCHEMA = "groundnut-support-probe-build/v2"
+
+
 def build_pilot_probe(
     manifest: PilotReviewManifest,
     seeds: Iterable[AttestedSpanSeed],
     sources: Mapping[str, str],
 ) -> SupportProbe:
     """Promote the first preregistered ready rows; pending rows fail closed."""
+    probe, _ = build_pilot_probe_with_receipt(
+        manifest, seeds, sources, build_attempt=1
+    )
+    return probe
+
+
+def build_pilot_probe_with_receipt(
+    manifest: PilotReviewManifest,
+    seeds: Iterable[AttestedSpanSeed],
+    sources: Mapping[str, str],
+    *,
+    build_attempt: int,
+) -> tuple[SupportProbe, PilotBuildReceipt]:
+    """Like build_pilot_probe, and also records rows walked, rejected, ambiguous."""
+    if build_attempt < 1:
+        raise ValueError("build attempt must be at least 1")
     by_seed = {seed.seed_id: seed for seed in seeds}
     selected = []
+    walked = rejected = ambiguous = 0
     for row in manifest.rows:
+        walked += 1
+        decisions = {
+            row.irrelevant_decision,
+            row.paraphrase_decision,
+            row.contradiction_decision,
+        }
         if row.ready:
             selected.append(row)
             if len(selected) == manifest.target_group_count:
                 break
+        elif "pending" in decisions:
+            raise ValueError(
+                f"pilot review is pending before target is filled: "
+                f"{row.candidate.candidate_id}"
+            )
+        elif "rejected" in decisions:
+            rejected += 1
+        else:
+            ambiguous += 1
+        if False:  # pragma: no cover - structure kept for the original branch below
+            pass
         elif "pending" in {
             row.irrelevant_decision,
             row.paraphrase_decision,
@@ -570,7 +645,20 @@ def build_pilot_probe(
     probe = SupportProbe(tuple(cases))
     probe.validate_sources(sources)
     probe.contexts(sources, manifest.max_context_characters)
-    return probe
+    receipt = PilotBuildReceipt(
+        schema=BUILD_RECEIPT_SCHEMA,
+        probe_sha256=probe.sha256,
+        review_manifest_sha256=manifest.sha256,
+        build_attempt=build_attempt,
+        contexts_sha256=contexts_sha256(
+            probe.contexts(sources, manifest.max_context_characters)
+        ),
+        rows_walked=walked,
+        selected=len(selected),
+        rejected=rejected,
+        ambiguous=ambiguous,
+    )
+    return probe, receipt
 
 
 def load_review_rows(path: str | Path) -> tuple[PilotReviewRow, ...]:

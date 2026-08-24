@@ -13,7 +13,13 @@ from groundnut.support import (
 )
 from groundnut.support_admission import RecordedProbeRun, evaluate_support_admission
 from groundnut.support_bakeoff import run_support_bakeoff
-from groundnut.support_cases import CASE_KINDS, CaseProvenance, SupportCase, SupportProbe
+from groundnut.support_cases import (
+    CASE_KINDS,
+    CaseProvenance,
+    SupportCase,
+    SupportProbe,
+    contexts_sha256,
+)
 from groundnut.support_gate_cli import main as gate_main
 from groundnut.support_runner import run_support_probe
 
@@ -144,6 +150,11 @@ def setup_runs():
         probe_sha256=current_probe.sha256,
         source_pool_sha256="a" * 64,
         excluded_pool_sha256="b" * 64,
+        review_manifest_sha256="c" * 64,
+        build_attempt=1,
+        contexts_sha256=contexts_sha256(
+            current_probe.contexts({"s1": SOURCE}, len(SOURCE))
+        ),
         max_context_characters=len(SOURCE),
         primary_metric="macro_f1",
         minimum_improvement=0.05,
@@ -167,12 +178,20 @@ def setup_runs():
     return plan, run(exact, "exact"), run(perfect, "perfect"), run(regressing, "regressing")
 
 
+def current_probe_for(plan):
+    current = probe()
+    assert current.sha256 == plan.probe_sha256
+    return current
+
+
 def test_admission_recomputes_scores_and_passes_a_real_improvement():
     plan, baseline, perfect, _ = setup_runs()
     baseline_record = RecordedProbeRun.from_mapping(baseline.to_dict())
     candidate_record = RecordedProbeRun.from_mapping(perfect.to_dict())
 
-    report = evaluate_support_admission(plan, baseline_record, candidate_record)
+    report = evaluate_support_admission(
+        plan, baseline_record, candidate_record, probe=current_probe_for(plan)
+    )
 
     assert report.passed is True
     assert report.improvement >= plan.minimum_improvement
@@ -186,6 +205,7 @@ def test_admission_fails_material_kind_regression_even_with_aggregate_gain():
         plan,
         RecordedProbeRun.from_mapping(baseline.to_dict()),
         RecordedProbeRun.from_mapping(regressing.to_dict()),
+        probe=current_probe_for(plan),
     )
 
     assert report.candidate_value > report.baseline_value
@@ -223,13 +243,53 @@ def test_recorded_run_rejects_context_rows_not_shared_by_gold():
         RecordedProbeRun.from_mapping(value)
 
 
+def test_admission_rejects_gold_rows_that_are_not_the_frozen_probe():
+    plan, baseline, perfect, _ = setup_runs()
+    # Internally consistent run over different cases, with the frozen probe
+    # hash pasted in from the plan. Only the loaded probe can catch this.
+    forged = json.loads(json.dumps(perfect.to_dict()).replace("g1-", "g9-"))
+    rehash(forged)
+    with pytest.raises(ValueError, match="not the frozen probe cases"):
+        evaluate_support_admission(
+            plan,
+            RecordedProbeRun.from_mapping(baseline.to_dict()),
+            RecordedProbeRun.from_mapping(forged),
+            probe=current_probe_for(plan),
+        )
+
+
+def test_admission_rejects_rehashed_runs_with_fabricated_contexts():
+    plan, baseline, perfect, _ = setup_runs()
+
+    def forge_contexts(run):
+        value = json.loads(json.dumps(run.to_dict()))
+        for row in value["contexts"]:
+            row["sha256"] = "d" * 64
+        for row in value["assessments"]:
+            row["support"]["source_sha256"] = "d" * 64
+        rehash(value)
+        return RecordedProbeRun.from_mapping(value)
+
+    with pytest.raises(ValueError, match="not the frozen probe contexts"):
+        evaluate_support_admission(
+            plan,
+            forge_contexts(baseline),
+            forge_contexts(perfect),
+            probe=current_probe_for(plan),
+        )
+
+
 def test_support_gate_cli_writes_replayable_report(tmp_path):
     plan, baseline, perfect, _ = setup_runs()
     plan_path = tmp_path / "plan.json"
     baseline_path = tmp_path / "baseline.json"
     candidate_path = tmp_path / "candidate.json"
     output_path = tmp_path / "admission.json"
+    probe_path = tmp_path / "probe.jsonl"
     plan_path.write_text(json.dumps(plan.to_dict()))
+    probe_path.write_text(
+        "".join(json.dumps(case.canonical_payload()) + "\n" for case in current_probe_for(plan).cases)
+    )
     baseline_path.write_text(json.dumps(baseline.to_dict()))
     candidate_path.write_text(json.dumps(perfect.to_dict()))
 
@@ -237,6 +297,8 @@ def test_support_gate_cli_writes_replayable_report(tmp_path):
         [
             "--plan",
             str(plan_path),
+            "--probe",
+            str(probe_path),
             "--baseline",
             str(baseline_path),
             "--candidate",
@@ -274,6 +336,11 @@ def test_bakeoff_runs_every_frozen_policy_and_writes_hashed_artifacts(tmp_path):
         probe_sha256=current_probe.sha256,
         source_pool_sha256="a" * 64,
         excluded_pool_sha256="b" * 64,
+        review_manifest_sha256="c" * 64,
+        build_attempt=1,
+        contexts_sha256=contexts_sha256(
+            current_probe.contexts({"s1": SOURCE}, len(SOURCE))
+        ),
         max_context_characters=len(SOURCE),
         primary_metric="macro_f1",
         minimum_improvement=0.05,

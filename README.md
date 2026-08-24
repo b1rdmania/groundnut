@@ -29,16 +29,20 @@ claims + evidence universe + frozen policy
        hashes | offsets | provenance | replay | explicit uncertainty
 ```
 
-The goal is not one perfect model. Groundnut can combine deterministic checks,
-navigation, relevance, entailment, contradiction, and adversarial review. Each
-part stays labelled, pinned, measured, replayable, and removable.
+The goal is not one perfect model. Groundnut is built to combine deterministic
+checks, navigation, relevance, entailment, contradiction, and adversarial
+review behind one frozen policy. Today the canonical path runs the
+deterministic checks and one admitted signal; the composition stage exists only
+as an exploratory shadow receipt. Each part stays labelled, pinned, measured,
+replayable, and removable.
 
 Products supply domain policy, credentials, audience, and presentation. They
 must not rebuild the checking engine.
 
 ## Where it stands, in plain English
 
-Groundnut has a strong control system and an unfinished semantic judge.
+Groundnut has a fail-closed control system that has not yet been exercised
+against an adversary, and an unfinished semantic judge.
 
 - The engine can ingest reports, preserve citations, snapshot sources, anchor
   excerpts, record provenance, run component signals, abstain safely, and
@@ -52,13 +56,19 @@ Groundnut has a strong control system and an unfinished semantic judge.
 - Seven learned approaches have been explored. None is admitted as the final
   judge. AlignScore is the strongest complete-label candidate. Extractive QA is
   the strongest independent relevance candidate.
-- Structured navigation now has a strict, hash-bound interface. Short handles
-  increased exact evidence coverage from 3/100 to 13/100 with Qwen3 0.6B. That
-  model is still rejected, because 13% recall is unsafe.
+- Structured navigation has a strict, hash-bound experimental interface. Short
+  handles increased exact evidence coverage from 3/100 to 13/100 with Qwen3
+  0.6B. That model is still rejected, because 13% recall is unsafe. Navigation
+  is not yet a stage of the canonical run.
 - The first private IC report exercised the controls end to end. The composer
   held every claim rather than assert one: 63 withheld, 32 needing validation,
   10 with unavailable sources, and no verification questions present. That is
   the fail-closed path at work, not a measurement of semantic accuracy.
+
+- The claim ledger (`docs/LEDGER.md`) puts every prose unit of a report in one
+  of three buckets: cited and verified, cited but drifted, own reasoning. On
+  the first real report: 401 units, 63 / 42 / 296. That is the product shape;
+  the semantic judge slots into the middle bucket when one is admitted.
 
 The immediate job is to measure the semantic-support layer properly. The next
 navigation job is a test of a stronger selector against the same frozen 100-case
@@ -85,7 +95,9 @@ Groundnut owns:
   authority signals
 - versioned domain packs, analytical provenance, and calculation lineage
 - frozen decision, abstention, and adversarial-review policies
-- render-parity checks that stop evidence disappearing from delivered reports
+- render-parity checks that detect evidence disappearing from delivered
+  reports when run (`python3 -m groundnut.render_cli`; not yet part of a
+  canonical run)
 - one replayable manifest for sources, policies, components, and outputs
 
 Groundnut does not own deployment identity, credentials, publication authority,
@@ -153,9 +165,16 @@ Replay-only acquisition is the default. Live acquisition is explicit, and the
 engine archives a successful live result before replay. Only the frozen
 exact-support baseline is admitted while the support gate is unmeasured.
 
-Specialist CLIs cover compatibility extraction, support evaluation, arena
-adjudication, annotation, navigation, and render parity. Each one is documented
-beside its contract.
+Module CLIs cover the canonical check, the support admission gate, arena
+adjudication, and render parity. Support review, annotation import, and
+navigation experiments are `scripts/` with their own argument surfaces; they are
+documented in `docs/SUPPORT.md`, `docs/ANNOTATION.md`, and `docs/NAVIGATION.md`
+but have no contract CLI yet.
+
+Which support detectors the canonical path will execute is decided by
+`groundnut/admitted_detectors.py`. Only the exact baseline is admitted; the
+canonical path therefore cannot emit `contradicted` until the support gate is
+measured and a detector passes it.
 
 The deterministic test suite is offline and needs Python 3.12 and `pytest`.
 

@@ -27,6 +27,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--key", required=True)
     parser.add_argument("--frozen-at", required=True)
     parser.add_argument("--probe", required=True, type=Path)
+    parser.add_argument("--build-receipt", required=True, type=Path)
     parser.add_argument("--review-jsonl", required=True, type=Path)
     parser.add_argument("--review-manifest", required=True, type=Path)
     parser.add_argument("--baseline-policy", action="append", required=True, type=Path)
@@ -44,6 +45,14 @@ def main(argv: list[str] | None = None) -> int:
         probe = SupportProbe.from_jsonl(args.probe)
         if probe.group_count != review.target_group_count:
             raise ValueError("probe group count differs from frozen review target")
+        receipt = json.loads(args.build_receipt.read_text())
+        if receipt.get("schema") != "groundnut-support-probe-build/v2":
+            raise ValueError("build receipt schema is not groundnut-support-probe-build/v2")
+        if receipt.get("probe_sha256") != probe.sha256:
+            raise ValueError("build receipt does not describe this probe")
+        if receipt.get("review_manifest_sha256") != review.sha256:
+            raise ValueError("build receipt does not describe this review manifest")
+        contexts_sha256 = str(receipt.get("contexts_sha256", ""))
         baseline = tuple(SupportPolicy.from_json(path) for path in args.baseline_policy)
         detectors = tuple(SupportPolicy.from_json(path) for path in args.detector_policy)
         policies = baseline + detectors
@@ -55,6 +64,9 @@ def main(argv: list[str] | None = None) -> int:
             probe_sha256=probe.sha256,
             source_pool_sha256=review.source_pool_sha256,
             excluded_pool_sha256=review.excluded_pool_sha256,
+            review_manifest_sha256=review.sha256,
+            build_attempt=int(receipt["build_attempt"]),
+            contexts_sha256=contexts_sha256,
             max_context_characters=review.max_context_characters,
             primary_metric=args.primary_metric,
             minimum_improvement=args.minimum_improvement,

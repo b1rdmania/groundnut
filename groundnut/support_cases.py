@@ -378,6 +378,27 @@ def _bounded_window(source_text: str, start: int, end: int, max_characters: int)
     return source_text[window_start:window_end]
 
 
+def context_digests_sha256(
+    rows: Iterable[tuple[str, str, int]],
+) -> str:
+    """Hash the ordered case-id/context-digest manifest used by a probe run."""
+    payload = [
+        {"case_id": case_id, "sha256": digest, "characters": characters}
+        for case_id, digest, characters in sorted(rows)
+    ]
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+def contexts_sha256(contexts: Mapping[str, str]) -> str:
+    """Hash the exact context text each frozen case will receive."""
+    return context_digests_sha256(
+        (case_id, sha256_text(text), len(text))
+        for case_id, text in contexts.items()
+    )
+
+
 def _require_unique(label: str, values: Iterable[str]) -> None:
     values = tuple(values)
     if len(values) != len(set(values)):

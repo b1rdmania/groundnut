@@ -19,7 +19,7 @@ from .support import (
     SupportPolicy,
     assess_claim_support,
 )
-from .support_cases import SupportProbe
+from .support_cases import SupportProbe, contexts_sha256
 from .support_eval import SupportGold, score_support
 from .verification import Claim, verify_claim
 
@@ -165,6 +165,8 @@ def run_support_probe(
     if policy.sha256 != plan.policy_sha256(policy.key):
         raise ValueError("support policy hash differs from frozen probe plan")
     contexts = probe.contexts(sources, max_context_characters)
+    if contexts_sha256(contexts) != plan.contexts_sha256:
+        raise ValueError("probe contexts differ from frozen plan")
     context_digests = []
     assessments = []
     for case in probe.cases:

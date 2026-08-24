@@ -13,7 +13,7 @@ if str(REPO) not in sys.path:
 
 from groundnut.support_review import (  # noqa: E402
     PilotReviewManifest,
-    build_pilot_probe,
+    build_pilot_probe_with_receipt,
     load_review_rows,
 )
 from groundnut.support_seeds import load_support_seeds  # noqa: E402
@@ -29,6 +29,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--seeds", required=True, type=Path)
     parser.add_argument("--corpus-root", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument(
+        "--build-attempt",
+        required=True,
+        type=int,
+        help="1 for the first build of this manifest; increment on every rebuild",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -40,7 +46,9 @@ def main(argv: list[str] | None = None) -> int:
         sources = _load_sources(
             args.corpus_root, {row.candidate.source_id for row in rows}
         )
-        probe = build_pilot_probe(manifest, seeds, sources)
+        probe, receipt = build_pilot_probe_with_receipt(
+            manifest, seeds, sources, build_attempt=args.build_attempt
+        )
     except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
         print(f"NOT READY: {error}")
         return 1
@@ -51,19 +59,10 @@ def main(argv: list[str] | None = None) -> int:
             for case in sorted(probe.cases, key=lambda row: row.case_id)
         )
     )
-    print(
-        json.dumps(
-            {
-                "schema": "groundnut-support-probe-build/v1",
-                "groups": probe.group_count,
-                "cases": len(probe.cases),
-                "probe_sha256": probe.sha256,
-                "review_manifest_sha256": manifest.sha256,
-                "output": str(args.output),
-            },
-            sort_keys=True,
-        )
-    )
+    receipt_path = args.output.with_suffix(args.output.suffix + ".build.json")
+    payload = {**receipt.to_dict(), "groups": probe.group_count, "cases": len(probe.cases)}
+    receipt_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    print(json.dumps({**payload, "output": str(args.output), "receipt": str(receipt_path)}, sort_keys=True))
     return 0
 
 

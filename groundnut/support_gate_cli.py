@@ -8,11 +8,13 @@ from pathlib import Path
 
 from .probe_plan import SupportProbePlan
 from .support_admission import RecordedProbeRun, evaluate_support_admission
+from .support_cases import SupportProbe
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Evaluate a frozen support detector run.")
     parser.add_argument("--plan", required=True, type=Path)
+    parser.add_argument("--probe", required=True, type=Path)
     parser.add_argument("--baseline", required=True, type=Path)
     parser.add_argument("--candidate", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
@@ -23,6 +25,7 @@ def main(argv: list[str] | None = None) -> int:
             SupportProbePlan.from_json(args.plan),
             RecordedProbeRun.from_json(args.baseline),
             RecordedProbeRun.from_json(args.candidate),
+            probe=SupportProbe.from_jsonl(args.probe),
         )
     except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
         print(f"INVALID: {error}")

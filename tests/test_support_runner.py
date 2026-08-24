@@ -6,7 +6,13 @@ from groundnut.provenance import sha256_text
 from groundnut.probe_plan import SupportProbePlan
 from groundnut.run_manifest import ArtifactDigest
 from groundnut.support import ExactSupportDetector, SupportPolicy
-from groundnut.support_cases import CASE_KINDS, CaseProvenance, SupportCase, SupportProbe
+from groundnut.support_cases import (
+    CASE_KINDS,
+    CaseProvenance,
+    SupportCase,
+    SupportProbe,
+    contexts_sha256,
+)
 from groundnut.support_runner import SupportProbeRun, run_support_probe
 
 
@@ -95,14 +101,20 @@ def exact():
 
 def plan(*, group_count=1, context=120, probe_hash=None):
     _, exact_policy = exact()
+    current_probe = probe()
     return SupportProbePlan(
         key="support-pilot-v1",
         frozen_at="2026-08-17T00:00:00Z",
         group_count=group_count,
         sampling_seed=991,
-        probe_sha256=probe_hash or probe().sha256,
+        probe_sha256=probe_hash or current_probe.sha256,
         source_pool_sha256="1" * 64,
         excluded_pool_sha256="2" * 64,
+        review_manifest_sha256="c" * 64,
+        build_attempt=1,
+        contexts_sha256=contexts_sha256(
+            current_probe.contexts({"s1": SOURCE}, context)
+        ),
         max_context_characters=context,
         primary_metric="macro_f1",
         minimum_improvement=0.05,

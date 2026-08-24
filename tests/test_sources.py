@@ -109,3 +109,59 @@ def test_http_resolver_keeps_paywall_distinct_from_unreachable():
 
     assert result.ok is False
     assert result.failure == "source_paywalled"
+
+
+def _pdf_bytes(text: str) -> bytes:
+    from pypdf import PdfWriter
+    import io
+
+    writer = PdfWriter()
+    page = writer.add_blank_page(width=300, height=300)
+    # pypdf cannot lay out text; build a minimal content stream by hand.
+    from pypdf.generic import DecodedStreamObject, NameObject, DictionaryObject
+
+    font = DictionaryObject(
+        {
+            NameObject("/Type"): NameObject("/Font"),
+            NameObject("/Subtype"): NameObject("/Type1"),
+            NameObject("/BaseFont"): NameObject("/Helvetica"),
+        }
+    )
+    page[NameObject("/Resources")] = DictionaryObject(
+        {NameObject("/Font"): DictionaryObject({NameObject("/F1"): writer._add_object(font)})}
+    )
+    stream = DecodedStreamObject()
+    stream.set_data(f"BT /F1 12 Tf 20 150 Td ({text}) Tj ET".encode())
+    page[NameObject("/Contents")] = writer._add_object(stream)
+    out = io.BytesIO()
+    writer.write(out)
+    return out.getvalue()
+
+
+def test_http_resolver_extracts_pdf_text_layer():
+    body = _pdf_bytes("Revenue was 4.2 million.")
+    resolver = HttpResolver(
+        opener=lambda request, timeout: _Response(body, media_type="application/pdf")
+    )
+    result = resolver.resolve(SourceReference("pdf-1", "https://example.test/filing.pdf"))
+
+    assert result.ok is True
+    assert "Revenue was 4.2 million." in result.source.text
+    assert result.source.media_type == "application/pdf"
+
+
+def test_http_resolver_reports_pdf_without_text_layer_as_unsupported():
+    from pypdf import PdfWriter
+    import io
+
+    writer = PdfWriter()
+    writer.add_blank_page(width=100, height=100)
+    out = io.BytesIO()
+    writer.write(out)
+    resolver = HttpResolver(
+        opener=lambda request, timeout: _Response(out.getvalue(), media_type="application/pdf")
+    )
+    result = resolver.resolve(SourceReference("pdf-2", "https://example.test/scan.pdf"))
+
+    assert result.ok is False
+    assert result.failure == "pdf_unsupported"

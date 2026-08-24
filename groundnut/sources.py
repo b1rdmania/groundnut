@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from html.parser import HTMLParser
+import io
 import json
 import hashlib
 from pathlib import Path
@@ -120,6 +121,46 @@ def html_to_text(value: str) -> str:
     return parser.text()
 
 
+def pdf_to_text(data: bytes, *, max_pages: int = 400) -> str | None:
+    """Text layer of a PDF via pypdf, page-joined; None when unavailable.
+
+    Scanned PDFs with no text layer return None rather than an empty source,
+    so the claim is reported as pdf_unsupported instead of not_found.
+    """
+    try:
+        from pypdf import PdfReader
+    except ImportError:  # pragma: no cover - depends on the host environment
+        return None
+    try:
+        reader = PdfReader(io.BytesIO(data))
+        pages = [page.extract_text() or "" for page in reader.pages[:max_pages]]
+    except Exception:  # pypdf raises a wide family on malformed files
+        return None
+    text = "\n\n".join(page.strip() for page in pages)
+    return text if text.strip() else None
+
+
+def default_opener() -> Callable:
+    """urlopen with a certifi CA bundle when one is installed.
+
+    Some Python builds ship without a usable system trust store and fail every
+    HTTPS fetch with ``CERTIFICATE_VERIFY_FAILED``; the ledger then reports
+    every source as unreachable, which is a tooling fact, not an evidence fact.
+    """
+    try:
+        import certifi
+    except ImportError:  # pragma: no cover - depends on the host environment
+        return urllib.request.urlopen
+    import ssl
+
+    context = ssl.create_default_context(cafile=certifi.where())
+
+    def opener(request, *, timeout):
+        return urllib.request.urlopen(request, timeout=timeout, context=context)
+
+    return opener
+
+
 class HttpResolver:
     """Small standard-library HTTP adapter; no provider credentials involved."""
 
@@ -127,10 +168,10 @@ class HttpResolver:
         self,
         *,
         timeout: int = 20,
-        opener: Callable = urllib.request.urlopen,
+        opener: Callable | None = None,
     ) -> None:
         self.timeout = timeout
-        self.opener = opener
+        self.opener = opener or default_opener()
 
     def resolve(self, reference: SourceReference) -> SourceResolution:
         request = urllib.request.Request(
@@ -145,12 +186,16 @@ class HttpResolver:
                 status = getattr(response, "status", None)
                 media_type = response.headers.get_content_type()
                 if media_type == "application/pdf":
-                    return SourceResolution(
-                        source=None,
-                        failure="pdf_unsupported",
-                        detail="application/pdf",
-                    )
-                raw = response.read().decode("utf-8", errors="replace")
+                    extracted = pdf_to_text(response.read())
+                    if extracted is None:
+                        return SourceResolution(
+                            source=None,
+                            failure="pdf_unsupported",
+                            detail="application/pdf: no text layer or no extractor",
+                        )
+                    raw = extracted
+                else:
+                    raw = response.read().decode("utf-8", errors="replace")
         except urllib.error.HTTPError as exc:
             failure = (
                 "source_paywalled"
