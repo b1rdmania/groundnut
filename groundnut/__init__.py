@@ -1,7 +1,9 @@
-"""Groundnut's reusable document-intelligence engine.
+"""Internal convenience exports for Groundnut's checking contracts.
 
 ``pipeline`` remains the compatibility CLI used by the original CUAD eval.
-New integrations should build on the typed contracts exported here.
+The stable integration boundary is the versioned JSON emitted by the canonical
+CLIs. Experimental objects remain importable here for repository work, but a
+package-root export alone does not make them an admitted product API.
 """
 
 from .domain import Category, DocumentType, DomainEvidence, DomainPack

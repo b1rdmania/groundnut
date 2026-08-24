@@ -1,12 +1,18 @@
-# Groundnut canonical engine
+# Groundnut architecture
 
-Groundnut is the canonical anti-hallucination and checking engine. A host gives
-it source documents, a versioned domain pack, and a model backend. Groundnut
-returns source-anchored findings, honest coverage, and the evidence disclosure
-carried by that pack. Its roadmap is not set by any current deployment. The
-`groundnut` package still imports the compatibility `pipeline` package for
-chunking, extraction, and prompts (`groundnut/engine.py`); separating them is
-open work, not a done fact.
+Groundnut's current product is the evidence-integrity stage in the IC research
+loop. The research pipeline gives it a completed Markdown report. Groundnut
+acquires and snapshots cited sources, checks the report against those snapshots,
+and returns a replayable canonical run plus the three-bucket claim ledger.
+
+The reusable checking contracts exist to make that loop more reliable. New
+engine machinery earns priority by closing a measured IC-loop gap; Groundnut is
+not being built toward an abstract aspirational engine independently of the
+product.
+
+The `groundnut` package still imports the legacy compatibility `pipeline`
+package for chunking, extraction, and prompts (`groundnut/engine.py`). Separating
+them is open work, not a done fact or a reason for cosmetic relocation.
 
 Compatibility extraction responses (`analyse_text`, the legacy path used by
 `pipeline/run.py`) also acknowledge which categories were evaluated in each
@@ -15,17 +21,22 @@ segment completed and explicitly acknowledged that category. If not, the
 result is `incomplete`. The canonical check path does not use coverage
 acknowledgements.
 
-## Boundary
+## Product boundary
 
-### Scope decision — 17 August 2026
+The product path is:
 
-Groundnut's remit is deliberately wider than extraction alone. It is the
-canonical anti-hallucination system: analysis and verification functions,
-versioned domain and policy inputs, deterministic artifacts, source
-acquisition, evaluation, annotation and adjudication machinery. This is a
-capability boundary, not a size limit.
+```text
+report -> acquire/snapshot -> check citations -> claim ledger
+```
 
-The current priority is to make those checking guarantees tight and measured.
+Groundnut owns that evidence account. The research pipeline owns thesis
+generation, workflow, audience and delivery. Groundnut does not rewrite a
+report to improve its ledger distribution, and neither a citation nor a model
+score grants publication or investment authority.
+
+Semantic support, question relevance, structured navigation, composition and
+arena machinery are active experiments. They remain isolated contracts until a
+frozen measurement shows that they improve the product path safely.
 
 ## Structured evidence navigation
 
@@ -42,9 +53,8 @@ duplicates, oversized selections, selector exceptions, and prompt-budget
 breaches fail or abstain explicitly. There is no hidden full-document fallback.
 Read `docs/NAVIGATION.md` for the frozen experiment contract and donor lineage.
 
-IC research is a future proving ground and consumer once the engine clears its
-own bars. Product ports, deployment rewrites, and public packaging are separate
-later decisions. None of them drives the core roadmap today.
+IC research is the current product loop. Navigation remains an experimental
+candidate within it: it is not a stage of the canonical run today.
 
 Groundnut owns:
 
@@ -111,7 +121,7 @@ synthetic responses rather than calling a live model.
 
 ## Canonical runner
 
-`run_canonical_check` is the product-facing offline composition surface. One call does five things.
+`run_canonical_check` is the product-facing offline checking surface. One call does five things.
 It ingests an artifact and acquires each unique cited source under an explicit
 snapshot mode. It performs mechanical and semantic checks. It applies
 independently declared evidence authority. It can also emit arena tasks from
@@ -245,7 +255,7 @@ runtime endorsements. They load no dependency at import time, pin immutable
 model/package/configuration identity, and map outputs conservatively. Binary or
 untyped unsupported output is insufficient evidence, not contradiction.
 
-`run_support_probe` is the deterministic experiment runner. It requires a `groundnut-support-probe-plan/v2` preregistration. It feeds every
+`run_support_probe` is the deterministic experiment runner. It requires a `groundnut-support-probe-plan/v3` preregistration. It feeds every
 detector source-identical windows derived from the paired original offsets. It
 binds the plan, context, detector, exact policy hash, normalized decisions,
 scores, and probe manifest into one self-hashed artifact. That artifact suits

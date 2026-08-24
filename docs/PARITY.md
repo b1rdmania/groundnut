@@ -1,5 +1,8 @@
 # Downstream adapter parity contract
 
+Status: optional product check. It is available when invoked but is not yet a
+stage of `groundnut.ic_loop`.
+
 This contract is frozen for any future host adapter. It does not make an
 adapter a current priority. If a downstream product is eventually ported, the
 adapter does not replace its existing path until the fixture matrix below
