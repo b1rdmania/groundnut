@@ -2,7 +2,7 @@
 
 Status: DRAFT, preregistered before any human review row exists. Written
 2026-08-22. Becomes binding when `scripts/freeze_support_plan.py` emits the
-`groundnut-support-probe-plan/v2` artifact; the artifact must agree with every
+`groundnut-support-probe-plan/v3` artifact; the artifact must agree with every
 number below or this document is wrong and must be amended *before* the probe
 runs, never after.
 
@@ -21,6 +21,7 @@ tuned after the fact.
 | target groups | 50 | |
 | reserve groups | 25 | manifest order only |
 | max context characters | 4096 | |
+| exact context-manifest hash | emitted by the probe build receipt and bound by plan v3 | |
 | lexical overlap band (paraphrase) | 0.20 – 0.80 | |
 
 Cases per group: 4 (`verbatim_supported`, `paraphrase_supported`,
@@ -129,14 +130,15 @@ to the cases or the threshold.
 ## Execution order (session B)
 
 1. `apply_support_reviews.py` → `support-pilot-reviewed.jsonl`
-2. `build_support_probe.py` → `support-pilot-cases.jsonl` (fails closed on any
-   pending row; must report exactly 50 groups)
-3. Freeze `composed-support-candidate-v1.json`; commit its hash. Note
-   `canonical_cli.py:103` rejects every detector except `ExactSupportDetector`
-   by class; the composed policy needs a registered adapter before the probe
-   runner can execute it. That is engine code, written before any case is
+2. `build_support_probe.py --build-attempt 1` →
+   `support-pilot-cases.jsonl` plus its `.build.json` receipt (fails closed on
+   any pending row; must report exactly 50 groups)
+3. Freeze `composed-support-candidate-v1.json`; commit its hash. The composed
+   detector needs an entry in `groundnut/admitted_detectors.py` before the
+   canonical runner can execute it. That is engine code, written before any case is
    scored, and it must not read the review rows.
-4. `freeze_support_plan.py --key support-admission-v1 --primary-metric macro_f1
+4. `freeze_support_plan.py --key support-admission-v1 --probe support-pilot-cases.jsonl
+   --build-receipt support-pilot-cases.jsonl.build.json --primary-metric macro_f1
    --minimum-improvement 0.20 --baseline-policy exact-support-baseline-v1.json
    --detector-policy composed-support-candidate-v1.json`
 5. Run baseline probe, then candidate probe, sequentially, `workers=1`.

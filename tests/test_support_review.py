@@ -213,6 +213,7 @@ def test_reserve_replacement_is_recorded_in_the_build_receipt():
         "probe_sha256": probe.sha256,
         "review_manifest_sha256": reviewed.sha256,
         "build_attempt": 2,
+        "contexts_sha256": receipt.contexts_sha256,
         "rows_walked": 2,
         "selected": 1,
         "rejected": 1,

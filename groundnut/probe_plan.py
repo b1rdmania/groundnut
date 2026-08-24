@@ -27,6 +27,7 @@ class SupportProbePlan:
     excluded_pool_sha256: str
     review_manifest_sha256: str
     build_attempt: int
+    contexts_sha256: str
     max_context_characters: int
     primary_metric: str
     minimum_improvement: float
@@ -63,9 +64,12 @@ class SupportProbePlan:
                 self.source_pool_sha256,
                 self.excluded_pool_sha256,
                 self.review_manifest_sha256,
+                self.contexts_sha256,
             )
         ):
-            raise ValueError("probe plan probe/pool/manifest hashes must be lowercase SHA-256")
+            raise ValueError(
+                "probe plan probe/pool/manifest/context hashes must be lowercase SHA-256"
+            )
         if self.build_attempt < 1:
             raise ValueError("probe plan build attempt must be at least 1")
         if self.primary_metric not in PRIMARY_METRICS:
@@ -99,6 +103,7 @@ class SupportProbePlan:
             "excluded_pool_sha256": self.excluded_pool_sha256,
             "review_manifest_sha256": self.review_manifest_sha256,
             "build_attempt": self.build_attempt,
+            "contexts_sha256": self.contexts_sha256,
             "max_context_characters": self.max_context_characters,
             "primary_metric": self.primary_metric,
             "minimum_improvement": self.minimum_improvement,
@@ -147,6 +152,7 @@ class SupportProbePlan:
             excluded_pool_sha256=str(value["excluded_pool_sha256"]),
             review_manifest_sha256=str(value["review_manifest_sha256"]),
             build_attempt=int(value["build_attempt"]),
+            contexts_sha256=str(value["contexts_sha256"]),
             max_context_characters=int(value["max_context_characters"]),
             primary_metric=str(value["primary_metric"]),
             minimum_improvement=float(value["minimum_improvement"]),

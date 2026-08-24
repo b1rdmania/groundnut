@@ -13,7 +13,13 @@ import re
 from typing import Any, Iterable, Mapping
 
 from .provenance import sha256_text
-from .support_cases import CASE_KINDS, CaseProvenance, SupportCase, SupportProbe
+from .support_cases import (
+    CASE_KINDS,
+    CaseProvenance,
+    SupportCase,
+    SupportProbe,
+    contexts_sha256,
+)
 from .support_seeds import AttestedSpanSeed, PresentIrrelevantCandidate
 
 
@@ -476,6 +482,7 @@ class PilotBuildReceipt:
     probe_sha256: str
     review_manifest_sha256: str
     build_attempt: int
+    contexts_sha256: str
     rows_walked: int
     selected: int
     rejected: int
@@ -643,6 +650,9 @@ def build_pilot_probe_with_receipt(
         probe_sha256=probe.sha256,
         review_manifest_sha256=manifest.sha256,
         build_attempt=build_attempt,
+        contexts_sha256=contexts_sha256(
+            probe.contexts(sources, manifest.max_context_characters)
+        ),
         rows_walked=walked,
         selected=len(selected),
         rejected=rejected,

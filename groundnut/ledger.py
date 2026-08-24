@@ -282,17 +282,27 @@ def _accounts_by_location(run: Mapping[str, Any]) -> dict[tuple[str, int], Mappi
     accounts = evidence.get("accounts")
     if not isinstance(accounts, Sequence):
         raise ValueError("canonical run evidence has no accounts")
-    by_location: dict[tuple[str, int], Mapping[str, Any]] = {}
-    seen: dict[str, int] = {}
+    grouped: dict[str, list[Mapping[str, Any]]] = {}
     for account in accounts:
         claim = _mapping(_mapping(_mapping(account, "assessment"), "verification"), "claim")
         location = claim.get("location")
         if not isinstance(location, str):
             raise ValueError("claim account has no location")
-        index = seen.get(location, 0)
-        seen[location] = index + 1
-        by_location[(location, index)] = account
+        grouped.setdefault(location, []).append(account)
+    by_location: dict[tuple[str, int], Mapping[str, Any]] = {}
+    for location, rows in grouped.items():
+        rows.sort(key=_markdown_claim_ordinal)
+        for index, account in enumerate(rows):
+            by_location[(location, index)] = account
     return by_location
+
+
+def _markdown_claim_ordinal(account: Mapping[str, Any]) -> int:
+    claim = _mapping(_mapping(_mapping(account, "assessment"), "verification"), "claim")
+    match = re.fullmatch(r"c([1-9]\d*)", str(claim.get("claim_id", "")))
+    if match is None:
+        raise ValueError("markdown ledger claim ids must use the canonical c<number> form")
+    return int(match.group(1))
 
 
 def _cited_row(

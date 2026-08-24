@@ -13,7 +13,13 @@ from groundnut.support import (
 )
 from groundnut.support_admission import RecordedProbeRun, evaluate_support_admission
 from groundnut.support_bakeoff import run_support_bakeoff
-from groundnut.support_cases import CASE_KINDS, CaseProvenance, SupportCase, SupportProbe
+from groundnut.support_cases import (
+    CASE_KINDS,
+    CaseProvenance,
+    SupportCase,
+    SupportProbe,
+    contexts_sha256,
+)
 from groundnut.support_gate_cli import main as gate_main
 from groundnut.support_runner import run_support_probe
 
@@ -146,6 +152,9 @@ def setup_runs():
         excluded_pool_sha256="b" * 64,
         review_manifest_sha256="c" * 64,
         build_attempt=1,
+        contexts_sha256=contexts_sha256(
+            current_probe.contexts({"s1": SOURCE}, len(SOURCE))
+        ),
         max_context_characters=len(SOURCE),
         primary_metric="macro_f1",
         minimum_improvement=0.05,
@@ -249,6 +258,27 @@ def test_admission_rejects_gold_rows_that_are_not_the_frozen_probe():
         )
 
 
+def test_admission_rejects_rehashed_runs_with_fabricated_contexts():
+    plan, baseline, perfect, _ = setup_runs()
+
+    def forge_contexts(run):
+        value = json.loads(json.dumps(run.to_dict()))
+        for row in value["contexts"]:
+            row["sha256"] = "d" * 64
+        for row in value["assessments"]:
+            row["support"]["source_sha256"] = "d" * 64
+        rehash(value)
+        return RecordedProbeRun.from_mapping(value)
+
+    with pytest.raises(ValueError, match="not the frozen probe contexts"):
+        evaluate_support_admission(
+            plan,
+            forge_contexts(baseline),
+            forge_contexts(perfect),
+            probe=current_probe_for(plan),
+        )
+
+
 def test_support_gate_cli_writes_replayable_report(tmp_path):
     plan, baseline, perfect, _ = setup_runs()
     plan_path = tmp_path / "plan.json"
@@ -308,6 +338,9 @@ def test_bakeoff_runs_every_frozen_policy_and_writes_hashed_artifacts(tmp_path):
         excluded_pool_sha256="b" * 64,
         review_manifest_sha256="c" * 64,
         build_attempt=1,
+        contexts_sha256=contexts_sha256(
+            current_probe.contexts({"s1": SOURCE}, len(SOURCE))
+        ),
         max_context_characters=len(SOURCE),
         primary_metric="macro_f1",
         minimum_improvement=0.05,

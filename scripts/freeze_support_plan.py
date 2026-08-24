@@ -52,6 +52,7 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("build receipt does not describe this probe")
         if receipt.get("review_manifest_sha256") != review.sha256:
             raise ValueError("build receipt does not describe this review manifest")
+        contexts_sha256 = str(receipt.get("contexts_sha256", ""))
         baseline = tuple(SupportPolicy.from_json(path) for path in args.baseline_policy)
         detectors = tuple(SupportPolicy.from_json(path) for path in args.detector_policy)
         policies = baseline + detectors
@@ -65,6 +66,7 @@ def main(argv: list[str] | None = None) -> int:
             excluded_pool_sha256=review.excluded_pool_sha256,
             review_manifest_sha256=review.sha256,
             build_attempt=int(receipt["build_attempt"]),
+            contexts_sha256=contexts_sha256,
             max_context_characters=review.max_context_characters,
             primary_metric=args.primary_metric,
             minimum_improvement=args.minimum_improvement,

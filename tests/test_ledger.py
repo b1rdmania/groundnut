@@ -7,6 +7,7 @@ from groundnut.canonical_cli import execute_request
 from groundnut.ledger import (
     BUCKETS,
     LedgerSegmenter,
+    _accounts_by_location,
     build_claim_ledger,
     render_ledger_markdown,
 )
@@ -107,6 +108,31 @@ def test_ledger_refuses_a_run_with_a_different_claim_layout(tmp_path):
         build_claim_ledger(forged, artifact.read_text())
 
 
+def test_ledger_restores_numeric_citation_order_after_canonical_sorting():
+    def account(claim_id):
+        return {
+            "assessment": {
+                "verification": {
+                    "claim": {"claim_id": claim_id, "location": "line 1"}
+                }
+            }
+        }
+
+    accounts = [
+        account(claim_id)
+        for claim_id in (
+            "c1", "c10", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9"
+        )
+    ]
+    indexed = _accounts_by_location({"evidence": {"accounts": accounts}})
+    claim_ids = [
+        indexed[("line 1", index)]["assessment"]["verification"]["claim"]["claim_id"]
+        for index in range(10)
+    ]
+
+    assert claim_ids == [f"c{index}" for index in range(1, 11)]
+
+
 def test_ledger_cli_writes_json_and_markdown(tmp_path):
     artifact, execution = _run(tmp_path)
     run_path = tmp_path / "run.json"
@@ -160,3 +186,25 @@ def test_ic_loop_refuses_network_without_consent(tmp_path, monkeypatch):
     code = ic_loop.main(["--report", str(artifact), "--out", str(out), "--replay-only"])
     assert code == 2
     assert calls == [{"base_directory": out, "allow_live": False}]
+
+
+def test_ic_loop_preserves_complete_previous_outputs_when_a_rerun_fails(
+    tmp_path, monkeypatch
+):
+    from groundnut import ic_loop
+
+    artifact, _ = _run(tmp_path)
+    out = tmp_path / "loop"
+    out.mkdir()
+    previous = {}
+    for name in ("request.json", "run.json", "ledger.json", "ledger.md"):
+        previous[name] = f"previous {name}\n"
+        (out / name).write_text(previous[name])
+    monkeypatch.setattr(
+        ic_loop,
+        "execute_request",
+        lambda request, **kw: {"schema": "groundnut-canonical-error/v1"},
+    )
+
+    assert ic_loop.main(["--report", str(artifact), "--out", str(out), "--replay-only"]) == 2
+    assert {name: (out / name).read_text() for name in previous} == previous

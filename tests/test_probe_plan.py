@@ -14,6 +14,7 @@ def plan():
         excluded_pool_sha256="b" * 64,
         review_manifest_sha256="9" * 64,
         build_attempt=1,
+        contexts_sha256="8" * 64,
         max_context_characters=4096,
         primary_metric="macro_f1",
         minimum_improvement=0.05,

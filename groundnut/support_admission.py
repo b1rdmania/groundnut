@@ -11,7 +11,7 @@ from typing import Any, Mapping
 
 from .probe_plan import SupportProbePlan
 from .support import DETECTOR_LABELS, DetectorIdentity
-from .support_cases import CASE_KINDS, SupportProbe
+from .support_cases import CASE_KINDS, SupportProbe, context_digests_sha256
 from .support_eval import SupportGold, score_support
 
 
@@ -246,8 +246,8 @@ def evaluate_support_admission(
     plan.validate_probe(probe.sha256, probe.group_count)
     _validate_run_against_plan(plan, baseline, role="baseline")
     _validate_run_against_plan(plan, candidate, role="candidate")
-    _validate_run_against_probe(probe, baseline, role="baseline")
-    _validate_run_against_probe(probe, candidate, role="candidate")
+    _validate_run_against_probe(plan, probe, baseline, role="baseline")
+    _validate_run_against_probe(plan, probe, candidate, role="candidate")
     if baseline.probe_sha256 != candidate.probe_sha256:
         raise ValueError("admission runs use different probes")
     if baseline.contexts != candidate.contexts:
@@ -322,7 +322,7 @@ def _validate_run_against_plan(
 
 
 def _validate_run_against_probe(
-    probe: SupportProbe, run: RecordedProbeRun, *, role: str
+    plan: SupportProbePlan, probe: SupportProbe, run: RecordedProbeRun, *, role: str
 ) -> None:
     expected = {
         (case.case_id, case.kind, case.expected_status) for case in probe.cases
@@ -330,6 +330,8 @@ def _validate_run_against_probe(
     recorded = {(row.case_id, row.kind, row.expected_status) for row in run.gold}
     if recorded != expected or len(run.gold) != len(probe.cases):
         raise ValueError(f"{role} run gold rows are not the frozen probe cases")
+    if context_digests_sha256(run.contexts) != plan.contexts_sha256:
+        raise ValueError(f"{role} run contexts are not the frozen probe contexts")
 
 
 def _metric(score: Mapping[str, Any], key: str) -> float:

@@ -33,7 +33,7 @@ the first learned run, `groundnut-support-probe-plan/v3` freezes:
 - exact probe hash and group count
 - sampling seed
 - safe source-pool and complete exclusion-pool hashes
-- context-window size
+- context-window size and the hash of the exact per-case context-digest manifest
 - baseline and candidate policy keys and exact configuration hashes
 - primary metric (`macro_f1` or `accuracy`) and minimum meaningful improvement
 - allowed lexical-overlap band for supported paraphrases
@@ -59,7 +59,8 @@ pass. That is the intended boundary.
 Accepted review decisions require a `human:` reviewer id, and an agent-authored
 paraphrase cannot be accepted by its own author. Probe builds write a
 `groundnut-support-probe-build/v2` receipt recording rows walked, rejected,
-ambiguous, and the attempt number.
+ambiguous, the attempt number, and the context-manifest hash later bound into
+the frozen plan.
 
 The preregistered plan for the first measurement is
 `docs/plans/support-admission-plan-v1.md`. No reviewer is currently assigned;

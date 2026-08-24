@@ -79,20 +79,24 @@ def run_loop(
         report, out, domain=domain, profile=profile, support_policy=support_policy,
         replay_only=replay_only,
     )
-    (out / "request.json").write_text(json.dumps(request, indent=2, sort_keys=True) + "\n")
     response = execute_request(request, base_directory=out, allow_live=not replay_only)
     if response.get("schema") != RESPONSE_SCHEMA:
         raise ValueError(f"canonical engine returned {response.get('schema')}: {response}")
-    (out / "run.json").write_text(json.dumps(response, indent=2, sort_keys=True) + "\n")
     ledger = build_claim_ledger(
         response,
         report.read_text(),
         profile=ArtifactProfile.from_mapping(request["artifact_profile"]),
     )
-    (out / "ledger.json").write_text(json.dumps(ledger.to_dict(), indent=2, sort_keys=True) + "\n")
-    (out / "ledger.md").write_text(
-        render_ledger_markdown(ledger, title=title or f"Claim ledger — {report.stem}")
-    )
+    outputs = {
+        "request.json": json.dumps(request, indent=2, sort_keys=True) + "\n",
+        "run.json": json.dumps(response, indent=2, sort_keys=True) + "\n",
+        "ledger.json": json.dumps(ledger.to_dict(), indent=2, sort_keys=True) + "\n",
+        "ledger.md": render_ledger_markdown(
+            ledger, title=title or f"Claim ledger — {report.stem}"
+        ),
+    }
+    for name, content in outputs.items():
+        (out / name).write_text(content)
     counts = ledger.counts
     return {
         "report": str(report),
