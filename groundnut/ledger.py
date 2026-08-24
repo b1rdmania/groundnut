@@ -50,6 +50,7 @@ _TABLE = re.compile(r"^\s*\|")
 _LIST = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
 _COMMENT = re.compile(r"<!--[\s\S]*?-->")
 _MD_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
+_TRAILING_COMMENTS = re.compile(r"(?:\s*<!--[\s\S]*?-->)+")
 _INLINE = re.compile(r"[*_`]+")
 MIN_WORDS = 8
 
@@ -203,7 +204,9 @@ def build_claim_ledger(
                 continue
             for sentence in _sentences(raw_sentence, segmenter):
                 counter += 1
-                rows.append(_own_row(f"u{counter}", line_number, sentence, line, profile))
+                rows.append(
+                    _own_row(f"u{counter}", line_number, sentence, raw_sentence, profile)
+                )
     if accounts:
         leftover = sorted(f"{loc}#{idx + 1}" for loc, idx in accounts)
         raise ValueError(f"run accounts not found in artifact: {leftover[:5]}")
@@ -212,6 +215,20 @@ def build_claim_ledger(
         artifact_sha256=artifact_sha256,
         segmenter=segmenter,
         rows=tuple(rows),
+    )
+
+
+def undeclared_numeric_rows(ledger: ClaimLedger) -> tuple[LedgerRow, ...]:
+    """Own-reasoning units that carry a number but no declared-analysis marker.
+
+    These are the extrapolation-shaped sentences the report ships without
+    owning. A writer fixes one by citing it or declaring it — never by
+    deleting the number to satisfy the gate.
+    """
+    return tuple(
+        row
+        for row in ledger.rows
+        if row.bucket == "own_reasoning" and row.detail == "numeric"
     )
 
 
@@ -344,9 +361,10 @@ def _cited_row(
 
 
 def _own_row(
-    unit_id: str, line_number: int, sentence: str, line: str, profile: ArtifactProfile
+    unit_id: str, line_number: int, sentence: str, raw_sentence: str, profile: ArtifactProfile
 ) -> LedgerRow:
-    declared = any(marker in line for marker in profile.declared_analysis_classes)
+    """A declared marker binds to its sentence, not its whole paragraph line."""
+    declared = any(marker in raw_sentence for marker in profile.declared_analysis_classes)
     if declared:
         detail = "declared"
     elif _NUMERIC.search(sentence):
@@ -390,8 +408,16 @@ def _raw_sentences(line: str) -> list[str]:
     pieces = []
     start = 0
     for match in _SENTENCE_END.finditer(masked):
-        pieces.append(line[start : match.end("end")])
-        start = match.end()
+        # A comment directly after the sentence end annotates the sentence it
+        # follows (e.g. `... per year. <!-- ic-own -->`), so carry it along.
+        cut = match.end("end")
+        trailing = _TRAILING_COMMENTS.match(line, cut)
+        if trailing:
+            cut = trailing.end()
+        if cut <= start:
+            continue
+        pieces.append(line[start:cut])
+        start = max(cut, match.end())
     pieces.append(line[start:])
     return [piece for piece in pieces if piece.strip()]
 

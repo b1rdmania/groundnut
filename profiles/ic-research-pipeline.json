@@ -18,7 +18,8 @@
     "evidence_comment_prefix": "ic-source",
     "verification_question_comment": "ic-verification-question",
     "declared_analysis_classes": [
-      "groundnut-declared-analysis"
+      "groundnut-declared-analysis",
+      "ic-own"
     ],
     "provenance_class_markers": {
       "groundnut-analyst-calculation": "analyst_calculation",
@@ -45,6 +46,5 @@
       "structured_json": "one claim per configured claims-array row"
     },
     "configuration_sha256": "f4d50381b6cd24640b9f658bfb1a828aabc5eb491ba3834b6511a4efbf9c8143"
-  },
-  "sha256": "4beb0435ce8de2ea75ae606af60d9b1de68864ebf73ac25b7877d0dde49da4dc"
+  }
 }

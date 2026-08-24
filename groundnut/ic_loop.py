@@ -26,12 +26,16 @@ from typing import Any
 
 from .artifacts import ArtifactProfile
 from .canonical_cli import RESPONSE_SCHEMA, execute_request
-from .ledger import build_claim_ledger, render_ledger_markdown
+from .ledger import build_claim_ledger, render_ledger_markdown, undeclared_numeric_rows
 
 _ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DOMAIN = _ROOT / "domains" / "ic_research.json"
 DEFAULT_PROFILE = _ROOT / "profiles" / "ic-research-pipeline.json"
 DEFAULT_SUPPORT_POLICY = _ROOT / "policies" / "exact-support-baseline-v1.json"
+class GateFailure(ValueError):
+    """The report failed a preflight gate; the run itself is valid."""
+
+
 AUTHORITY_POLICY = {
     "schema": "groundnut-authority-policy/v1",
     "key": "ic_shadow_authority",
@@ -70,6 +74,7 @@ def run_loop(
     *,
     title: str | None = None,
     replay_only: bool = False,
+    gate_undeclared_numerics: bool = False,
     domain: Path = DEFAULT_DOMAIN,
     profile: Path = DEFAULT_PROFILE,
     support_policy: Path = DEFAULT_SUPPORT_POLICY,
@@ -98,6 +103,16 @@ def run_loop(
     for name, content in outputs.items():
         (out / name).write_text(content)
     counts = ledger.counts
+    undeclared = undeclared_numeric_rows(ledger)
+    if gate_undeclared_numerics and undeclared:
+        lines = "\n".join(
+            f"  {row.unit_id} L{row.line}: {row.text[:140]}" for row in undeclared
+        )
+        raise GateFailure(
+            f"undeclared numeric own-reasoning units: {len(undeclared)}\n{lines}\n"
+            "Fix in the report source: cite each number, or mark the sentence as "
+            "declared analysis. Do not delete numbers to satisfy the gate."
+        )
     return {
         "report": str(report),
         "out": str(out),
@@ -105,6 +120,7 @@ def run_loop(
         "ledger_sha256": ledger.sha256,
         "units": counts["units"],
         **counts["by_bucket"],
+        "undeclared_numerics": len(undeclared),
     }
 
 
@@ -114,6 +130,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--title")
     parser.add_argument("--replay-only", action="store_true")
+    parser.add_argument(
+        "--gate-undeclared-numerics",
+        action="store_true",
+        help="exit 1 when any own-reasoning unit carries a number without a declared-analysis marker",
+    )
     parser.add_argument("--domain", type=Path, default=DEFAULT_DOMAIN)
     parser.add_argument("--profile", type=Path, default=DEFAULT_PROFILE)
     parser.add_argument("--support-policy", type=Path, default=DEFAULT_SUPPORT_POLICY)
@@ -121,8 +142,12 @@ def main(argv: list[str] | None = None) -> int:
     try:
         summary = run_loop(
             args.report, args.out, title=args.title, replay_only=args.replay_only,
+            gate_undeclared_numerics=args.gate_undeclared_numerics,
             domain=args.domain, profile=args.profile, support_policy=args.support_policy,
         )
+    except GateFailure as error:
+        print(f"GATE FAIL: {error}")
+        return 1
     except (KeyError, TypeError, ValueError, OSError, json.JSONDecodeError) as error:
         print(f"INVALID: {error}")
         return 2

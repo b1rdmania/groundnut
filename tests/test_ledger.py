@@ -208,3 +208,80 @@ def test_ic_loop_preserves_complete_previous_outputs_when_a_rerun_fails(
 
     assert ic_loop.main(["--report", str(artifact), "--out", str(out), "--replay-only"]) == 2
     assert {name: (out / name).read_text() for name in previous} == previous
+
+
+DECLARED_REPORT_LINE = (
+    "At a $26,000 price the condition requires value above $184,000 per year. "
+    "<!-- ic-own: derived from cited price and switching cost --> "
+    "Separately, we think the team can reach forty people by 2028 spending $2M."
+)
+
+
+def test_declared_marker_binds_to_its_sentence_not_the_paragraph(tmp_path):
+    artifact, execution = _run(tmp_path)
+    text = artifact.read_text().replace(
+        "At a $26,000 price and $20,000 of switching cost the condition requires value above $184,000 per year.",
+        DECLARED_REPORT_LINE,
+    )
+    artifact.write_text(text)
+    from groundnut.canonical_cli import execute_request as _exec  # rerun on edited artifact
+
+    execution = _exec(
+        json.loads((tmp_path / "request.json").read_text())
+        if (tmp_path / "request.json").exists()
+        else None,
+        base_directory=tmp_path,
+    ) if False else None
+    # Rebuild the run against the edited artifact via the loop's own path:
+    from groundnut.ic_loop import run_loop
+
+    out = tmp_path / "declared"
+    out.mkdir()
+    (out / "snapshots").mkdir()
+    for item in (tmp_path / "snapshots").iterdir():
+        (out / "snapshots" / item.name).write_bytes(item.read_bytes())
+    summary = run_loop(artifact, out, replay_only=True)
+    ledger = json.loads((out / "ledger.json").read_text())
+    own = [r for r in ledger["rows"] if r["bucket"] == "own_reasoning"]
+    declared = [r for r in own if r["detail"] == "declared"]
+    numeric = [r for r in own if r["detail"] == "numeric"]
+    assert len(declared) == 1 and "$184,000" in declared[0]["text"]
+    assert any("forty people" in r["text"] for r in numeric)
+    assert summary["undeclared_numerics"] == len(numeric)
+
+
+def test_gate_fails_on_undeclared_numerics_and_names_them(tmp_path):
+    from groundnut.ic_loop import main as loop_main
+
+    artifact, _ = _run(tmp_path)
+    out = tmp_path / "gated"
+    out.mkdir()
+    (out / "snapshots").mkdir()
+    for item in (tmp_path / "snapshots").iterdir():
+        (out / "snapshots" / item.name).write_bytes(item.read_bytes())
+    code = loop_main(
+        ["--report", str(artifact), "--out", str(out), "--replay-only", "--gate-undeclared-numerics"]
+    )
+    assert code == 1
+    # artifacts still written for inspection
+    assert (out / "ledger.md").exists()
+
+
+def test_gate_passes_when_every_numeric_is_declared_or_cited(tmp_path):
+    from groundnut.ic_loop import main as loop_main
+
+    artifact, _ = _run(tmp_path)
+    text = artifact.read_text().replace(
+        "the condition requires value above $184,000 per year.",
+        "the condition requires value above $184,000 per year. <!-- ic-own -->",
+    )
+    artifact.write_text(text)
+    out = tmp_path / "clean"
+    out.mkdir()
+    (out / "snapshots").mkdir()
+    for item in (tmp_path / "snapshots").iterdir():
+        (out / "snapshots" / item.name).write_bytes(item.read_bytes())
+    code = loop_main(
+        ["--report", str(artifact), "--out", str(out), "--replay-only", "--gate-undeclared-numerics"]
+    )
+    assert code == 0

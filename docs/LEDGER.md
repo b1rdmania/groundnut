@@ -19,6 +19,25 @@ for all of them until a support detector passes the admission gate.
 to live — derived market sizes, paybacks, unit economics. The split is
 mechanical and is a reading aid, not a judgement.
 
+## Declared analysis and the undeclared-numerics gate
+
+A writer owns its arithmetic by marking the sentence:
+
+```markdown
+At a $26,000 price the payback condition requires V > $184,000 per year. <!-- ic-own: derived from cited price and switching cost -->
+```
+
+Any comment class listed in the profile's `declared_analysis_classes`
+(`ic-own` in the IC profile) works; the marker binds to the sentence it
+follows, not the whole paragraph. Declared units land in
+`own_reasoning:declared`.
+
+`python3 -m groundnut.ic_loop --gate-undeclared-numerics` then turns the
+remaining `own_reasoning:numeric` count into a build gate: exit 1, with every
+offending unit listed. The fix is to cite the number or declare it — never to
+delete it. This converts extrapolation from something detected after the fact
+into something a report cannot ship undeclared.
+
 ## Run it
 
 One command, the IC loop:
