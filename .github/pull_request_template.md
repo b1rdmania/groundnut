@@ -6,12 +6,20 @@
 
 <!-- Link the issue, frozen fixture, benchmark, or failing test that justified it. -->
 
+## Lane
+
+- [ ] IC product path
+- [ ] Canonical core
+- [ ] Active experiment
+- [ ] Legacy compatibility
+
 ## Contract impact
 
 - [ ] No schema, policy, gate, metric, holdout, or public API changed.
 - [ ] Any intentional contract change is versioned and documented.
 - [ ] No quality claim is borrowed from a different domain or evaluation.
 - [ ] No metric or threshold was selected after viewing protected results.
+- [ ] Experimental behaviour is not described as a current product stage.
 
 ## Determinism and disclosure
 

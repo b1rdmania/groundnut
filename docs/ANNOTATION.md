@@ -1,5 +1,8 @@
 # Evidence annotation and adjudication
 
+Status: experimental benchmark-support workflow. It does not operate on private
+IC report rows or change the canonical product path by itself.
+
 Groundnut can use OpenContracts as an annotation workbench without making that
 application its semantic authority. LegalBench-RAG provides source-anchored
 seeds; reviewers turn candidate transformations into accepted annotations;

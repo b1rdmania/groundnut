@@ -1,5 +1,9 @@
 # Semantic support contract
 
+Status: active experiment and admission contract. The exact baseline is the
+only detector admitted to the current product path; the learned gate remains
+**NOT MEASURED**.
+
 Groundnut distinguishes mechanical evidence from semantic support. Source
 resolution and excerpt anchoring run first and remain immutable. An optional
 support detector produces a separate assessment under a frozen policy.

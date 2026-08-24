@@ -1,5 +1,8 @@
 # Composable-engine experiment programme
 
+Status: active experiments. This programme supplies measured candidates for the
+IC product loop; its stages are not the current canonical runtime path.
+
 **Decision date: 18 August 2026.**
 
 Groundnut may combine many external components. It does not inherit their
@@ -302,8 +305,9 @@ After admission, replay at least three materially different reports. Keep
 uncited claims, fuzzy anchors, unsupported citations, contradictions,
 inaccessible sources, and abstentions as separate populations.
 
-IC research is the first private proving ground. It does not change the public
-engine contract and it is not a production cutover.
+IC research is the product loop. Experiments change its canonical path only
+after passing their frozen admission condition, and no private claim row enters
+this repository.
 
 ### E7 — arena and operator surfaces
 

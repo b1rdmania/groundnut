@@ -1,5 +1,7 @@
 # Semantic-support exploration — 18 August 2026
 
+Status: historical exploration evidence, not an admission result.
+
 This is an **agent-screened development result**, not human-adjudicated gold.
 It cannot qualify a detector or change the canonical support gate from
 `NOT MEASURED`. The 46 groups contain 184 balanced cases: verbatim support,

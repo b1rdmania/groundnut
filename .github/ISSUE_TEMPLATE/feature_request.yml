@@ -1,13 +1,13 @@
 name: Capability proposal
-description: Propose a measured addition to the canonical engine.
+description: Propose an IC-loop improvement or a measured checking capability.
 title: "capability: "
 labels: [enhancement]
 body:
   - type: textarea
     id: gap
     attributes:
-      label: Measured engine gap
-      description: What cannot Groundnut currently represent or decide?
+      label: Product or measured gap
+      description: What fails in the IC loop, or what can Groundnut not yet represent or decide?
     validations:
       required: true
   - type: textarea
@@ -31,5 +31,5 @@ body:
       options:
         - label: This does not silently replace a metric, gate, policy, or protected holdout.
           required: true
-        - label: Product-specific workflow and presentation remain outside the generic engine unless the fixture proves otherwise.
+        - label: The proposal names whether it changes the IC product path, canonical core, an experiment, or legacy compatibility.
           required: true

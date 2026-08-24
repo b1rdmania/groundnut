@@ -540,17 +540,6 @@ def build_pilot_probe_with_receipt(
             rejected += 1
         else:
             ambiguous += 1
-        if False:  # pragma: no cover - structure kept for the original branch below
-            pass
-        elif "pending" in {
-            row.irrelevant_decision,
-            row.paraphrase_decision,
-            row.contradiction_decision,
-        }:
-            raise ValueError(
-                f"pilot review is pending before target is filled: "
-                f"{row.candidate.candidate_id}"
-            )
     if len(selected) != manifest.target_group_count:
         raise ValueError(
             f"only {len(selected)} fully accepted groups for target "

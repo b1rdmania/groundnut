@@ -1,5 +1,8 @@
 # Structured evidence navigation
 
+Status: active experiment. The interface is frozen for comparison, but
+navigation is not a stage of the current IC product path.
+
 **Experiment contract frozen: 18 August 2026.**
 
 Groundnut may use a document's existing structure, or a deterministic derived

@@ -1,8 +1,11 @@
 # Canonicalization map
 
-Groundnut is becoming the reusable engine rather than the place one deployment
-copied extraction code from. The migration is additive: hosts remain unchanged
-until they deliberately adopt a stable Groundnut contract.
+Status: transition record, not the current product roadmap. The IC research
+loop is now Groundnut's product; this document records how reusable contracts
+moved out of the original CUAD compatibility path.
+
+The migration is additive: compatibility behaviour remains stable while the IC
+loop adopts the canonical checking and ledger contracts deliberately.
 
 ## Landed in Groundnut
 
@@ -47,50 +50,49 @@ until they deliberately adopt a stable Groundnut contract.
   pools, context, policies, metric, meaningful difference, and paraphrase-
   overlap bounds.
 
-The widened system scope is a dated decision in `ARCHITECTURE.md`. Groundnut
-may grow persistence and operator/review surfaces where they close a measured
-checking gap; size is not a constraint. The stop line is authority: identity,
-credential use, publication, and sign-off require explicit deployment or human
-policy. Tests are offline by contract and acquisition adapters are always
-invoked explicitly.
+The reusable contracts remain where they support the IC loop or a measured
+candidate for it. Persistence and operator/review surfaces are justified only
+when they close a demonstrated product or benchmark gap. Identity, credential
+use, publication and sign-off remain explicit host or human authority. Tests
+are offline by contract and acquisition adapters are always invoked explicitly.
 
-## Canonical-engine priority
+## Product-led priority
 
-1. Tighten the anti-hallucination contract: benchmark optional support
+1. Run fresh decks through the IC loop and fix failures in citation checking,
+   snapshot replay, segmentation and the claim ledger.
+2. Tighten semantic support: benchmark optional support
    detectors on paraphrase, contradiction/negation, numeric, attribution, and
    irrelevant-evidence cases without weakening retrieval provenance or
    fail-closed coverage.
-2. Establish labelled development sets and frozen bars for each exact domain
+3. Establish labelled development sets and frozen bars for each exact domain
    pack before making quality claims.
-3. Test segmentation and merge behaviour under a controlled protocol,
+4. Test segmentation and merge behaviour under a controlled protocol,
    including the largest documents.
-4. Make arena and verification artifacts composable without allowing an
+5. Make arena and verification artifacts composable without allowing an
    absent attack, inaccessible source, or unassessed quotation to imply truth.
-5. Keep the compatibility pipeline stable while the canonical API earns its
-   own gate.
+6. Keep the compatibility pipeline stable while the IC path earns its own gates.
 
 Groundnut can own database models, audit-chain persistence, and review UI when
 they are part of the canonical checking system. It does not silently exercise
 authentication, credentials, publication, or sign-off authority.
 
-## Future proving ground: IC research
+## Current product: IC research
 
-Groundnut will be the basis for renewed IC work once its own contracts and
-measurements are tight. The reusable primitives and run manifest have landed;
-the next IC-facing work is to add domain task emitters while keeping report-
-specific conclusion heuristics outside the engine until they generalise.
+The research pipeline calls `groundnut.ic_loop` after the thesis writer. The
+current output is a replayable run and claim ledger; semantic support,
+relevance, navigation and decision machinery enter only after their own frozen
+conditions pass.
 
-The IC repository remains read-only and paused. Groundnut receives reusable
-contracts; it does not absorb IC fixtures, private company material, credentials,
-or deployment policy.
+Groundnut does not absorb private company material, credentials, audience
+rules, publication authority or investment decisions. Those remain in the
+host workflow even though the IC loop drives Groundnut's product roadmap.
 
 ## Deferred consumers
 
-Existing product deployments, a future v2, an operating-system port, and an
-open-source release are possible consumers—not current milestones. Any future
-adapter must pass the generic semantic contract in `PARITY.md` before it replaces
-a host path, but building such an adapter is deliberately not on the critical
-path.
+Existing product deployments, a future v2, and an operating-system port are
+possible consumers—not current milestones. Any future adapter must pass the
+generic semantic contract in `PARITY.md` before it replaces a host path, but
+building such an adapter is deliberately not on the critical path.
 
 ## Evaluation work before qualification
 

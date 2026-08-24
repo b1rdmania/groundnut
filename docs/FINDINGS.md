@@ -1,5 +1,8 @@
 # Findings — 17 August 2026
 
+Status: legacy compatibility evidence for the original CUAD extractor, not the
+IC product acceptance record.
+
 A measurement session. **No model was called** — every number here comes from
 cached predictions or static files, so nothing below establishes current model
 behaviour. It establishes what the stored artefacts say, and where the harness
