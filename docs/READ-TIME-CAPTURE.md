@@ -6,8 +6,9 @@
 
 `groundnut-capture` is a narrow producer boundary for a host that reads a cited
 source. It archives the first successful or failed read into Groundnut's source
-snapshot contract. A later capture under the same source identity replays the
-frozen observation; it does not fetch and overwrite it.
+snapshot contract. Canonical URI is the replay join; a later capture of that
+URI replays the frozen observation even when another phase supplies a different
+host label. It does not fetch and overwrite the first read.
 
 The host must declare, before dispatch:
 
@@ -30,7 +31,14 @@ or connector session state. Query parameters are default-deny: the connector
 may use the original URI to fetch, but canonical identity retains only parameter
 names declared in `retained_query_parameters`. The default is an empty query.
 Credential-shaped parameter names cannot be declared retainable. User
-information and credential-shaped path segments are rejected.
+information is rejected. Public path segments are retained verbatim: path-word
+blocklists produce false positives and silently change the cited resource.
+
+`source_id` remains recorded attribution, but it is not snapshot identity. This
+is also the migration rule for snapshots produced before the URI join was made
+explicit: Groundnut accepts the stored observation by URI and presents it under
+the source id requested by the current canonical run. No snapshot bytes are
+rewritten.
 
 The integration fixture deliberately gives its connector high-entropy
 authorization, cookie and private-response-header sentinels. It scans snapshots,

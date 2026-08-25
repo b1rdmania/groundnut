@@ -66,6 +66,51 @@ def test_snapshot_preferred_archives_once_then_replays_without_live(tmp_path):
     assert second.to_dict()["result"]["evidence_window"]["sha256"]
 
 
+def test_snapshot_joins_on_uri_when_host_source_id_differs(tmp_path):
+    host_reference = SourceReference("host-chosen-slug", REFERENCE.uri)
+    host_source = ResolvedSource(
+        reference=host_reference,
+        text="frozen source text",
+        fetched_at="2026-08-17T00:00:00Z",
+    )
+    store = SnapshotStore(tmp_path)
+    store.archive(host_source)
+
+    replay = SnapshotFirstResolver(store, mode="replay_only").acquire(REFERENCE)
+
+    assert replay.strategy == "snapshot"
+    assert replay.resolution.ok
+    assert replay.resolution.source.reference == REFERENCE
+    assert replay.resolution.source.text == "frozen source text"
+
+
+def test_cross_phase_capture_replays_same_uri_under_a_new_source_id(tmp_path):
+    first_reference = SourceReference("phase-1-slug", REFERENCE.uri)
+    live = FakeResolver(
+        SourceResolution(
+            source=ResolvedSource(
+                reference=first_reference,
+                text="first read stays frozen",
+                fetched_at="2026-08-17T00:00:00Z",
+            )
+        )
+    )
+    store = SnapshotStore(tmp_path)
+    first = SnapshotFirstResolver(store, live, mode="snapshot_preferred").acquire(
+        first_reference
+    )
+    second_reference = SourceReference("phase-2-slug", REFERENCE.uri)
+    second = SnapshotFirstResolver(store, live, mode="snapshot_preferred").acquire(
+        second_reference
+    )
+
+    assert first.strategy == "live_archived"
+    assert second.strategy == "snapshot"
+    assert second.resolution.source.reference == second_reference
+    assert second.resolution.source.text == "first read stays frozen"
+    assert live.calls == 1
+
+
 def test_snapshot_preferred_archives_failure_taxonomy_for_replay(tmp_path):
     failure = SourceResolution(
         source=None, failure="source_paywalled", detail="http_403"

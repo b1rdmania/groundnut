@@ -362,7 +362,6 @@ def test_query_parameter_retention_must_be_declared_and_noncredential_shaped():
     "uri",
     [
         "https://user:password@example.test/source",
-        "https://example.test/auth/credential/source",
         "file:///private/report.html",
     ],
 )
@@ -370,6 +369,15 @@ def test_credential_bearing_or_non_http_source_identity_is_rejected(uri):
     with pytest.raises(ValueError) as caught:
         validate_public_reference(SourceReference("unsafe", uri))
     assert_secrets_absent(str(caught.value))
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["key-findings", "market-signature-analysis", "session-2"],
+)
+def test_public_path_words_are_not_mistaken_for_credentials(path):
+    reference = SourceReference("public", f"https://example.test/{path}")
+    assert canonical_reference(reference, _declaration("text/html")) == reference
 
 
 def test_capture_request_requires_explicit_live_authority(tmp_path):

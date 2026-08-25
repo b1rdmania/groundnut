@@ -418,6 +418,52 @@ def test_short_numeric_sentence_cannot_escape_the_gate(tmp_path):
     )
 
 
+def test_document_furniture_does_not_enter_the_numeric_gate(tmp_path):
+    from groundnut.ic_loop import main as loop_main
+
+    artifact = tmp_path / "furniture.md"
+    artifact.write_text(
+        "# Analyst report\n\n"
+        "1.\n\n"
+        "2026\n\n"
+        "Phase 4 · Analyst report · Generated 2026-08-26\n\n"
+        "Data cutoff: 2026-08-26.\n"
+    )
+    out = tmp_path / "furniture-out"
+
+    code = loop_main(
+        ["--report", str(artifact), "--out", str(out), "--replay-only",
+         "--gate-undeclared-numerics"]
+    )
+
+    assert code == 0
+    ledger = json.loads((out / "ledger.json").read_text())
+    assert ledger["counts"]["by_detail"] == {"own_reasoning:narrative": 4}
+
+
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "The company was founded in 2021.",
+        "Revenue reached $4.2B by 2030.",
+        "The 2026 forecast assumes 40 customers.",
+    ],
+)
+def test_dated_numeric_claims_are_not_mistaken_for_furniture(tmp_path, claim):
+    from groundnut.ic_loop import main as loop_main
+
+    artifact = tmp_path / "claim.md"
+    artifact.write_text(f"# Memo\n\n{claim}\n")
+    out = tmp_path / "claim-out"
+
+    code = loop_main(
+        ["--report", str(artifact), "--out", str(out), "--replay-only",
+         "--gate-undeclared-numerics"]
+    )
+
+    assert code == 1
+
+
 def test_zero_citation_report_is_a_valid_all_own_reasoning_run(tmp_path):
     from groundnut.ic_loop import main as loop_main
 
