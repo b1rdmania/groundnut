@@ -58,11 +58,15 @@ def build_request(
     support_policy: Path = DEFAULT_SUPPORT_POLICY,
     replay_only: bool = False,
 ) -> dict[str, Any]:
+    try:
+        artifact_path = str(report.resolve().relative_to(out.resolve()))
+    except ValueError:
+        artifact_path = str(report.resolve())
     return {
         "schema": "groundnut-canonical-request/v1",
-        "artifact": str(report.resolve()),
-        "arena_artifact": str(report.resolve()),
-        "snapshot_directory": str((out / "snapshots").resolve()),
+        "artifact": artifact_path,
+        "arena_artifact": artifact_path,
+        "snapshot_directory": "snapshots",
         "domain": json.loads(domain.read_text()),
         "artifact_profile": json.loads(profile.read_text()),
         "support_policy": json.loads(support_policy.read_text()),
@@ -86,8 +90,12 @@ def run_loop(
     support_policy: Path = DEFAULT_SUPPORT_POLICY,
 ) -> dict[str, Any]:
     out.mkdir(parents=True, exist_ok=True)
+    report_text = report.read_text()
+    bundled_report = out / "input" / "report.md"
+    bundled_report.parent.mkdir(parents=True, exist_ok=True)
+    bundled_report.write_text(report_text)
     request = build_request(
-        report, out, domain=domain, profile=profile, support_policy=support_policy,
+        bundled_report, out, domain=domain, profile=profile, support_policy=support_policy,
         replay_only=replay_only,
     )
     response = execute_request(request, base_directory=out, allow_live=not replay_only)
@@ -95,7 +103,7 @@ def run_loop(
         raise ValueError(f"canonical engine returned {response.get('schema')}: {response}")
     ledger = build_claim_ledger(
         response,
-        report.read_text(),
+        report_text,
         profile=ArtifactProfile.from_mapping(request["artifact_profile"]),
     )
     undeclared = undeclared_numeric_rows(ledger)

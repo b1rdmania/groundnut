@@ -72,8 +72,11 @@ python3 -m groundnut.ic_loop --report research-report.md --out groundnut/ --titl
 It fetches and snapshots every cited source once (`--replay-only` refuses the
 network), runs the canonical check with `domains/ic_research.json` and
 `profiles/ic-research-pipeline.json`, and writes `request.json`, `run.json`,
-`ledger.json`, `ledger.md`, `gate.json`, `snapshots/`. The research pipeline calls this as
-its Phase 4.5. The two underlying steps:
+`ledger.json`, `ledger.md`, `gate.json`, `input/report.md`, `snapshots/`. The
+bundled request uses logical relative paths, so separate replay directories
+produce the same request identity and do not disclose an operator's local home
+path. The research pipeline calls this as its Phase 4.5. The two underlying
+steps:
 
 ```bash
 python3 -m groundnut.canonical_cli --request request.json --out run.json
