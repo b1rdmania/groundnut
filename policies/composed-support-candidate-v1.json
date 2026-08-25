@@ -1,0 +1,15 @@
+{
+  "schema": "groundnut-support-policy/v1",
+  "key": "composed_support_candidate",
+  "version": "1",
+  "frozen_at": "2026-08-25T22:20:00Z",
+  "detector": {
+    "adapter": "groundnut.composed.exact_then_fallback.v1",
+    "model": "normalised_substring+yzha/AlignScore-base",
+    "revision": "1",
+    "package": "groundnut",
+    "package_version": "1",
+    "configuration_sha256": "8609f39a4d940de3bc90f92cc90005753e86b9c8500b9efa1dd35a1a646f310f"
+  },
+  "min_confidence": 0.5
+}

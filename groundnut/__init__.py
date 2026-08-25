@@ -93,6 +93,7 @@ from .support import (
     SupportSpan,
     assess_claim_support,
 )
+from .composed_support import ExactThenFallbackSupportDetector
 from .support_eval import SupportGold, score_support
 from .support_cases import CaseProvenance, SupportCase, SupportProbe
 from .support_seeds import (
@@ -226,6 +227,7 @@ __all__ = [
     "DomainRegistry",
     "FileResolver",
     "ExactSupportDetector",
+    "ExactThenFallbackSupportDetector",
     "EngineIdentity",
     "EXPLORATION_SCHEMA",
     "EvidenceAnnotation",
