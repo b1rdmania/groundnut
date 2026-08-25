@@ -3,12 +3,14 @@ import json
 import pytest
 
 from groundnut.sources import (
+    EvidenceWindow,
     ResolvedSource,
     SnapshotFirstResolver,
     SnapshotStore,
     SourceReference,
     SourceResolution,
 )
+from groundnut.verification import Claim, verify_claim
 
 
 REFERENCE = SourceReference("source-1", "https://example.test/source")
@@ -60,7 +62,8 @@ def test_snapshot_preferred_archives_once_then_replays_without_live(tmp_path):
     assert first.snapshot_sha256 == second.snapshot_sha256
     assert second.resolution.source.text == "frozen source text"
     assert live.calls == 1
-    assert second.to_dict()["schema"] == "groundnut-source-acquisition/v1"
+    assert second.to_dict()["schema"] == "groundnut-source-acquisition/v2"
+    assert second.to_dict()["result"]["evidence_window"]["sha256"]
 
 
 def test_snapshot_preferred_archives_failure_taxonomy_for_replay(tmp_path):
@@ -80,6 +83,44 @@ def test_snapshot_preferred_archives_failure_taxonomy_for_replay(tmp_path):
     assert replay.resolution == failure
     assert replay.live_attempted is False
     assert live.calls == 1
+
+
+def test_replay_preserves_truncated_window_and_verification_classification(tmp_path):
+    captured = "Permit issued before the capture boundary."
+    source = ResolvedSource(
+        reference=REFERENCE,
+        text=captured,
+        fetched_at="2026-08-17T00:00:00Z",
+        evidence_window=EvidenceWindow.from_text(
+            captured,
+            original_bytes=100,
+            original_characters=100,
+            truncation="truncated",
+            extraction_method="boundary-fixture/v1",
+        ),
+    )
+    live = FakeResolver(SourceResolution(source=source))
+    store = SnapshotStore(tmp_path)
+    first = SnapshotFirstResolver(store, live, mode="snapshot_preferred").acquire(
+        REFERENCE
+    )
+    replay = SnapshotFirstResolver(store, mode="replay_only").acquire(REFERENCE)
+    claim = Claim(
+        "after-boundary",
+        "Renewal occurs later.",
+        source=REFERENCE,
+        excerpt="Renewal deadline is after the capture boundary.",
+    )
+
+    live_result = verify_claim(claim, first.resolution)
+    replay_result = verify_claim(claim, replay.resolution)
+
+    assert live_result.to_dict() == replay_result.to_dict()
+    assert replay_result.outcome == "evidence_window_incomplete"
+    assert (
+        first.resolution.source.evidence_window.sha256
+        == replay.resolution.source.evidence_window.sha256
+    )
 
 
 def test_tampered_failure_snapshot_fails_closed(tmp_path):

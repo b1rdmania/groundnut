@@ -14,6 +14,7 @@ look like current product stages.
 | [Analytical provenance](./ANALYTICAL-PROVENANCE.md) | Current | Evidence, assertion, calculation, inference and recommendation classes |
 | [Render parity](./PARITY.md) | Optional product check | Evidence survival across authored and rendered artifacts |
 | [Artifact extraction](./ARTIFACT-EXTRACTION.md) | Measured syntax contract | Markdown, HTML and memo extraction admission and limits |
+| [Evidence windows](./EVIDENCE-WINDOWS.md) | Current | Snapshot completeness, truncation and replay contract |
 
 ## Active experiments
 

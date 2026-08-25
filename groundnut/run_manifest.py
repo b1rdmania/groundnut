@@ -12,6 +12,7 @@ from typing import Any, Mapping
 
 from .domain import DomainPack
 from .provenance import SourceRecord
+from .sources import EvidenceWindow
 
 
 RUN_SCHEMA = "groundnut-run-manifest/v2"
@@ -142,6 +143,8 @@ class SourceDigest:
     sha256: str
     characters: int
     snapshot_sha256: str | None = None
+    evidence_window_sha256: str | None = None
+    evidence_window_truncation: str | None = None
 
     def __post_init__(self) -> None:
         _require_text(self.source_id)
@@ -150,16 +153,38 @@ class SourceDigest:
             raise ValueError("source character count must not be negative")
         if self.snapshot_sha256 is not None:
             _require_sha256(self.snapshot_sha256, "snapshot_sha256")
+        if self.evidence_window_sha256 is not None:
+            _require_sha256(
+                self.evidence_window_sha256, "evidence_window_sha256"
+            )
+        if self.evidence_window_truncation is not None and (
+            self.evidence_window_truncation not in EvidenceWindow.TRUNCATION_STATES
+        ):
+            raise ValueError("unknown source evidence-window truncation")
+        if (self.evidence_window_sha256 is None) != (
+            self.evidence_window_truncation is None
+        ):
+            raise ValueError("source evidence-window hash and truncation must travel together")
 
     @classmethod
     def from_record(
-        cls, record: SourceRecord, *, snapshot_sha256: str | None = None
+        cls,
+        record: SourceRecord,
+        *,
+        snapshot_sha256: str | None = None,
+        evidence_window: EvidenceWindow | None = None,
     ) -> "SourceDigest":
         return cls(
             source_id=record.source_id,
             sha256=record.sha256,
             characters=record.characters,
             snapshot_sha256=snapshot_sha256,
+            evidence_window_sha256=(
+                evidence_window.sha256 if evidence_window else None
+            ),
+            evidence_window_truncation=(
+                evidence_window.truncation if evidence_window else None
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -168,6 +193,8 @@ class SourceDigest:
             "sha256": self.sha256,
             "characters": self.characters,
             "snapshot_sha256": self.snapshot_sha256,
+            "evidence_window_sha256": self.evidence_window_sha256,
+            "evidence_window_truncation": self.evidence_window_truncation,
         }
 
 

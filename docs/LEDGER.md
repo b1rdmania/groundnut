@@ -7,13 +7,19 @@ buckets:
 | bucket | meaning |
 |---|---|
 | `excerpt_found` | the cited excerpt was found verbatim in the source snapshot |
-| `citation_unconfirmed` | a citation exists but the excerpt was `quote_not_found`, `quote_ambiguous`, had `no_excerpt`, or the source was `source_unavailable` |
+| `citation_unconfirmed` | a citation exists but the excerpt was `excerpt_not_found`, the `evidence_window_incomplete`, the quote was ambiguous, no excerpt was supplied, or the source was unavailable |
 | `own_reasoning` | no citation, or declared analysis; split into `declared`, `numeric` (carries a number, %, currency, or multiplier), `narrative` |
 
 `excerpt_found` means the quoted words are in the snapshot. It is not a
 statement that the claim is true, or that the source supports the claim. The
 semantic support status rides alongside every cited row and is `insufficient`
 for all of them until a support detector passes the admission gate.
+
+`excerpt_not_found` is emitted only when the snapshot declares its searchable
+evidence window complete. A failed search over a truncated, legacy, or otherwise
+unknown window is `evidence_window_incomplete`. Ledger rows retain the window
+hash and truncation state so the distinction survives into IC JSON and Markdown
+surfaces. See [Evidence windows](./EVIDENCE-WINDOWS.md).
 
 `own_reasoning:numeric` is where LLM extrapolation in a diligence report tends
 to live — derived market sizes, paybacks, unit economics. The split is
