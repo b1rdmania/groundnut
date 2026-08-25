@@ -29,11 +29,14 @@ no field for request headers, response headers, cookies, authorization values
 or connector session state. HTTP URIs containing user information or
 credential-shaped query keys are rejected rather than redacted.
 
-The integration fixture deliberately gives its connector authorization,
-cookie and private-response-header sentinels, then scans the snapshot and
-receipt for their absence. This proves the producer boundary does not serialize
-those values. It does not claim that arbitrary source body text can be
-classified as secret.
+The integration fixture deliberately gives its connector high-entropy
+authorization, cookie and private-response-header sentinels. It scans snapshots,
+receipts, logs, standard streams and forced-failure output for raw, case-folded,
+URL-encoded, base64, hexadecimal, JSON-escaped, digest and delimiter-split forms.
+Connector exception text and unbounded failure detail are replaced with bounded
+diagnostics before archiving. This proves the producer boundary does not
+serialize those values. It does not claim that arbitrary source body text can
+be classified as secret.
 
 ## Command boundary
 

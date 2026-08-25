@@ -1,5 +1,8 @@
 import io
+import base64
+import hashlib
 import json
+from urllib.parse import quote, quote_plus
 
 import pytest
 from pypdf import PdfWriter
@@ -23,9 +26,10 @@ from groundnut.sources import (
 
 
 HTML = "<main>Revenue reached <b>$4.2m</b>.</main>"
-AUTH_SENTINEL = "Bearer capture-auth-sentinel"
-COOKIE_SENTINEL = "session=capture-cookie-sentinel"
-HEADER_SENTINEL = "capture-private-response-header"
+AUTH_SENTINEL = "GnA8_7mQ2vX9pL4cR8wK6zT1d"
+COOKIE_SENTINEL = "GnA8_3hN7sB5yF9jU2eP6kV4x"
+HEADER_SENTINEL = "GnA8_8rC1qW6tM3aZ9nD5sL7b"
+SECRET_SENTINELS = (AUTH_SENTINEL, COOKIE_SENTINEL, HEADER_SENTINEL)
 
 
 class SecretBearingResolver:
@@ -35,8 +39,8 @@ class SecretBearingResolver:
         self.source = source
         self.calls = 0
         self.request_headers = {
-            "Authorization": AUTH_SENTINEL,
-            "Cookie": COOKIE_SENTINEL,
+            "Authorization": f"Bearer {AUTH_SENTINEL}",
+            "Cookie": f"session={COOKIE_SENTINEL}",
         }
         self.response_headers = {"X-Private-Session": HEADER_SENTINEL}
 
@@ -60,6 +64,38 @@ def _resolved(reference, text="Revenue reached $4.2m.", media_type="text/html"):
             extraction_method="fixture-connector/v1",
         ),
     )
+
+
+def _secret_forms(value):
+    raw = value.encode()
+    escaped = json.dumps(value)[1:-1]
+    digest = hashlib.sha256(raw).hexdigest()
+    return {
+        value,
+        value.lower(),
+        value.upper(),
+        quote(value, safe=""),
+        quote_plus(value),
+        base64.b64encode(raw).decode(),
+        base64.urlsafe_b64encode(raw).decode(),
+        raw.hex(),
+        escaped,
+        digest,
+        digest[:16],
+    }
+
+
+def _collapsed(value):
+    return "".join(character.lower() for character in value if character.isalnum())
+
+
+def assert_secrets_absent(*emitted):
+    combined = "\n".join(str(value) for value in emitted)
+    collapsed = _collapsed(combined)
+    for sentinel in SECRET_SENTINELS:
+        for transformed in _secret_forms(sentinel):
+            assert transformed not in combined
+        assert _collapsed(sentinel) not in collapsed
 
 
 def _declaration(*media_types):
@@ -126,10 +162,7 @@ def test_declared_html_capture_replays_and_never_serializes_connector_secrets(tm
     assert receipt["acquisition"]["strategy"] == "live_archived"
     assert receipt["declaration"]["sha256"] == producer.declaration.sha256
     assert connector.calls == 1
-    assert all(
-        sentinel not in emitted
-        for sentinel in (AUTH_SENTINEL, COOKIE_SENTINEL, HEADER_SENTINEL)
-    )
+    assert_secrets_absent(emitted)
     replay = SnapshotFirstResolver(store, mode="replay_only").acquire(reference)
     assert replay.resolution.ok is True
     assert replay.resolution.source.text == "Revenue reached $4.2m."
@@ -158,7 +191,7 @@ def test_http_html_and_pdf_connector_outputs_feed_snapshot_replay(
     serialized = store.path_for(reference.uri).read_text() + json.dumps(receipt)
     assert replay.ok is True
     assert expected in replay.source.text
-    assert HEADER_SENTINEL not in serialized
+    assert_secrets_absent(serialized)
 
 
 def test_first_read_is_frozen_and_later_capture_does_not_overwrite(tmp_path):
@@ -213,17 +246,66 @@ def test_access_failure_remains_named_and_replayable(tmp_path):
     assert SnapshotFirstResolver(store, mode="replay_only").resolve(reference).failure == "source_paywalled"
 
 
+def test_connector_exception_message_cannot_reach_artifacts_logs_or_streams(
+    tmp_path, caplog, capsys
+):
+    class ExplodingConnector:
+        def resolve(self, reference):
+            raise RuntimeError(
+                f"retry url={reference.uri} authorization={AUTH_SENTINEL} "
+                f"cookie={COOKIE_SENTINEL} private={HEADER_SENTINEL}"
+            )
+
+    reference = SourceReference("failure", "https://example.test/failure")
+    store = SnapshotStore(tmp_path)
+    receipt = ReadTimeCaptureProducer(
+        store, ExplodingConnector(), _declaration("text/html")
+    ).capture(reference)
+    streams = capsys.readouterr()
+    serialized = store.path_for(reference.uri).read_text() + json.dumps(receipt)
+
+    result = receipt["acquisition"]["result"]
+    assert result["failure"] == "source_unreachable"
+    assert result["detail"] == "connector_exception"
+    assert_secrets_absent(serialized, caplog.text, streams.out, streams.err)
+
+
+def test_connector_failure_detail_and_undeclared_media_value_are_redacted(tmp_path):
+    class LeakingFailure:
+        def resolve(self, reference):
+            return SourceResolution(
+                None, "source_unreachable", f"retry Authorization={AUTH_SENTINEL}"
+            )
+
+    class LeakingMedia:
+        def resolve(self, reference):
+            return SourceResolution(
+                source=_resolved(reference, media_type=f"text/{HEADER_SENTINEL}")
+            )
+
+    for name, connector in (("failure", LeakingFailure()), ("media", LeakingMedia())):
+        reference = SourceReference(name, f"https://example.test/{name}")
+        store = SnapshotStore(tmp_path / name)
+        receipt = ReadTimeCaptureProducer(
+            store, connector, _declaration("text/html")
+        ).capture(reference)
+        assert_secrets_absent(store.path_for(reference.uri).read_text(), json.dumps(receipt))
+
+
 @pytest.mark.parametrize(
     "uri",
     [
         "https://user:password@example.test/source",
         "https://example.test/source?access_token=secret",
+        f"https://example.test/source?session={COOKIE_SENTINEL}",
+        f"https://example.test/source?sig={AUTH_SENTINEL}",
         "file:///private/report.html",
     ],
 )
 def test_credential_bearing_or_non_http_source_identity_is_rejected(uri):
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as caught:
         validate_public_reference(SourceReference("unsafe", uri))
+    assert_secrets_absent(str(caught.value))
 
 
 def test_capture_request_requires_explicit_live_authority(tmp_path):
