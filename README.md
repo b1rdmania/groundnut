@@ -42,7 +42,8 @@ quotation presence, semantic support, evidence authority, and truth separate.
 - Declared read-time producers bind connector intent and allowed media classes
   into a capture receipt, preserve the first read, and omit connector secrets.
 - Snapshots disclose the exact searched evidence window, its extraction method,
-  and whether capture was complete, truncated, or historically unknown.
+  and whether capture was complete, truncated, empty, sparse, or historically
+  unknown.
 - Exact and fuzzy quotation anchoring preserve honest ambiguity and failure states.
 - A missing excerpt is reported as `evidence_window_incomplete` instead of
   `excerpt_not_found` when the stored window could have hidden it.

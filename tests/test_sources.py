@@ -123,6 +123,72 @@ def test_http_resolver_normalizes_html_without_live_network():
     assert result.source.evidence_window.captured_characters == len("Source fact")
 
 
+def test_empty_html_window_is_incomplete_not_searched_and_absent():
+    resolver = HttpResolver(
+        opener=lambda request, timeout: _Response(b"<script>app()</script>")
+    )
+    reference = SourceReference("empty", "https://example.test/empty")
+    result = resolver.resolve(reference)
+
+    assert result.ok is True
+    assert result.source.text == ""
+    assert result.source.evidence_window.truncation == "empty"
+    verification = verify_claim(
+        Claim("missing", "Registry fact.", source=reference, excerpt="Registry fact."),
+        result,
+    )
+    assert verification.outcome == "evidence_window_incomplete"
+
+
+def test_sparse_html_shell_is_not_declared_complete():
+    body = ("<script>" + "x" * 5000 + "</script><main>Enable JavaScript</main>").encode()
+    resolver = HttpResolver(opener=lambda request, timeout: _Response(body))
+    result = resolver.resolve(SourceReference("shell", "https://example.test/app"))
+
+    assert result.ok is True
+    assert result.source.text == "Enable JavaScript"
+    assert result.source.evidence_window.truncation == "sparse"
+
+
+def test_existing_complete_empty_snapshot_migrates_on_read(tmp_path):
+    reference = SourceReference("host-label", "https://example.test/empty-legacy")
+    legacy_window = EvidenceWindow(
+        captured_bytes=0,
+        captured_characters=0,
+        truncation="complete",
+        extraction_method="html.parser-visible-text/v1",
+        text_sha256=sha256_text(""),
+        original_bytes=1024,
+        original_characters=1024,
+    )
+    store = SnapshotStore(tmp_path)
+    store.directory.mkdir(parents=True, exist_ok=True)
+    store.path_for(reference.uri).write_text(
+        json.dumps(
+            {
+                "schema": "groundnut-source-snapshot/v2",
+                "source_id": reference.source_id,
+                "uri": reference.uri,
+                "fetched_at": "2026-08-25T00:00:00Z",
+                "status": 200,
+                "media_type": "text/html",
+                "sha256": sha256_text(""),
+                "text": "",
+                "evidence_window": legacy_window.to_dict(),
+            },
+            sort_keys=True,
+        )
+    )
+
+    loaded = store.load(
+        SourceReference("url:derived-by-report", reference.uri)
+    )
+
+    assert loaded.ok is True
+    assert loaded.source.reference.source_id == "url:derived-by-report"
+    assert loaded.source.evidence_window.truncation == "empty"
+
+
 def test_http_resolver_keeps_paywall_distinct_from_unreachable():
     def paywall(request, timeout):
         raise urllib.error.HTTPError(

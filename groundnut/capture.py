@@ -127,8 +127,6 @@ def canonical_reference(
         raise ValueError("read-time HTTP capture requires an http(s) URI")
     if parsed.username is not None or parsed.password is not None:
         raise ValueError("source URI must not contain credentials")
-    if any(_SENSITIVE_QUERY_KEY.search(segment) for segment in parsed.path.split("/")):
-        raise ValueError("source URI path contains a credential-shaped segment")
     retain = set(declaration.retained_query_parameters)
     retained = [(key, value) for key, value in parse_qsl(parsed.query) if key in retain]
     canonical_uri = urlunsplit(

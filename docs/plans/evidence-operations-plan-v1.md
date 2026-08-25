@@ -51,7 +51,7 @@ with an explicit evidence-window object:
 
 - original byte and character length when knowable;
 - captured byte and character length;
-- truncation state: `complete`, `truncated`, or `unknown`;
+- search-window state: `complete`, `truncated`, `unknown`, `empty`, or `sparse`;
 - extraction method and its version/configuration identity;
 - hash of the exact normalized text searched by verification.
 

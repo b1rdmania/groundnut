@@ -8,7 +8,7 @@ empty source. Snapshots pin what the engine actually saw.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 import io
@@ -20,6 +20,33 @@ import urllib.error
 import urllib.request
 
 from .provenance import SourceRecord, sha256_text
+
+
+_SPARSE_HTML_MAX_CHARACTERS = 1024
+_SPARSE_HTML_MIN_ORIGINAL_BYTES = 4096
+
+
+def _honest_truncation(
+    text: str,
+    *,
+    truncation: str,
+    extraction_method: str,
+    original_bytes: int | None,
+) -> str:
+    """Refuse to describe an unusable searchable window as complete."""
+
+    if truncation != "complete":
+        return truncation
+    if not text.strip():
+        return "empty"
+    if (
+        extraction_method.startswith("html.parser-visible-text/")
+        and len(text) < _SPARSE_HTML_MAX_CHARACTERS
+        and original_bytes is not None
+        and original_bytes >= _SPARSE_HTML_MIN_ORIGINAL_BYTES
+    ):
+        return "sparse"
+    return truncation
 
 
 FAILURE_STATES = {
@@ -49,7 +76,7 @@ class EvidenceWindow:
     original_bytes: int | None = None
     original_characters: int | None = None
 
-    TRUNCATION_STATES = {"complete", "truncated", "unknown"}
+    TRUNCATION_STATES = {"complete", "truncated", "unknown", "empty", "sparse"}
 
     def __post_init__(self) -> None:
         lengths = (
@@ -79,12 +106,18 @@ class EvidenceWindow:
         original_bytes: int | None = None,
         original_characters: int | None = None,
     ) -> "EvidenceWindow":
+        honest_truncation = _honest_truncation(
+            text,
+            truncation=truncation,
+            extraction_method=extraction_method,
+            original_bytes=original_bytes,
+        )
         return cls(
             original_bytes=original_bytes,
             original_characters=original_characters,
             captured_bytes=len(text.encode()),
             captured_characters=len(text),
-            truncation=truncation,
+            truncation=honest_truncation,
             extraction_method=extraction_method,
             text_sha256=sha256_text(text),
         )
@@ -117,7 +150,7 @@ class EvidenceWindow:
             raise ValueError("evidence window must be an object")
         if value.get("schema") != "groundnut-evidence-window/v1":
             raise ValueError("unsupported evidence-window schema")
-        window = cls(
+        recorded_window = cls(
             original_bytes=_optional_int(value.get("original_bytes")),
             original_characters=_optional_int(value.get("original_characters")),
             captured_bytes=_required_int(value.get("captured_bytes")),
@@ -128,16 +161,20 @@ class EvidenceWindow:
         )
         expected = cls.from_text(
             text,
-            truncation=window.truncation,
-            extraction_method=window.extraction_method,
-            original_bytes=window.original_bytes,
-            original_characters=window.original_characters,
+            truncation=recorded_window.truncation,
+            extraction_method=recorded_window.extraction_method,
+            original_bytes=recorded_window.original_bytes,
+            original_characters=recorded_window.original_characters,
         )
-        if window != expected:
+        if recorded_window != expected and not (
+            recorded_window.truncation == "complete"
+            and expected.truncation in {"empty", "sparse"}
+            and replace(expected, truncation="complete") == recorded_window
+        ):
             raise ValueError("evidence window does not match captured text")
-        if value.get("sha256") != window.sha256:
+        if value.get("sha256") != recorded_window.sha256:
             raise ValueError("evidence-window sha256 does not match its content")
-        return window
+        return expected
 
 
 @dataclass(frozen=True)
@@ -461,10 +498,11 @@ class SnapshotStore:
                 detail=f"snapshot_unreadable:{type(exc).__name__}",
             )
         schema = value.get("schema")
-        if (
-            value.get("uri") != reference.uri
-            or value.get("source_id") != reference.source_id
-        ):
+        # URI is the canonical snapshot identity: the store is keyed by it and
+        # report extraction derives its own stable source id from it. A host's
+        # source_id is attribution metadata and may differ across read phases.
+        # Ignoring that label here migrates existing snapshots on read.
+        if value.get("uri") != reference.uri:
             return SourceResolution(
                 source=None, failure="source_changed", detail="snapshot_identity_mismatch"
             )

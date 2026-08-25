@@ -56,13 +56,24 @@ _COMMENT = re.compile(r"<!--[\s\S]*?-->")
 _MD_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
 _TRAILING_COMMENTS = re.compile(r"(?:\s*<!--[\s\S]*?-->)+")
 _INLINE = re.compile(r"[*_`]+")
+_BARE_ORDINAL = re.compile(r"^\d+[.)]$")
+_DATE_ONLY = re.compile(r"^(?:(?:19|20)\d{2}|(?:19|20)\d{2}-\d{2}-\d{2})[.]?$")
+_DATED_FURNITURE = re.compile(
+    r"^(?:data\s+cutoff|generated|updated|as\s+of|date)\s*:?\s*"
+    r"(?:19|20)\d{2}(?:-\d{2}-\d{2})?[.]?$",
+    re.IGNORECASE,
+)
+_GENERATED_BYLINE = re.compile(
+    r"^[^.!?]*\bgenerated\s+(?:19|20)\d{2}(?:-\d{2}-\d{2})?[.]?$",
+    re.IGNORECASE,
+)
 MIN_WORDS = 1
 
 
 @dataclass(frozen=True)
 class LedgerSegmenter:
     key: str = "groundnut.ledger-prose-segmenter"
-    version: str = "4"
+    version: str = "5"
     min_words: int = MIN_WORDS
 
     def canonical_payload(self) -> dict[str, Any]:
@@ -75,6 +86,7 @@ class LedgerSegmenter:
                 "non-header Markdown table cells enter the claim population",
                 "prose lines and list items split into sentences; a sentence with a citation is one cited unit per citation",
                 "every non-empty prose sentence is retained, including short numeric and status claims",
+                "bare ordinals and standalone or generated dates remain visible but are not numeric claims",
                 "HTML comments and inline markdown are stripped before counting words",
             ],
         }
@@ -122,7 +134,7 @@ class LedgerRow:
         if self.evidence_window_sha256 is not None and (
             not re.fullmatch(r"[0-9a-f]{64}", self.evidence_window_sha256)
             or self.evidence_window_truncation
-            not in {"complete", "truncated", "unknown"}
+            not in {"complete", "truncated", "unknown", "empty", "sparse"}
         ):
             raise ValueError("invalid ledger evidence-window identity")
 
@@ -456,7 +468,7 @@ def _own_row(
     declared = any(marker in raw_sentence for marker in profile.declared_analysis_classes)
     if declared:
         detail = "declared"
-    elif _NUMERIC.search(sentence):
+    elif _NUMERIC.search(sentence) and not _is_document_furniture(sentence):
         detail = "numeric"
     else:
         detail = "narrative"
@@ -471,6 +483,18 @@ def _own_row(
         detail=detail,
         annotations=annotations,
         annotation_conflicts=conflicts,
+    )
+
+
+def _is_document_furniture(sentence: str) -> bool:
+    """Tightly scoped metadata that must not spend a numeric-gate fix cycle."""
+
+    value = sentence.strip()
+    return bool(
+        _BARE_ORDINAL.fullmatch(value)
+        or _DATE_ONLY.fullmatch(value)
+        or _DATED_FURNITURE.fullmatch(value)
+        or _GENERATED_BYLINE.fullmatch(value)
     )
 
 

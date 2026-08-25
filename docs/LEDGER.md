@@ -44,6 +44,12 @@ offending unit listed. The fix is to cite the number or declare it — never to
 delete it. This converts extrapolation from something detected after the fact
 into something a report cannot ship undeclared.
 
+The gate does not spend a writer fix cycle on tightly defined document
+furniture: bare list ordinals, standalone dates, generated-report bylines and
+data-cutoff lines remain visible as narrative ledger units but are not numeric
+claims. A dated factual sentence (for example, a founding year or forecast)
+still enters the numeric gate.
+
 An intentional exception requires `--waiver waiver.json`. A waiver records a
 non-empty approver identity and reason and binds the exact artifact hash,
 ledger hash, and complete failing unit-id set. Groundnut writes the validated
