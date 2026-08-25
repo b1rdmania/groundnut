@@ -1,0 +1,105 @@
+{
+  "aggregate": {
+    "actual": 20,
+    "categories": {
+      "cited_locator": {
+        "expected": 2,
+        "found": 2,
+        "missed": 0
+      },
+      "cited_quote": {
+        "expected": 3,
+        "found": 3,
+        "missed": 0
+      },
+      "declared_analysis": {
+        "expected": 3,
+        "found": 3,
+        "missed": 0
+      },
+      "table_label": {
+        "expected": 4,
+        "found": 4,
+        "missed": 0
+      },
+      "table_numeric": {
+        "expected": 4,
+        "found": 4,
+        "missed": 0
+      },
+      "typed_unsourced": {
+        "expected": 2,
+        "found": 2,
+        "missed": 0
+      },
+      "uncited_numeric": {
+        "expected": 2,
+        "found": 2,
+        "missed": 0
+      }
+    },
+    "expected": 20,
+    "f1": 1.0,
+    "field_accuracy": 1.0,
+    "location_coverage": 1.0,
+    "precision": 1.0,
+    "recall": 1.0
+  },
+  "benchmark_sha256": "96c3b4e34e22e376dedb6e347b7f9649432104c65ac3af4a59afa2c0b92fc625",
+  "cases": [
+    {
+      "actual": 4,
+      "artifact_sha256": "5cee70e45cbda2d8adca334b94a0a596b92d7609ce0c5a7ecf93c249942be7a1",
+      "expected": 4,
+      "f1": 1.0,
+      "false_positive": [],
+      "field_errors": [],
+      "id": "memo-json",
+      "kind": "structured_json",
+      "missed": [],
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    {
+      "actual": 9,
+      "artifact_sha256": "3a6cc0c85657a06994d4cd4df9361f94e6b51cfd8986bf6bf6ff753fc2dc0b07",
+      "expected": 9,
+      "f1": 1.0,
+      "false_positive": [],
+      "field_errors": [],
+      "id": "rendered-html",
+      "kind": "rendered_html",
+      "missed": [],
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    {
+      "actual": 7,
+      "artifact_sha256": "e837597327a68e38a4dd1fcca255d1d2c1fe61dc941ffcf7063827a1b775adc2",
+      "expected": 7,
+      "f1": 1.0,
+      "false_positive": [],
+      "field_errors": [],
+      "id": "markdown",
+      "kind": "markdown",
+      "missed": [],
+      "precision": 1.0,
+      "recall": 1.0
+    }
+  ],
+  "disclosure": "A sanitized cross-format contract-conformance pack derived from a frozen consumer boundary. It measures supported syntax exactly; it is not a representative estimate of extraction accuracy on arbitrary documents.",
+  "profile": {
+    "key": "host-artifact-admission",
+    "sha256": "4ca376dd5faca7877d20020859c0058de53e2c1ac8b3f4d3bcb8051098709c20"
+  },
+  "profile_file_sha256": "bfa791c2dede0db983cfc69cc060b3dfbafd5784dd28c57deb92e3452e7bb049",
+  "schema": "groundnut-artifact-extraction-admission/v1",
+  "sha256": "d29453cf75ea3da89204869fc12b7aeafb8bd8443f07e15e5707d9a6e0322058",
+  "status": "admitted",
+  "thresholds": {
+    "field_accuracy": 1.0,
+    "location_coverage": 1.0,
+    "precision": 1.0,
+    "recall": 1.0
+  }
+}

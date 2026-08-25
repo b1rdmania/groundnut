@@ -1,4 +1,12 @@
-from groundnut.sources import ResolvedSource, SourceReference, SourceResolution
+import json
+from pathlib import Path
+
+from groundnut.sources import (
+    EvidenceWindow,
+    ResolvedSource,
+    SourceReference,
+    SourceResolution,
+)
 import pytest
 
 from groundnut.verification import (
@@ -11,7 +19,12 @@ from groundnut.verification import (
 )
 
 
-def resolved(reference, text):
+BOUNDARY_FIXTURE = (
+    Path(__file__).parent / "fixtures" / "evidence_window_boundary.json"
+)
+
+
+def resolved(reference, text, *, truncation="complete"):
     return SourceResolution(
         source=ResolvedSource(
             reference=reference,
@@ -19,6 +32,13 @@ def resolved(reference, text):
             fetched_at="2026-08-17T00:00:00Z",
             status=200,
             media_type="text/plain",
+            evidence_window=EvidenceWindow.from_text(
+                text,
+                original_bytes=len(text.encode()),
+                original_characters=len(text),
+                truncation=truncation,
+                extraction_method="test-fixture/v1",
+            ),
         )
     )
 
@@ -110,6 +130,42 @@ def test_fetch_failure_is_not_scored_as_fabrication():
     assert result.support == "not_assessed"
 
 
+def test_boundary_fixture_distinguishes_found_from_incomplete_window():
+    fixture = json.loads(BOUNDARY_FIXTURE.read_text())
+    reference = SourceReference(fixture["source_id"], fixture["uri"])
+    claim = Claim(
+        "c-window",
+        "The permit records a later deadline.",
+        source=reference,
+        excerpt=fixture["after_boundary_excerpt"],
+    )
+    captured = fixture["captured_text"]
+
+    complete = verify_claim(claim, resolved(reference, captured))
+    incomplete = verify_claim(
+        claim, resolved(reference, captured, truncation="truncated")
+    )
+
+    assert complete.anchor == "not_found"
+    assert complete.outcome == "excerpt_not_found"
+    assert incomplete.anchor == "not_found"
+    assert incomplete.outcome == "evidence_window_incomplete"
+    assert incomplete.evidence_window.truncation == "truncated"
+    before = verify_claim(
+        Claim(
+            "c-before",
+            "Permit issued.",
+            source=reference,
+            excerpt=fixture["before_boundary_excerpt"],
+        ),
+        resolved(reference, captured, truncation="truncated"),
+    )
+
+    assert before.anchor == "found"
+    assert before.outcome == "excerpt_found"
+    assert before.evidence_window.truncation == "truncated"
+
+
 def test_metrics_keep_coverage_accessibility_and_anchoring_separate():
     reference = SourceReference("s1", "https://example.test/a")
     rows = [
@@ -121,7 +177,7 @@ def test_metrics_keep_coverage_accessibility_and_anchoring_separate():
     ]
 
     metrics = verification_metrics(rows)
-    assert metrics["schema"] == "groundnut-verification-metrics/v2"
+    assert metrics["schema"] == "groundnut-verification-metrics/v3"
     assert metrics["rates"]["citation_coverage"] == {
         "schema": "groundnut-metric-envelope/v1",
         "name": "citation_coverage",

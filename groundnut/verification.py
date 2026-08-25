@@ -14,7 +14,7 @@ from typing import Any
 
 from .metrics import MetricEnvelope
 from .provenance import sha256_text
-from .sources import SourceReference, SourceResolution
+from .sources import EvidenceWindow, SourceReference, SourceResolution
 
 
 CLAIM_PROVENANCE_CLASSES = {
@@ -32,6 +32,15 @@ ANALYST_PROVENANCE_CLASSES = {
     "analyst_calculation",
     "analyst_inference",
     "recommendation",
+}
+VERIFICATION_OUTCOMES = {
+    "not_applicable",
+    "source_unavailable",
+    "no_excerpt",
+    "excerpt_found",
+    "excerpt_ambiguous",
+    "excerpt_not_found",
+    "evidence_window_incomplete",
 }
 
 
@@ -168,22 +177,50 @@ class MatchOutcome:
 class VerifiedClaim:
     claim: Claim
     anchor: str | None
+    outcome: str
     method: str
     score: float | None
     support: str
     note: str
     failure: str | None = None
+    evidence_window: EvidenceWindow | None = None
+
+    def __post_init__(self) -> None:
+        if self.outcome not in VERIFICATION_OUTCOMES:
+            raise ValueError(f"unknown verification outcome: {self.outcome}")
+        if self.outcome.startswith("excerpt_") or self.outcome in {
+            "no_excerpt",
+            "evidence_window_incomplete",
+        }:
+            if self.evidence_window is None:
+                raise ValueError("source verification outcome requires an evidence window")
+        if self.outcome == "evidence_window_incomplete" and (
+            self.anchor != "not_found"
+            or self.evidence_window is None
+            or self.evidence_window.truncation == "complete"
+        ):
+            raise ValueError("incomplete outcome requires a non-complete searched window")
+        if self.outcome == "excerpt_not_found" and (
+            self.anchor != "not_found"
+            or self.evidence_window is None
+            or self.evidence_window.truncation != "complete"
+        ):
+            raise ValueError("not-found outcome requires a complete searched window")
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema": "groundnut-claim-verification/v1",
+            "schema": "groundnut-claim-verification/v2",
             "claim": self.claim.to_dict(),
             "anchor": self.anchor,
+            "outcome": self.outcome,
             "method": self.method,
             "score": self.score,
             "support": self.support,
             "note": self.note,
             "failure": self.failure,
+            "evidence_window": (
+                self.evidence_window.to_dict() if self.evidence_window else None
+            ),
         }
 
 
@@ -257,6 +294,7 @@ def verify_claim(claim: Claim, resolution: SourceResolution | None) -> VerifiedC
         return VerifiedClaim(
             claim=claim,
             anchor=None,
+            outcome="not_applicable",
             method="provenance" if typed else "no_source",
             score=None,
             support="not_assessed",
@@ -271,6 +309,7 @@ def verify_claim(claim: Claim, resolution: SourceResolution | None) -> VerifiedC
         return VerifiedClaim(
             claim=claim,
             anchor=None,
+            outcome="source_unavailable",
             method="fetch_failed",
             score=None,
             support="not_assessed",
@@ -281,6 +320,7 @@ def verify_claim(claim: Claim, resolution: SourceResolution | None) -> VerifiedC
         return VerifiedClaim(
             claim=claim,
             anchor=None,
+            outcome="source_unavailable",
             method="fetch_failed",
             score=None,
             support="not_assessed",
@@ -291,23 +331,41 @@ def verify_claim(claim: Claim, resolution: SourceResolution | None) -> VerifiedC
         return VerifiedClaim(
             claim=claim,
             anchor=None,
+            outcome="no_excerpt",
             method="locator" if claim.locator else "no_excerpt",
             score=None,
             support="not_assessed",
             note="Source is readable but no verbatim excerpt was supplied; semantic review is required.",
+            evidence_window=resolution.source.evidence_window,
         )
     match = anchor_excerpt(claim.excerpt, resolution.source.text)
+    window = resolution.source.evidence_window
+    if match.anchor == "found":
+        outcome = "excerpt_found"
+    elif match.anchor == "ambiguous":
+        outcome = "excerpt_ambiguous"
+    elif window.truncation == "complete":
+        outcome = "excerpt_not_found"
+    else:
+        outcome = "evidence_window_incomplete"
     return VerifiedClaim(
         claim=claim,
         anchor=match.anchor,
+        outcome=outcome,
         method=match.method,
         score=match.score,
         support="not_assessed",
         note=(
             "Excerpt anchored in source; claim support has not been assessed."
             if match.anchor == "found"
-            else "Excerpt was not conclusively anchored; claim support has not been assessed."
+            else (
+                "Excerpt was not found, but the searchable evidence window is incomplete; "
+                "absence cannot be concluded."
+                if outcome == "evidence_window_incomplete"
+                else "Excerpt was not conclusively anchored; claim support has not been assessed."
+            )
         ),
+        evidence_window=window,
     )
 
 
@@ -331,7 +389,12 @@ def verification_metrics(rows: list[VerifiedClaim]) -> dict[str, Any]:
             row.method == "fuzzy" and row.anchor == "ambiguous" for row in excerpts
         ),
         "fuzzy_not_found": sum(
-            row.method == "fuzzy" and row.anchor == "not_found" for row in excerpts
+            row.method == "fuzzy"
+            and row.outcome == "excerpt_not_found"
+            for row in excerpts
+        ),
+        "evidence_window_incomplete": sum(
+            row.outcome == "evidence_window_incomplete" for row in excerpts
         ),
         "locator_only": sum(row.method == "locator" for row in cited),
         "no_excerpt": sum(row.method == "no_excerpt" for row in cited),
@@ -409,7 +472,7 @@ def verification_metrics(rows: list[VerifiedClaim]) -> dict[str, Any]:
             ).to_dict(),
         }
     return {
-        "schema": "groundnut-verification-metrics/v2",
+        "schema": "groundnut-verification-metrics/v3",
         "counts": {
             "detected_claims": len(rows),
             "cited_claims": len(cited),

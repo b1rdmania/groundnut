@@ -1,0 +1,30 @@
+{
+  "schema": "groundnut-domain/v1",
+  "key": "ic_research",
+  "version": "0.1.0-shadow",
+  "name": "Investment committee research claims",
+  "document_noun": "research report",
+  "extract_context": "Recover the claims and evidence apparatus from a completed investment committee research report.",
+  "classify_context": "Keep source access, excerpt presence, semantic support, evidence authority, and investment workflow outcome separate.",
+  "categories": [
+    {
+      "key": "research_claim",
+      "name": "Research claim",
+      "severity": 3,
+      "description": "A claim in an investment committee research artifact that should remain bound to its cited evidence or declared derivation."
+    }
+  ],
+  "document_types": [
+    {
+      "key": "research_report",
+      "name": "Research report",
+      "description": "A completed diligence or investment committee research report."
+    }
+  ],
+  "evidence": {
+    "status": "experimental",
+    "dataset": null,
+    "disclosure": "Shadow integration profile only. No IC-domain quality or production-readiness claim has been established."
+  }
+}
+

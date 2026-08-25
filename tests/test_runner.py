@@ -95,6 +95,7 @@ def test_canonical_runner_composes_artifact_source_support_and_authority(tmp_pat
     payload = result.to_dict()
     assert payload["schema"] == "groundnut-canonical-run/v1"
     assert payload["acquisitions"][0]["strategy"] == "live_archived"
+    assert payload["acquisitions"][0]["result"]["evidence_window"]["sha256"]
     assert payload["evidence"]["summary"]["support_status_counts"] == {
         "supported": 1
     }
@@ -191,6 +192,9 @@ def test_execution_manifest_binds_engine_domain_policies_sources_and_run(tmp_pat
         "support",
     }
     assert payload["manifest"]["artifacts"][0]["kind"] == "canonical_run"
+    [source] = payload["manifest"]["sources"]
+    assert source["evidence_window_sha256"]
+    assert source["evidence_window_truncation"] == "unknown"
     assert {row["role"] for row in payload["manifest"]["components"]} == {
         "claim_segmenter",
         "semantic_support_detector",

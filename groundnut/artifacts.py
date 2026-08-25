@@ -15,6 +15,7 @@ import re
 from typing import Any, Mapping
 
 from .provenance import sha256_text
+from .markdown_population import scan_markdown
 from .sources import SourceReference
 from .verification import (
     ANALYST_PROVENANCE_CLASSES,
@@ -31,6 +32,12 @@ _BLOCK_END = re.compile(
     re.I,
 )
 _TAG = re.compile(r"<[^>]+>")
+_ANY_COMMENT = re.compile(r"<!--[\s\S]*?-->")
+_SENTENCE_END = re.compile(r"(?P<end>[.!?][*_\"')\]]*)\s+(?=[A-Z\"'(\[*_])")
+_TRAILING_SENTINELS = re.compile(
+    r"(?:\s*__GROUNDNUT_(?:DECLARED_ANALYSIS|PROVENANCE_[A-Z_]+)__)+"
+)
+_TRAILING_COMMENTS = re.compile(r"(?:\s*<!--[\s\S]*?-->)+")
 
 
 @dataclass(frozen=True)
@@ -71,22 +78,29 @@ class SegmenterIdentity:
         strategies = value.get("strategies", {})
         if not isinstance(strategies, Mapping):
             raise ValueError("segmenter strategies must be an object")
-        return cls(
+        identity = cls(
             key=str(value["key"]),
             version=str(value["version"]),
             strategies=tuple((str(kind), str(rule)) for kind, rule in strategies.items()),
         )
+        declared_sha256 = value.get("configuration_sha256")
+        if declared_sha256 is not None and declared_sha256 != identity.sha256:
+            raise ValueError("segmenter configuration_sha256 does not match its content")
+        return identity
 
 
 DEFAULT_SEGMENTER = SegmenterIdentity(
     key="groundnut.artifact-block-segmenter",
-    version="1",
+    version="3",
     strategies=(
         ("structured_json", "one claim per configured claims-array row"),
-        ("markdown", "one claim per HTTP citation per physical line"),
+        (
+            "markdown",
+            "one claim per eligible prose or table-cell sentence; cited sentences repeat once per HTTP citation",
+        ),
         (
             "rendered_html",
-            "one claim per HTTP citation per normalized block line; one claim per typed unsourced block",
+            "one claim per eligible normalized sentence or table cell; cited sentences repeat once per HTTP citation",
         ),
     ),
 )
@@ -400,25 +414,48 @@ def _structured_claims(value: Any, profile: ArtifactProfile) -> list[Claim]:
 
 def _markdown_claims(raw: str, profile: ArtifactProfile) -> list[Claim]:
     claims = []
-    for line_number, line in enumerate(raw.splitlines(), 1):
-        for match in _LINK.finditer(line):
-            evidence, question = _adjacent_comments(line[match.end() :], profile)
-            excerpt, locator = _citation_evidence(
-                match.group(1), match.group(3), evidence
-            )
-            claims.append(
-                Claim(
-                    claim_id=f"c{len(claims) + 1}",
-                    text=_reading_text(line, profile),
-                    question=question,
-                    source=_reference(match.group(2)),
-                    excerpt=excerpt,
-                    locator=locator,
-                    declared_analysis=_declared(line, profile),
-                    provenance_class=_provenance_class(line, profile),
-                    location=f"line {line_number}",
-                )
-            )
+    content, _ = scan_markdown(raw)
+    for content_line in content:
+        for segment in content_line.segments:
+            for sentence in _markdown_sentences(segment):
+                links = list(_LINK.finditer(sentence))
+                reading = _reading_text(sentence, profile)
+                if links:
+                    for match in links:
+                        evidence, question = _adjacent_comments(
+                            sentence[match.end() :], profile
+                        )
+                        excerpt, locator = _citation_evidence(
+                            match.group(1), match.group(3), evidence
+                        )
+                        claims.append(
+                            Claim(
+                                claim_id=f"c{len(claims) + 1}",
+                                text=reading,
+                                question=question,
+                                source=_reference(match.group(2)),
+                                excerpt=excerpt,
+                                locator=locator,
+                                declared_analysis=_declared(sentence, profile),
+                                provenance_class=_provenance_class(sentence, profile),
+                                location=f"line {content_line.line}",
+                            )
+                        )
+                elif reading:
+                    provenance_class = _provenance_class(sentence, profile)
+                    declared = _declared(sentence, profile)
+                    claims.append(
+                        Claim(
+                            claim_id=f"c{len(claims) + 1}",
+                            text=reading,
+                            declared_analysis=(
+                                declared
+                                or provenance_class in ANALYST_PROVENANCE_CLASSES
+                            ),
+                            provenance_class=provenance_class,
+                            location=f"line {content_line.line}",
+                        )
+                    )
     return claims
 
 
@@ -456,7 +493,19 @@ def _html_claims(raw: str, profile: ArtifactProfile) -> list[Claim]:
             prepared,
             flags=re.I,
         )
-    prepared = re.sub(r"<script[\s\S]*?</script>|<style[\s\S]*?</style>", " ", prepared, flags=re.I)
+    prepared = re.sub(
+        r"<(?:script|style|title|nav|header|footer)\b[\s\S]*?</(?:script|style|title|nav|header|footer)>",
+        " ",
+        prepared,
+        flags=re.I,
+    )
+    prepared = re.sub(
+        r"<(?P<heading>h[1-6])\b[^>]*>[\s\S]*?</(?P=heading)>",
+        "\n",
+        prepared,
+        flags=re.I,
+    )
+    prepared = re.sub(r"<th\b[^>]*>[\s\S]*?</th>", "\n", prepared, flags=re.I)
     prepared = re.sub(
         r"<a\b([^>]*)>([\s\S]*?)</a>",
         lambda match: _anchor_marker(match.group(1), match.group(2)),
@@ -480,44 +529,82 @@ def _html_claims(raw: str, profile: ArtifactProfile) -> list[Claim]:
         line = " ".join(line.split())
         if not line:
             continue
-        links = list(_LINK.finditer(line))
-        declared = "__GROUNDNUT_DECLARED_ANALYSIS__" in line
-        provenance_class = _provenance_class(line, profile)
-        if declared and provenance_class == "unclassified":
-            provenance_class = "analyst_inference"
-        reading = _reading_text(line, profile)
-        if links:
-            for match in links:
-                adjacent, question = _adjacent_sentinels(line[match.end() :])
-                excerpt, locator = _citation_evidence(
-                    match.group(1), match.group(3), adjacent
-                )
+        for sentence in _text_sentences(line):
+            links = list(_LINK.finditer(sentence))
+            declared = "__GROUNDNUT_DECLARED_ANALYSIS__" in sentence
+            provenance_class = _provenance_class(sentence, profile)
+            if declared and provenance_class == "unclassified":
+                provenance_class = "analyst_inference"
+            reading = _reading_text(sentence, profile)
+            if links:
+                for match in links:
+                    adjacent, question = _adjacent_sentinels(
+                        sentence[match.end() :]
+                    )
+                    excerpt, locator = _citation_evidence(
+                        match.group(1), match.group(3), adjacent
+                    )
+                    claims.append(
+                        Claim(
+                            claim_id=f"c{len(claims) + 1}",
+                            text=reading,
+                            question=question,
+                            source=_reference(match.group(2)),
+                            excerpt=excerpt,
+                            locator=locator,
+                            declared_analysis=declared,
+                            provenance_class=provenance_class,
+                            location=f"line {line_number}",
+                        )
+                    )
+            elif reading:
                 claims.append(
                     Claim(
                         claim_id=f"c{len(claims) + 1}",
                         text=reading,
-                        question=question,
-                        source=_reference(match.group(2)),
-                        excerpt=excerpt,
-                        locator=locator,
-                        declared_analysis=declared,
+                        declared_analysis=(
+                            declared or provenance_class in ANALYST_PROVENANCE_CLASSES
+                        ),
                         provenance_class=provenance_class,
                         location=f"line {line_number}",
                     )
                 )
-        elif (declared or provenance_class != "unclassified") and reading:
-            claims.append(
-                Claim(
-                    claim_id=f"c{len(claims) + 1}",
-                    text=reading,
-                    declared_analysis=(
-                        declared or provenance_class in ANALYST_PROVENANCE_CLASSES
-                    ),
-                    provenance_class=provenance_class,
-                    location=f"line {line_number}",
-                )
-            )
     return claims
+
+
+def _text_sentences(line: str) -> list[str]:
+    """Split normalized block text without splitting inside Markdown links."""
+
+    masked = _LINK.sub(lambda match: "x" * len(match.group(0)), line)
+    pieces = []
+    start = 0
+    for match in _SENTENCE_END.finditer(masked):
+        cut = match.end("end")
+        trailing = _TRAILING_SENTINELS.match(line, cut)
+        if trailing:
+            cut = trailing.end()
+        pieces.append(line[start:cut])
+        start = max(cut, match.end())
+    pieces.append(line[start:])
+    return [piece.strip() for piece in pieces if piece.strip()]
+
+
+def _markdown_sentences(line: str) -> list[str]:
+    """Split Markdown while evidence comments and links remain atomic."""
+
+    masked = _ANY_COMMENT.sub(lambda match: " " * len(match.group(0)), line)
+    masked = _LINK.sub(lambda match: "x" * len(match.group(0)), masked)
+    pieces = []
+    start = 0
+    for match in _SENTENCE_END.finditer(masked):
+        cut = match.end("end")
+        trailing = _TRAILING_COMMENTS.match(line, cut)
+        if trailing:
+            cut = trailing.end()
+        pieces.append(line[start:cut])
+        start = max(cut, match.end())
+    pieces.append(line[start:])
+    return [piece.strip() for piece in pieces if piece.strip()]
 
 
 def _anchor_marker(attributes: str, inner: str) -> str:
@@ -539,12 +626,16 @@ def _reading_text(value: str, profile: ArtifactProfile) -> str:
     value = _LINK.sub(lambda match: match.group(1), value)
     value = _comment_pattern(profile).sub("", value)
     value = _question_comment_pattern(profile).sub("", value)
+    value = _ANY_COMMENT.sub("", value)
     value = re.sub(
         r"__GROUNDNUT_(?:DECLARED_ANALYSIS|PROVENANCE_[A-Z_]+|EVIDENCE_(?:QUOTE|LOCATOR)_[^\s]+|QUESTION_[^\s]+)__",
         "",
         value,
     )
-    return " ".join(value.replace("#", " ").replace("*", " ").replace("`", " ").split())
+    text = " ".join(
+        value.replace("#", " ").replace("*", " ").replace("`", " ").split()
+    )
+    return re.sub(r"\s+([.,!?;:])", r"\1", text)
 
 
 def _citation_evidence(
