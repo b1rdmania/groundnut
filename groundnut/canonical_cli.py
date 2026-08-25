@@ -9,6 +9,7 @@ from pathlib import Path
 import sys
 from typing import Any, Mapping
 
+from ._version import __version__
 from .arena_emission import ArenaEmissionProfile, DEFAULT_ARENA_EMISSION_PROFILE
 from .artifacts import ArtifactProfile, DEFAULT_ARTIFACT_PROFILE
 from .authority import AuthorityDeclaration, AuthorityPolicy
@@ -23,8 +24,23 @@ from .support import SupportPolicy
 REQUEST_SCHEMA = "groundnut-canonical-request/v1"
 RESPONSE_SCHEMA = "groundnut-canonical-response/v1"
 ERROR_SCHEMA = "groundnut-canonical-error/v1"
-ENGINE_VERSION = "0.1"
+ENGINE_VERSION = __version__
 _REPOSITORY = Path(__file__).resolve().parent.parent
+
+
+def _engine_identity() -> EngineIdentity:
+    try:
+        return EngineIdentity.from_repository(
+            version=ENGINE_VERSION,
+            repository=_REPOSITORY,
+        )
+    except ValueError:
+        return EngineIdentity.from_source_tree(
+            version=ENGINE_VERSION,
+            revision=f"package:{ENGINE_VERSION}",
+            source_root=Path(__file__).resolve().parent,
+            dirty=False,
+        )
 
 
 def _canonical_sha256(value: Mapping[str, Any]) -> str:
@@ -115,10 +131,7 @@ def execute_request(
     )
     execution = execute_canonical_check(
         artifact,
-        engine=EngineIdentity.from_repository(
-            version=ENGINE_VERSION,
-            repository=_REPOSITORY,
-        ),
+        engine=_engine_identity(),
         domain=domain,
         artifact_profile=_artifact_profile(request.get("artifact_profile")),
         resolver=resolver,

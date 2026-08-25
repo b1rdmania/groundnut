@@ -74,21 +74,21 @@ def test_ledger_puts_every_prose_unit_in_exactly_one_bucket(tmp_path):
     ledger = build_claim_ledger(execution, artifact.read_text())
 
     by_detail = ledger.counts["by_detail"]
-    assert ledger.counts["units"] == 6
+    assert ledger.counts["units"] == 7
     assert by_detail == {
-        "cited_verified:found": 1,
-        "cited_drifted:quote_not_found": 1,
+        "excerpt_found:found": 1,
+        "citation_unconfirmed:quote_not_found": 1,
         "own_reasoning:numeric": 1,
-        "own_reasoning:narrative": 3,
+        "own_reasoning:narrative": 4,
     }
     inferred = [row for row in ledger.rows if row.text.startswith("From that we infer")]
     assert inferred and inferred[0].bucket == "own_reasoning"
-    drifted = [row for row in ledger.rows if row.bucket == "cited_drifted"]
+    drifted = [row for row in ledger.rows if row.bucket == "citation_unconfirmed"]
     assert drifted[0].text.startswith("The company also said headcount doubled")
     assert "From that we infer" not in drifted[0].text
     assert sum(ledger.counts["by_bucket"].values()) == ledger.counts["units"]
     assert {row.bucket for row in ledger.rows} <= set(BUCKETS)
-    cited = [row for row in ledger.rows if row.bucket.startswith("cited")]
+    cited = [row for row in ledger.rows if row.bucket != "own_reasoning"]
     assert all(row.support_status == "insufficient" for row in cited)
     assert ledger.segmenter.sha256 == LedgerSegmenter().sha256
     assert ledger.to_dict()["sha256"] == ledger.sha256
@@ -144,7 +144,7 @@ def test_ledger_cli_writes_json_and_markdown(tmp_path):
     )
     assert code == 0
     payload = json.loads(out.read_text())
-    assert payload["schema"] == "groundnut-claim-ledger/v1"
+    assert payload["schema"] == "groundnut-claim-ledger/v2"
     text = md.read_text()
     assert "Report's own reasoning" in text
     assert "$184,000" in text
@@ -152,7 +152,7 @@ def test_ledger_cli_writes_json_and_markdown(tmp_path):
     assert render_ledger_markdown(build_claim_ledger(execution, artifact.read_text())) == text
 
 
-def test_ic_loop_replays_offline_and_writes_the_four_artifacts(tmp_path):
+def test_ic_loop_replays_offline_and_writes_bound_artifacts(tmp_path):
     from groundnut.ic_loop import main as loop_main
 
     artifact, _ = _run(tmp_path)
@@ -163,13 +163,13 @@ def test_ic_loop_replays_offline_and_writes_the_four_artifacts(tmp_path):
         (out / "snapshots" / item.name).write_bytes(item.read_bytes())
     code = loop_main(["--report", str(artifact), "--out", str(out), "--replay-only"])
     assert code == 0
-    for name in ("request.json", "run.json", "ledger.json", "ledger.md"):
+    for name in ("request.json", "run.json", "ledger.json", "ledger.md", "gate.json"):
         assert (out / name).exists()
     request = json.loads((out / "request.json").read_text())
     assert request["acquisition_mode"] == "replay_only"
     assert request["domain"]["key"] == "ic_research"
     ledger = json.loads((out / "ledger.json").read_text())
-    assert ledger["counts"]["units"] == 6
+    assert ledger["counts"]["units"] == 7
 
 
 def test_ic_loop_refuses_network_without_consent(tmp_path, monkeypatch):
@@ -285,3 +285,92 @@ def test_gate_passes_when_every_numeric_is_declared_or_cited(tmp_path):
         ["--report", str(artifact), "--out", str(out), "--replay-only", "--gate-undeclared-numerics"]
     )
     assert code == 0
+
+
+def test_short_numeric_sentence_cannot_escape_the_gate(tmp_path):
+    from groundnut.ic_loop import main as loop_main
+
+    artifact, _ = _run(tmp_path)
+    artifact.write_text(artifact.read_text() + "\nMarket: $4.2B by 2030.\n")
+    out = tmp_path / "short-numeric"
+    out.mkdir()
+    (out / "snapshots").mkdir()
+    for item in (tmp_path / "snapshots").iterdir():
+        (out / "snapshots" / item.name).write_bytes(item.read_bytes())
+
+    code = loop_main(
+        ["--report", str(artifact), "--out", str(out), "--replay-only", "--gate-undeclared-numerics"]
+    )
+
+    assert code == 1
+    ledger = json.loads((out / "ledger.json").read_text())
+    assert any(
+        row["text"] == "Market: $4.2B by 2030." and row["detail"] == "numeric"
+        for row in ledger["rows"]
+    )
+
+
+def test_zero_citation_report_is_a_valid_all_own_reasoning_run(tmp_path):
+    from groundnut.ic_loop import main as loop_main
+
+    artifact = tmp_path / "uncited.md"
+    artifact.write_text(
+        "# Memo\n\nThis report contains a factual statement without any external citation.\n"
+    )
+    out = tmp_path / "uncited-out"
+
+    code = loop_main(["--report", str(artifact), "--out", str(out), "--replay-only"])
+
+    assert code == 0
+    run = json.loads((out / "run.json").read_text())
+    assert run["execution"]["run"]["artifact"]["claim_count"] == 0
+    assert run["execution"]["run"]["evidence"]["accounts"] == []
+    ledger = json.loads((out / "ledger.json").read_text())
+    assert ledger["counts"]["by_bucket"] == {
+        "citation_unconfirmed": 0,
+        "excerpt_found": 0,
+        "own_reasoning": 1,
+    }
+
+
+def test_human_waiver_must_bind_the_exact_failed_ledger(tmp_path):
+    from groundnut.ic_loop import main as loop_main
+
+    artifact, _ = _run(tmp_path)
+    out = tmp_path / "waived"
+    out.mkdir()
+    (out / "snapshots").mkdir()
+    for item in (tmp_path / "snapshots").iterdir():
+        (out / "snapshots" / item.name).write_bytes(item.read_bytes())
+    args = [
+        "--report", str(artifact), "--out", str(out), "--replay-only",
+        "--gate-undeclared-numerics",
+    ]
+    assert loop_main(args) == 1
+    ledger = json.loads((out / "ledger.json").read_text())
+    failing = [
+        row["unit_id"]
+        for row in ledger["rows"]
+        if row["bucket"] == "own_reasoning" and row["detail"] == "numeric"
+    ]
+    waiver_path = tmp_path / "waiver.json"
+    waiver_path.write_text(
+        json.dumps(
+            {
+                "schema": "groundnut-gate-waiver/v1",
+                "gate": "undeclared_numeric_own_reasoning",
+                "artifact_sha256": ledger["artifact_sha256"],
+                "ledger_sha256": ledger["sha256"],
+                "approved_by": "human:reviewer",
+                "approved_at": "2026-08-25T12:00:00Z",
+                "reason": "Reviewed as an explicit scenario assumption.",
+                "waived_unit_ids": failing,
+            }
+        )
+    )
+
+    assert loop_main([*args, "--waiver", str(waiver_path)]) == 0
+    gate = json.loads((out / "gate.json").read_text())
+    assert gate["status"] == "waived"
+    assert gate["waiver"]["approved_by"] == "human:reviewer"
+    assert len(gate["waiver"]["sha256"]) == 64

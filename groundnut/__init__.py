@@ -6,6 +6,8 @@ CLIs. Experimental objects remain importable here for repository work, but a
 package-root export alone does not make them an admitted product API.
 """
 
+from ._version import __version__
+
 from .domain import Category, DocumentType, DomainEvidence, DomainPack
 from .artifacts import (
     ArtifactExtraction,

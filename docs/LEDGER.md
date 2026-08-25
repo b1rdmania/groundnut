@@ -6,11 +6,11 @@ buckets:
 
 | bucket | meaning |
 |---|---|
-| `cited_verified` | the cited excerpt was found verbatim in the source snapshot |
-| `cited_drifted` | a citation exists but the excerpt was `quote_not_found`, `quote_ambiguous`, had `no_excerpt`, or the source was `source_unavailable` |
+| `excerpt_found` | the cited excerpt was found verbatim in the source snapshot |
+| `citation_unconfirmed` | a citation exists but the excerpt was `quote_not_found`, `quote_ambiguous`, had `no_excerpt`, or the source was `source_unavailable` |
 | `own_reasoning` | no citation, or declared analysis; split into `declared`, `numeric` (carries a number, %, currency, or multiplier), `narrative` |
 
-`cited_verified` means the quoted words are in the snapshot. It is not a
+`excerpt_found` means the quoted words are in the snapshot. It is not a
 statement that the claim is true, or that the source supports the claim. The
 semantic support status rides alongside every cited row and is `insufficient`
 for all of them until a support detector passes the admission gate.
@@ -38,6 +38,11 @@ offending unit listed. The fix is to cite the number or declare it — never to
 delete it. This converts extrapolation from something detected after the fact
 into something a report cannot ship undeclared.
 
+An intentional exception requires `--waiver waiver.json`. A waiver names a
+`human:` approver and reason and binds the exact artifact hash, ledger hash,
+and complete failing unit-id set. Groundnut writes the validated waiver and
+its hash into `gate.json`. A changed report or ledger invalidates the waiver.
+
 ## Run it
 
 One command, the IC loop:
@@ -49,7 +54,7 @@ python3 -m groundnut.ic_loop --report research-report.md --out groundnut/ --titl
 It fetches and snapshots every cited source once (`--replay-only` refuses the
 network), runs the canonical check with `domains/ic_research.json` and
 `profiles/ic-research-pipeline.json`, and writes `request.json`, `run.json`,
-`ledger.json`, `ledger.md`, `snapshots/`. The research pipeline calls this as
+`ledger.json`, `ledger.md`, `gate.json`, `snapshots/`. The research pipeline calls this as
 its Phase 4.5. The two underlying steps:
 
 ```bash
@@ -88,8 +93,10 @@ Every count depends on the segmenter, whose identity is hashed into the
 ledger. Rules: frontmatter, headings, horizontal rules, table rows, and fenced
 code are not claims; prose lines split into sentences; a sentence with an
 HTTP citation is one cited unit per citation; uncited sentences in the same
-paragraph are their own units; list items split the same way; units under
-eight words are dropped.
+paragraph are their own units; list items split the same way; every non-empty
+prose sentence is retained. Segmenter v3 removed the previous eight-word floor
+because short deck-style claims such as `Market: $4.2B by 2030.` must enter the
+numeric gate.
 
 Known coarseness: a sentence with two citations appears twice, once per
 citation.
@@ -97,8 +104,8 @@ citation.
 ## First real ledger
 
 RxClarity research report (private), 22 August 2026, exact baseline detector,
-replay from the 17 August snapshots, segmenter v2: 401 units — 63 cited and
-verified, 42 cited but drifted (11 not found, 13 ambiguous, 8 no excerpt, 10
+replay from the 17 August snapshots, segmenter v2: 401 units — 63 excerpts
+found, 42 citations unconfirmed (11 not found, 13 ambiguous, 8 no excerpt, 10
 source unavailable), 296 own reasoning (80 numeric, 216 narrative). Segmenter
 v1, which kept whole cited paragraphs as one unit, reported 329 / 63 / 42 /
 224; the difference is the uncited sentences that v1 hid inside cited

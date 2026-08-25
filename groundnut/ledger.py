@@ -7,8 +7,8 @@ source, or is it the report's own reasoning?
 
 Buckets:
 
-- ``cited_verified``  — the cited excerpt was found verbatim in the snapshot.
-- ``cited_drifted``   — a citation exists but the excerpt was not found,
+- ``excerpt_found``  — the cited excerpt was found verbatim in the snapshot.
+- ``citation_unconfirmed``   — a citation exists but the excerpt was not found,
   was ambiguous, had no excerpt to anchor, or the source was unavailable.
 - ``own_reasoning``   — no citation, or the claim is declared analysis.
 
@@ -37,8 +37,8 @@ from typing import Any, Mapping, Sequence
 
 from .artifacts import ArtifactProfile, DEFAULT_ARTIFACT_PROFILE, _LINK  # noqa: F401
 
-LEDGER_SCHEMA = "groundnut-claim-ledger/v1"
-BUCKETS = ("cited_verified", "cited_drifted", "own_reasoning")
+LEDGER_SCHEMA = "groundnut-claim-ledger/v2"
+BUCKETS = ("excerpt_found", "citation_unconfirmed", "own_reasoning")
 DRIFT_REASONS = ("quote_not_found", "quote_ambiguous", "no_excerpt", "source_unavailable")
 OWN_KINDS = ("declared", "numeric", "narrative")
 
@@ -52,13 +52,13 @@ _COMMENT = re.compile(r"<!--[\s\S]*?-->")
 _MD_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
 _TRAILING_COMMENTS = re.compile(r"(?:\s*<!--[\s\S]*?-->)+")
 _INLINE = re.compile(r"[*_`]+")
-MIN_WORDS = 8
+MIN_WORDS = 1
 
 
 @dataclass(frozen=True)
 class LedgerSegmenter:
     key: str = "groundnut.ledger-prose-segmenter"
-    version: str = "2"
+    version: str = "3"
     min_words: int = MIN_WORDS
 
     def canonical_payload(self) -> dict[str, Any]:
@@ -68,8 +68,8 @@ class LedgerSegmenter:
             "min_words": self.min_words,
             "rules": [
                 "frontmatter, headings, horizontal rules, table rows, and fenced code are not claims",
-                                "prose lines and list items split into sentences; a sentence with a citation is one cited unit per citation",
-                f"units under {self.min_words} words are dropped",
+                "prose lines and list items split into sentences; a sentence with a citation is one cited unit per citation",
+                "every non-empty prose sentence is retained, including short numeric and status claims",
                 "HTML comments and inline markdown are stripped before counting words",
             ],
         }
@@ -94,11 +94,13 @@ class LedgerRow:
     def __post_init__(self) -> None:
         if self.bucket not in BUCKETS:
             raise ValueError(f"unknown ledger bucket: {self.bucket}")
-        if self.bucket == "cited_drifted" and self.detail not in DRIFT_REASONS:
+        if self.bucket == "citation_unconfirmed" and self.detail not in DRIFT_REASONS:
             raise ValueError(f"unknown drift reason: {self.detail}")
         if self.bucket == "own_reasoning" and self.detail not in OWN_KINDS:
             raise ValueError(f"unknown own-reasoning kind: {self.detail}")
-        if self.bucket.startswith("cited") and not (self.claim_id and self.source_uri):
+        if self.bucket in {"excerpt_found", "citation_unconfirmed"} and not (
+            self.claim_id and self.source_uri
+        ):
             raise ValueError("cited ledger rows need a claim id and source")
 
     def to_dict(self) -> dict[str, Any]:
@@ -151,7 +153,7 @@ class ClaimLedger:
             "counts": self.counts,
             "rows": [row.to_dict() for row in self.rows],
             "disclosure": (
-                "cited_verified means the quotation was found in the snapshot; "
+                "excerpt_found means the quotation was found in the snapshot; "
                 "it is not a truth or support claim. support_status is insufficient "
                 "for every claim until a support detector is admitted."
             ),
@@ -241,8 +243,8 @@ def render_ledger_markdown(ledger: ClaimLedger, *, title: str = "Claim ledger") 
     lines.append("| Bucket | Units | Share |")
     lines.append("|---|---:|---:|")
     labels = {
-        "cited_verified": "Cited, quotation found in source",
-        "cited_drifted": "Cited, quotation not confirmed",
+        "excerpt_found": "Cited excerpt found in source",
+        "citation_unconfirmed": "Citation present, excerpt not confirmed",
         "own_reasoning": "Report's own reasoning, no source",
     }
     for bucket in BUCKETS:
@@ -254,7 +256,7 @@ def render_ledger_markdown(ledger: ClaimLedger, *, title: str = "Claim ledger") 
     for key, n in counts["by_detail"].items():
         lines.append(f"| `{key}` | {n} |")
     lines.append("")
-    lines.append("Verified means the quoted words are in the snapshot. It is not a statement that the claim is true or that the source supports it.")
+    lines.append("Excerpt found means the quoted words are in the snapshot. It is not a statement that the claim is true or that the source supports it.")
     lines.append("")
     for bucket in BUCKETS:
         lines.append(f"## {labels[bucket]}")
@@ -336,15 +338,15 @@ def _cited_row(
     score = verification.get("score")
     score = float(score) if isinstance(score, (int, float)) else None
     if support_status == "source_unavailable":
-        bucket, detail = "cited_drifted", "source_unavailable"
+        bucket, detail = "citation_unconfirmed", "source_unavailable"
     elif anchor == "found":
-        bucket, detail = "cited_verified", "found"
+        bucket, detail = "excerpt_found", "found"
     elif anchor == "ambiguous":
-        bucket, detail = "cited_drifted", "quote_ambiguous"
+        bucket, detail = "citation_unconfirmed", "quote_ambiguous"
     elif anchor == "not_found":
-        bucket, detail = "cited_drifted", "quote_not_found"
+        bucket, detail = "citation_unconfirmed", "quote_not_found"
     elif anchor is None:
-        bucket, detail = "cited_drifted", "no_excerpt"
+        bucket, detail = "citation_unconfirmed", "no_excerpt"
     else:
         raise ValueError(f"unknown anchor state: {anchor}")
     return LedgerRow(

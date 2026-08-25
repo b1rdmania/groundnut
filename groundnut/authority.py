@@ -197,8 +197,6 @@ class ClaimEvidenceReport:
             "accounts",
             tuple(sorted(self.accounts, key=lambda row: row.authority.claim_id)),
         )
-        if not self.accounts:
-            raise ValueError("claim evidence report requires at least one account")
         claim_ids = [row.authority.claim_id for row in self.accounts]
         if len(claim_ids) != len(set(claim_ids)):
             raise ValueError("duplicate claim id in claim evidence report")
