@@ -6,6 +6,8 @@ CLIs. Experimental objects remain importable here for repository work, but a
 package-root export alone does not make them an admitted product API.
 """
 
+from ._version import __version__
+
 from .domain import Category, DocumentType, DomainEvidence, DomainPack
 from .artifacts import (
     ArtifactExtraction,
@@ -54,6 +56,7 @@ from .authority import (
 )
 from .provenance import SourceAnchor, SourceRecord, anchor_quote
 from .sources import (
+    EvidenceWindow,
     FileResolver,
     HttpResolver,
     ResolvedSource,
@@ -63,6 +66,7 @@ from .sources import (
     SourceReference,
     SourceResolution,
 )
+from .capture import CaptureDeclaration, ReadTimeCaptureProducer, capture_receipt
 from .arena import (
     ArenaPolicy,
     ArenaReport,
@@ -204,6 +208,7 @@ __all__ = [
     "ClaimEvidenceAccount",
     "ClaimEvidenceReport",
     "CheckCoverage",
+    "CaptureDeclaration",
     "COMPARISON_SCHEMA",
     "COMPONENT_SIGNAL_SCHEMA",
     "ComponentLicence",
@@ -237,10 +242,12 @@ __all__ = [
     "ParityComparison",
     "PresentIrrelevantCandidate",
     "PolicyDigest",
+    "EvidenceWindow",
     "PilotReviewManifest",
     "PilotReviewRow",
     "ProbeContextDigest",
     "ResolvedSource",
+    "ReadTimeCaptureProducer",
     "RecordedProbeRun",
     "RENDER_RECEIPT_SCHEMA",
     "RenderReceipt",
@@ -288,6 +295,7 @@ __all__ = [
     "compare_rendered_artifacts",
     "component_input_sha256",
     "check_claims",
+    "capture_receipt",
     "build_present_irrelevant_candidates",
     "build_pilot_probe",
     "import_legalbenchrag",

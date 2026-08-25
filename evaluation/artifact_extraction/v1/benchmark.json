@@ -1,0 +1,59 @@
+{
+  "schema": "groundnut-artifact-extraction-benchmark/v1",
+  "frozen_at": "2026-08-25T16:00:00Z",
+  "profile": "profile.json",
+  "profile_file_sha256": "bfa791c2dede0db983cfc69cc060b3dfbafd5784dd28c57deb92e3452e7bb049",
+  "thresholds": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "field_accuracy": 1.0,
+    "location_coverage": 1.0
+  },
+  "disclosure": "A sanitized cross-format contract-conformance pack derived from a frozen consumer boundary. It measures supported syntax exactly; it is not a representative estimate of extraction accuracy on arbitrary documents.",
+  "cases": [
+    {
+      "id": "memo-json",
+      "kind": "structured_json",
+      "artifact": "fixtures/memo.json",
+      "artifact_sha256": "5cee70e45cbda2d8adca334b94a0a596b92d7609ce0c5a7ecf93c249942be7a1",
+      "expected": [
+        {"text": "Northstar Materials reported revenue of $4.2 million in 2025.", "source_uri": "https://example.test/filing", "excerpt": "Revenue for 2025 was $4.2 million.", "locator": null, "question": "What revenue did the filing report for 2025?", "declared_analysis": false, "provenance_class": "external_evidence", "category": "cited_quote"},
+        {"text": "The Ohio operating licence was active on 30 June 2026.", "source_uri": "https://example.test/registry", "excerpt": null, "locator": "table: licence status at 30 June 2026", "question": null, "declared_analysis": false, "provenance_class": "external_evidence", "category": "cited_locator"},
+        {"text": "Modelled gross margin is 72%.", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": true, "provenance_class": "analyst_calculation", "category": "declared_analysis"},
+        {"text": "Management reports six active pilots.", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "company_assertion", "category": "typed_unsourced"}
+      ]
+    },
+    {
+      "id": "rendered-html",
+      "kind": "rendered_html",
+      "artifact": "fixtures/report.html",
+      "artifact_sha256": "3a6cc0c85657a06994d4cd4df9361f94e6b51cfd8986bf6bf6ff753fc2dc0b07",
+      "expected": [
+        {"text": "Northstar Materials reported revenue of $4.2 million in 2025 according to the annual filing.", "source_uri": "https://example.test/filing", "excerpt": "Revenue for 2025 was $4.2 million.", "locator": null, "question": "What revenue did the filing report for 2025?", "declared_analysis": false, "provenance_class": "unclassified", "category": "cited_quote"},
+        {"text": "Management expects ARR to reach $8 million next year.", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "category": "uncited_numeric"},
+        {"text": "The Ohio registry entry lists the operating licence as active.", "source_uri": "https://example.test/registry", "excerpt": null, "locator": "table: licence status at 30 June 2026", "question": null, "declared_analysis": false, "provenance_class": "unclassified", "category": "cited_locator"},
+        {"text": "Modelled gross margin is 72%.", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": true, "provenance_class": "analyst_inference", "category": "declared_analysis"},
+        {"text": "Management reports six active pilots.", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "company_assertion", "category": "typed_unsourced"},
+        {"text": "Monthly burn", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "category": "table_label"},
+        {"text": "$120,000", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "category": "table_numeric"},
+        {"text": "Headcount", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "category": "table_label"},
+        {"text": "14", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "category": "table_numeric"}
+      ]
+    },
+    {
+      "id": "markdown",
+      "kind": "markdown",
+      "artifact": "fixtures/report.md",
+      "artifact_sha256": "e837597327a68e38a4dd1fcca255d1d2c1fe61dc941ffcf7063827a1b775adc2",
+      "expected": [
+        {"text": "Northstar Materials reported revenue of $4.2 million in 2025 according to the annual filing.", "source_uri": "https://example.test/filing", "excerpt": "Revenue for 2025 was $4.2 million.", "locator": null, "question": "What revenue did the filing report for 2025?", "declared_analysis": false, "provenance_class": "unclassified", "category": "cited_quote"},
+        {"text": "Management expects ARR to reach $8 million next year.", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "category": "uncited_numeric"},
+        {"text": "Monthly burn", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "category": "table_label"},
+        {"text": "$120,000", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "category": "table_numeric"},
+        {"text": "Headcount", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "category": "table_label"},
+        {"text": "14", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "category": "table_numeric"},
+        {"text": "Modelled gross margin is 72%.", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": true, "provenance_class": "analyst_inference", "category": "declared_analysis"}
+      ]
+    }
+  ]
+}

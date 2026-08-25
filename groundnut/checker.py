@@ -37,8 +37,6 @@ class ClaimCheckReport:
             raise ValueError("claim-check report policy key is required")
         if not _SHA256.fullmatch(self.policy_sha256):
             raise ValueError("claim-check policy hash must be lowercase SHA-256")
-        if not self.claims:
-            raise ValueError("claim-check report requires at least one claim")
         claim_ids = [row.support.claim_id for row in self.claims]
         if len(claim_ids) != len(set(claim_ids)):
             raise ValueError("duplicate claim id in claim-check report")
@@ -110,8 +108,6 @@ def check_claims(
 ) -> ClaimCheckReport:
     """Check a claim batch while preserving every mechanical result."""
     claims = tuple(claims)
-    if not claims:
-        raise ValueError("claim checker requires at least one claim")
     claim_ids = [claim.claim_id for claim in claims]
     if len(claim_ids) != len(set(claim_ids)):
         raise ValueError("duplicate claim id in claim-check input")

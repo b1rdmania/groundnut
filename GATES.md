@@ -85,6 +85,20 @@ trusting the score field carried by either run.
 Until an adjudicated probe exists, this gate cannot report pass or fail. A
 missing measurement is not a failure, but it is also not evidence of quality.
 
+## 2a. Canonical artifact-extraction syntax gate
+
+Current status: **ADMITTED** for the frozen supported-syntax pack.
+
+Segmenter version 3 scores `1.000` precision, recall, field accuracy and
+location coverage over 20 sanitized claims spanning Markdown, rendered HTML
+and structured memo JSON. Fixture and profile bytes are frozen and checked by
+the evaluator. The public receipt is
+`results/artifact-extraction-admission-v1.json`.
+
+This result admits only the documented syntax contract. It does not establish
+representative accuracy on arbitrary reports or malformed markup. Those larger
+claims remain unmeasured.
+
 ## 3. Domain qualification gates
 
 A generic support detector does not prove that Groundnut extracts the right
