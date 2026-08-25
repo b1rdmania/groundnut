@@ -9,6 +9,12 @@ and exception detail from escaping the capture boundary. The a9 contract makes
 query retention default-deny and adds correlatable redacted diagnostics. The
 pipeline declaration moves with each invoked capture-contract release.
 
+The first unrelated-report smoke run then found two replay-ergonomics defects:
+runtime output paths changed replay bytes, and an absent snapshot set degraded
+into a plausible ledger. a10 makes request identity portable and refuses
+missing or invalid replay observations. The smoke run's live/replay evidence
+projection otherwise matched with zero differences.
+
 ## Outcome
 
 Groundnut must preserve the exact evidence a research run was able to inspect,

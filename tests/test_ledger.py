@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import shutil
 
 import pytest
 
@@ -222,9 +223,44 @@ def test_ic_loop_replays_offline_and_writes_bound_artifacts(tmp_path):
         assert (out / name).exists()
     request = json.loads((out / "request.json").read_text())
     assert request["acquisition_mode"] == "replay_only"
+    assert request["artifact"] == "input/report.md"
+    assert request["arena_artifact"] == "input/report.md"
+    assert request["snapshot_directory"] == "snapshots"
     assert request["domain"]["key"] == "ic_research"
     ledger = json.loads((out / "ledger.json").read_text())
     assert ledger["counts"]["units"] == 7
+
+
+def test_ic_loop_replays_are_byte_identical_across_output_directories(tmp_path):
+    from groundnut.ic_loop import run_loop
+
+    artifact, _ = _run(tmp_path)
+    outputs = (tmp_path / "smoke" / "r1", tmp_path / "smoke" / "r2")
+    for out in outputs:
+        shutil.copytree(tmp_path / "snapshots", out / "snapshots")
+        run_loop(artifact, out, replay_only=True)
+
+    assert (outputs[0] / "request.json").read_bytes() == (
+        outputs[1] / "request.json"
+    ).read_bytes()
+    assert (outputs[0] / "run.json").read_bytes() == (
+        outputs[1] / "run.json"
+    ).read_bytes()
+    request_text = (outputs[0] / "request.json").read_text()
+    assert str(tmp_path) not in request_text
+
+
+def test_ic_loop_empty_snapshot_replay_is_invalid_not_a_degraded_ledger(tmp_path):
+    from groundnut.ic_loop import main as loop_main
+
+    artifact, _ = _run(tmp_path)
+    out = tmp_path / "empty-replay"
+
+    code = loop_main(["--report", str(artifact), "--out", str(out), "--replay-only"])
+
+    assert code == 2
+    assert not (out / "run.json").exists()
+    assert not (out / "ledger.json").exists()
 
 
 def test_ic_loop_gate_surface_names_incomplete_evidence_windows(tmp_path):

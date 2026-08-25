@@ -48,6 +48,14 @@ def _canonical_sha256(value: Mapping[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _request_sha256(value: Mapping[str, Any]) -> str:
+    """Hash semantic request choices, excluding the runtime snapshot location."""
+
+    identity = dict(value)
+    identity.pop("snapshot_directory", None)
+    return _canonical_sha256(identity)
+
+
 def _require_object(value: Any, label: str) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
         raise ValueError(f"{label} must be a JSON object")
@@ -153,9 +161,26 @@ def execute_request(
         ),
         publication_grade=bool(request.get("publication_grade", False)),
     )
+    if mode == "replay_only":
+        incomplete = [
+            acquisition
+            for acquisition in execution.run.acquisitions
+            if acquisition.strategy != "snapshot"
+        ]
+        if incomplete:
+            counts: dict[str, int] = {}
+            for acquisition in incomplete:
+                counts[acquisition.strategy] = counts.get(acquisition.strategy, 0) + 1
+            summary = ", ".join(
+                f"{strategy}={count}" for strategy, count in sorted(counts.items())
+            )
+            raise ValueError(
+                "replay snapshot set is incomplete; every cited source must have "
+                f"a valid stored observation ({summary})"
+            )
     return {
         "schema": RESPONSE_SCHEMA,
-        "request_sha256": _canonical_sha256(request),
+        "request_sha256": _request_sha256(request),
         "execution": execution.to_dict(),
     }
 

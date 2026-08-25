@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import shutil
 
 import pytest
 
@@ -67,6 +68,28 @@ def test_execute_request_replays_snapshot_and_returns_versioned_execution(tmp_pa
         "supported": 1
     }
     assert execution["manifest"]["domain"]["key"] == "ma_dd"
+
+
+def test_request_identity_excludes_runtime_snapshot_location(tmp_path):
+    request = _request(tmp_path)
+    second_snapshots = tmp_path / "second-snapshots"
+    shutil.copytree(tmp_path / "snapshots", second_snapshots)
+    second = {**request, "snapshot_directory": str(second_snapshots)}
+
+    first_response = execute_request(request, base_directory=tmp_path)
+    second_response = execute_request(second, base_directory=tmp_path)
+
+    assert first_response["request_sha256"] == second_response["request_sha256"]
+    assert first_response == second_response
+
+
+def test_replay_only_fails_closed_when_cited_snapshots_are_absent(tmp_path):
+    request = _request(tmp_path)
+    for snapshot in (tmp_path / "snapshots").iterdir():
+        snapshot.unlink()
+
+    with pytest.raises(ValueError, match="replay snapshot set is incomplete"):
+        execute_request(request, base_directory=tmp_path)
 
 
 def test_execute_request_accepts_separate_arena_artifact(tmp_path):

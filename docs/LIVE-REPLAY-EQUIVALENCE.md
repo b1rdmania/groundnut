@@ -52,6 +52,19 @@ Replay one and replay two must be byte-identical JSON files. Canonically equal
 but differently serialized files do not satisfy the deterministic output
 claim.
 
+The two replays may—and normally should—use separate output directories. The
+IC loop bundles the checked artifact as `input/report.md`, records the snapshot
+directory as the logical path `snapshots`, and excludes that runtime location
+from `request_sha256`. Absolute operator paths and usernames therefore do not
+enter `request.json`, `run.json`, or the equivalence receipt. Moving an
+otherwise identical replay bundle must not change its canonical response.
+
+Replay-only fails closed when any cited source lacks a valid stored snapshot.
+An empty or partially copied snapshot set is an invalid replay (exit `2`), not
+a successful run with worse citation results. A stored failure observation such
+as `source_paywalled` remains a valid replay input because the failure itself
+was captured; `snapshot_missing` and `snapshot_invalid` are not.
+
 ## Command
 
 ```bash
@@ -66,4 +79,3 @@ Exit `0` means evidence-equivalent live/replay projections, two equivalent
 replay projections, byte-identical replay files, and valid replay-only
 acquisition declarations. Exit `1` means a valid comparison that differs. Exit
 `2` means malformed or unsupported inputs.
-
