@@ -13,7 +13,7 @@ from groundnut.ledger import (
 )
 from groundnut.ledger_cli import main as ledger_main
 from groundnut.provenance import sha256_text
-from groundnut.sources import ResolvedSource, SnapshotStore, SourceReference
+from groundnut.sources import EvidenceWindow, ResolvedSource, SnapshotStore, SourceReference
 
 ROOT = Path(__file__).parent.parent
 
@@ -38,18 +38,26 @@ At a $26,000 price and $20,000 of switching cost the condition requires value ab
 """
 
 
-def _run(tmp_path):
+def _run(tmp_path, *, truncation="complete"):
     artifact = tmp_path / "report.md"
     artifact.write_text(REPORT)
     store = SnapshotStore(tmp_path / "snapshots")
+    source_text = "Annual report. Revenue was 4.2 million. Headcount grew."
     store.archive(
         ResolvedSource(
             reference=SourceReference(
                 source_id=f"url:{sha256_text('https://example.test/filing')[:16]}",
                 uri="https://example.test/filing",
             ),
-            text="Annual report. Revenue was 4.2 million. Headcount grew.",
+            text=source_text,
             fetched_at="2026-08-17T00:00:00Z",
+            evidence_window=EvidenceWindow.from_text(
+                source_text,
+                original_bytes=len(source_text.encode()),
+                original_characters=len(source_text),
+                truncation=truncation,
+                extraction_method="ledger-fixture/v1",
+            ),
         )
     )
     request = {
@@ -77,7 +85,7 @@ def test_ledger_puts_every_prose_unit_in_exactly_one_bucket(tmp_path):
     assert ledger.counts["units"] == 7
     assert by_detail == {
         "excerpt_found:found": 1,
-        "citation_unconfirmed:quote_not_found": 1,
+        "citation_unconfirmed:excerpt_not_found": 1,
         "own_reasoning:numeric": 1,
         "own_reasoning:narrative": 4,
     }
@@ -92,6 +100,40 @@ def test_ledger_puts_every_prose_unit_in_exactly_one_bucket(tmp_path):
     assert all(row.support_status == "insufficient" for row in cited)
     assert ledger.segmenter.sha256 == LedgerSegmenter().sha256
     assert ledger.to_dict()["sha256"] == ledger.sha256
+
+
+def test_ledger_discloses_incomplete_evidence_window(tmp_path):
+    artifact, execution = _run(tmp_path, truncation="truncated")
+    ledger = build_claim_ledger(execution, artifact.read_text())
+    [row] = [
+        row
+        for row in ledger.rows
+        if row.detail == "evidence_window_incomplete"
+    ]
+
+    assert row.bucket == "citation_unconfirmed"
+    assert row.evidence_window_truncation == "truncated"
+    assert len(row.evidence_window_sha256) == 64
+    rendered = render_ledger_markdown(ledger)
+    assert "evidence_window_incomplete" in rendered
+    assert "window=truncated:" in rendered
+
+
+def test_legacy_run_without_window_metadata_cannot_claim_excerpt_absence(tmp_path):
+    artifact, execution = _run(tmp_path)
+    legacy = json.loads(json.dumps(execution))
+    accounts = legacy["execution"]["run"]["evidence"]["accounts"]
+    for account in accounts:
+        verification = account["assessment"]["verification"]
+        if verification["anchor"] == "not_found":
+            verification.pop("outcome")
+            verification.pop("evidence_window")
+
+    ledger = build_claim_ledger(legacy, artifact.read_text())
+
+    assert ledger.counts["by_detail"][
+        "citation_unconfirmed:evidence_window_incomplete"
+    ] == 1
 
 
 def test_ledger_refuses_an_artifact_the_run_did_not_check(tmp_path):
@@ -157,7 +199,7 @@ def test_ledger_cli_writes_json_and_markdown(tmp_path):
     )
     assert code == 0
     payload = json.loads(out.read_text())
-    assert payload["schema"] == "groundnut-claim-ledger/v3"
+    assert payload["schema"] == "groundnut-claim-ledger/v4"
     text = md.read_text()
     assert "Report's own reasoning" in text
     assert "$184,000" in text
@@ -183,6 +225,23 @@ def test_ic_loop_replays_offline_and_writes_bound_artifacts(tmp_path):
     assert request["domain"]["key"] == "ic_research"
     ledger = json.loads((out / "ledger.json").read_text())
     assert ledger["counts"]["units"] == 7
+
+
+def test_ic_loop_gate_surface_names_incomplete_evidence_windows(tmp_path):
+    from groundnut.ic_loop import run_loop
+
+    artifact, _ = _run(tmp_path, truncation="truncated")
+    out = tmp_path / "incomplete-window-loop"
+    out.mkdir()
+    (out / "snapshots").mkdir()
+    for item in (tmp_path / "snapshots").iterdir():
+        (out / "snapshots" / item.name).write_bytes(item.read_bytes())
+
+    summary = run_loop(artifact, out, replay_only=True)
+    gate = json.loads((out / "gate.json").read_text())
+
+    assert summary["evidence_window_incomplete"] == 1
+    assert len(gate["evidence_window_incomplete_unit_ids"]) == 1
 
 
 def test_ic_loop_refuses_network_without_consent(tmp_path, monkeypatch):

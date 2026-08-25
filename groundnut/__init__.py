@@ -56,6 +56,7 @@ from .authority import (
 )
 from .provenance import SourceAnchor, SourceRecord, anchor_quote
 from .sources import (
+    EvidenceWindow,
     FileResolver,
     HttpResolver,
     ResolvedSource,
@@ -239,6 +240,7 @@ __all__ = [
     "ParityComparison",
     "PresentIrrelevantCandidate",
     "PolicyDigest",
+    "EvidenceWindow",
     "PilotReviewManifest",
     "PilotReviewRow",
     "ProbeContextDigest",

@@ -39,7 +39,11 @@ quotation presence, semantic support, evidence authority, and truth separate.
 
 - Markdown research reports are checked against their cited web and PDF sources.
 - Successful live fetches are normalized and snapshotted for offline replay.
+- Snapshots disclose the exact searched evidence window, its extraction method,
+  and whether capture was complete, truncated, or historically unknown.
 - Exact and fuzzy quotation anchoring preserve honest ambiguity and failure states.
+- A missing excerpt is reported as `evidence_window_incomplete` instead of
+  `excerpt_not_found` when the stored window could have hidden it.
 - The report, source snapshots, policies, engine revision, run and ledger are
   hash-bound.
 - Numeric own-reasoning units are separated as a reading aid for likely
@@ -53,8 +57,9 @@ quotation presence, semantic support, evidence authority, and truth separate.
   20-claim supported-syntax admission pack with `1.000` precision, recall,
   field accuracy and location coverage. This is conformance evidence, not a
   representative arbitrary-document accuracy claim.
-- The RxClarity table-aware run measured 567 units: 105 citation-bearing
-  (18.5%), 462 own reasoning, and 125 undeclared numerics. Its gate blocked.
+- The last preserved RxClarity population measurement was produced on `a3`:
+  567 units, 105 citation-bearing (18.5%), 462 own reasoning, and 125 undeclared
+  numerics. It is historical context, not an `a4` or later measurement.
 
 Groundnut does not currently decide that a paraphrase is semantically supported
 or contradicted. The learned semantic-support gate is **NOT MEASURED** and only

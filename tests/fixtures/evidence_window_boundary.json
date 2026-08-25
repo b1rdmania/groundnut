@@ -1,0 +1,9 @@
+{
+  "schema": "groundnut-evidence-window-boundary-fixture/v1",
+  "source_id": "seabrook-permit",
+  "uri": "https://example.test/seabrook/permit",
+  "full_text": "The coastal permit was issued on 4 March 2026. Construction may begin after the habitat survey is approved. The renewal deadline is 30 September 2028.",
+  "captured_text": "The coastal permit was issued on 4 March 2026. Construction may begin after the habitat survey is approved.",
+  "before_boundary_excerpt": "The coastal permit was issued on 4 March 2026.",
+  "after_boundary_excerpt": "The renewal deadline is 30 September 2028."
+}

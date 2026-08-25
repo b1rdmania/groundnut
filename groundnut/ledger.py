@@ -38,9 +38,15 @@ from typing import Any, Mapping, Sequence
 from .artifacts import ArtifactProfile, DEFAULT_ARTIFACT_PROFILE, _LINK  # noqa: F401
 from .markdown_population import MarkdownPopulation, scan_markdown
 
-LEDGER_SCHEMA = "groundnut-claim-ledger/v3"
+LEDGER_SCHEMA = "groundnut-claim-ledger/v4"
 BUCKETS = ("excerpt_found", "citation_unconfirmed", "own_reasoning")
-DRIFT_REASONS = ("quote_not_found", "quote_ambiguous", "no_excerpt", "source_unavailable")
+DRIFT_REASONS = (
+    "excerpt_not_found",
+    "evidence_window_incomplete",
+    "quote_ambiguous",
+    "no_excerpt",
+    "source_unavailable",
+)
 OWN_KINDS = ("declared", "numeric", "narrative")
 
 _NUMERIC = re.compile(r"(?<![\w/])(?:[£$€]\s?\d|\d+(?:\.\d+)?\s?(?:%|x\b|×|m\b|bn\b|k\b)|\b\d{1,3}(?:,\d{3})+\b|\b\d+(?:\.\d+)?\b)")
@@ -89,6 +95,8 @@ class LedgerRow:
     source_uri: str | None = None
     support_status: str | None = None
     anchor_score: float | None = None
+    evidence_window_sha256: str | None = None
+    evidence_window_truncation: str | None = None
     annotations: tuple[str, ...] = ()
     annotation_conflicts: tuple[str, ...] = ()
 
@@ -107,6 +115,16 @@ class LedgerRow:
             self.claim_id and self.source_uri
         ):
             raise ValueError("cited ledger rows need a claim id and source")
+        if (self.evidence_window_sha256 is None) != (
+            self.evidence_window_truncation is None
+        ):
+            raise ValueError("ledger evidence-window hash and truncation must travel together")
+        if self.evidence_window_sha256 is not None and (
+            not re.fullmatch(r"[0-9a-f]{64}", self.evidence_window_sha256)
+            or self.evidence_window_truncation
+            not in {"complete", "truncated", "unknown"}
+        ):
+            raise ValueError("invalid ledger evidence-window identity")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -119,6 +137,8 @@ class LedgerRow:
             "source_uri": self.source_uri,
             "support_status": self.support_status,
             "anchor_score": self.anchor_score,
+            "evidence_window_sha256": self.evidence_window_sha256,
+            "evidence_window_truncation": self.evidence_window_truncation,
             "annotations": list(self.annotations),
             "annotation_conflicts": list(self.annotation_conflicts),
         }
@@ -167,7 +187,9 @@ class ClaimLedger:
             "disclosure": (
                 "excerpt_found means the quotation was found in the snapshot; "
                 "it is not a truth or support claim. support_status is insufficient "
-                "for every claim until a support detector is admitted."
+                "for every claim until a support detector is admitted. "
+                "evidence_window_incomplete means the stored text was truncated or "
+                "its completeness is unknown, so excerpt absence was not concluded."
             ),
         }
 
@@ -298,8 +320,14 @@ def render_ledger_markdown(ledger: ClaimLedger, *, title: str = "Claim ledger") 
                 f" conflicts={','.join(row.annotation_conflicts)}"
                 if row.annotation_conflicts else ""
             )
+            window = (
+                f" window={row.evidence_window_truncation}:"
+                f"{row.evidence_window_sha256[:12]}"
+                if row.evidence_window_sha256 and row.evidence_window_truncation
+                else ""
+            )
             lines.append(
-                f"- **{row.unit_id}** L{row.line} `{row.detail}`{score}{conflicts}: "
+                f"- **{row.unit_id}** L{row.line} `{row.detail}`{score}{window}{conflicts}: "
                 f"{row.text}{src}"
             )
         lines.append("")
@@ -370,6 +398,7 @@ def _cited_row(
     support = _mapping(assessment, "support")
     claim = _mapping(verification, "claim")
     anchor = verification.get("anchor")
+    outcome = verification.get("outcome")
     support_status = support.get("status")
     source = claim.get("source") or {}
     uri = source.get("uri") if isinstance(source, Mapping) else None
@@ -377,17 +406,28 @@ def _cited_row(
     score = float(score) if isinstance(score, (int, float)) else None
     if support_status == "source_unavailable":
         bucket, detail = "citation_unconfirmed", "source_unavailable"
+    elif outcome == "evidence_window_incomplete":
+        bucket, detail = "citation_unconfirmed", "evidence_window_incomplete"
     elif anchor == "found":
         bucket, detail = "excerpt_found", "found"
     elif anchor == "ambiguous":
         bucket, detail = "citation_unconfirmed", "quote_ambiguous"
     elif anchor == "not_found":
-        bucket, detail = "citation_unconfirmed", "quote_not_found"
+        bucket, detail = (
+            "citation_unconfirmed",
+            (
+                "excerpt_not_found"
+                if outcome == "excerpt_not_found"
+                else "evidence_window_incomplete"
+            ),
+        )
     elif anchor is None:
         bucket, detail = "citation_unconfirmed", "no_excerpt"
     else:
         raise ValueError(f"unknown anchor state: {anchor}")
     annotations, conflicts = _annotation_state(line, has_citation=True, profile=profile)
+    window = verification.get("evidence_window")
+    window = window if isinstance(window, Mapping) else {}
     return LedgerRow(
         unit_id=unit_id,
         line=line_number,
@@ -398,6 +438,12 @@ def _cited_row(
         source_uri=str(uri) if uri else None,
         support_status=str(support_status) if support_status else None,
         anchor_score=score,
+        evidence_window_sha256=(
+            str(window["sha256"]) if window.get("sha256") else None
+        ),
+        evidence_window_truncation=(
+            str(window["truncation"]) if window.get("truncation") else None
+        ),
         annotations=annotations,
         annotation_conflicts=conflicts,
     )

@@ -99,6 +99,11 @@ def run_loop(
         profile=ArtifactProfile.from_mapping(request["artifact_profile"]),
     )
     undeclared = undeclared_numeric_rows(ledger)
+    incomplete_windows = tuple(
+        row
+        for row in ledger.rows
+        if row.detail == "evidence_window_incomplete"
+    )
     population = ledger.population.to_dict(units=len(ledger.rows))
     waiver = None
     gate_status = "not_requested"
@@ -142,6 +147,9 @@ def run_loop(
             for row in ledger.rows
             if row.annotation_conflicts
         ],
+        "evidence_window_incomplete_unit_ids": [
+            row.unit_id for row in incomplete_windows
+        ],
         "waiver": waiver.to_dict() if waiver else None,
     }
     outputs = {
@@ -181,6 +189,7 @@ def run_loop(
         "undeclared_numerics": len(undeclared),
         "population_status": population["status"],
         "annotation_conflicts": counts["annotation_conflicts"],
+        "evidence_window_incomplete": len(incomplete_windows),
         "gate_status": gate_status,
         "waiver_sha256": waiver.sha256 if waiver else None,
     }

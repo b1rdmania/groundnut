@@ -143,10 +143,16 @@ when no archive exists, then archive a successful response. A present but
 invalid snapshot fails closed rather than being hidden by fresh network bytes.
 Explicit refresh preserves the previous snapshot when the live attempt fails.
 
-`groundnut-source-acquisition/v1` records whether the result was replayed,
+`groundnut-source-acquisition/v2` records whether the result was replayed,
 fetched and archived, missing, invalid, or a failed live attempt, together with
 the snapshot and normalized source hashes. This receipt is suitable for a run
 manifest and separates deterministic replay from marked integration work.
+
+Successful `groundnut-source-snapshot/v2` artifacts bind an explicit evidence
+window: original and captured lengths where knowable, truncation state,
+extraction method, and the hash of the exact normalized text searched. V1
+snapshots remain replayable but their completeness is `unknown`; Groundnut does
+not reinterpret a historical missing field as a complete capture.
 
 ## Artifact ingestion
 
