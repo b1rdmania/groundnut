@@ -44,8 +44,13 @@ quotation presence, semantic support, evidence authority, and truth separate.
   hash-bound.
 - Numeric own-reasoning units are separated as a reading aid for likely
   extrapolation.
-- The RxClarity run exercised the loop on 401 report units: 64 cited-verified,
-  41 cited-drifted and 296 own-reasoning, including 80 numeric units.
+- Empty or malformed claim populations cannot pass the numeric gate as clear.
+- Table cells enter the claim population; excluded Markdown regions and parser
+  anomalies are counted in the ledger.
+- Annotation conflicts are exposed without hard-coding a consuming product's
+  writing policy into the engine.
+- The RxClarity table-aware run measured 567 units: 105 citation-bearing
+  (18.5%), 462 own reasoning, and 125 undeclared numerics. Its gate blocked.
 
 Groundnut does not currently decide that a paraphrase is semantically supported
 or contradicted. The learned semantic-support gate is **NOT MEASURED** and only

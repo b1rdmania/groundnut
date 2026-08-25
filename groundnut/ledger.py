@@ -36,17 +36,15 @@ import re
 from typing import Any, Mapping, Sequence
 
 from .artifacts import ArtifactProfile, DEFAULT_ARTIFACT_PROFILE, _LINK  # noqa: F401
+from .markdown_population import MarkdownPopulation, scan_markdown
 
-LEDGER_SCHEMA = "groundnut-claim-ledger/v2"
+LEDGER_SCHEMA = "groundnut-claim-ledger/v3"
 BUCKETS = ("excerpt_found", "citation_unconfirmed", "own_reasoning")
 DRIFT_REASONS = ("quote_not_found", "quote_ambiguous", "no_excerpt", "source_unavailable")
 OWN_KINDS = ("declared", "numeric", "narrative")
 
 _NUMERIC = re.compile(r"(?<![\w/])(?:[£$€]\s?\d|\d+(?:\.\d+)?\s?(?:%|x\b|×|m\b|bn\b|k\b)|\b\d{1,3}(?:,\d{3})+\b|\b\d+(?:\.\d+)?\b)")
 _SENTENCE_END = re.compile(r"(?P<end>[.!?][*_\"')\]]*)\s+(?=[A-Z\"'(\[*_])")
-_HEADING = re.compile(r"^\s{0,3}#{1,6}\s")
-_HR = re.compile(r"^\s{0,3}([-*_])(?:\s*\1){2,}\s*$")
-_TABLE = re.compile(r"^\s*\|")
 _LIST = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
 _COMMENT = re.compile(r"<!--[\s\S]*?-->")
 _MD_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
@@ -58,7 +56,7 @@ MIN_WORDS = 1
 @dataclass(frozen=True)
 class LedgerSegmenter:
     key: str = "groundnut.ledger-prose-segmenter"
-    version: str = "3"
+    version: str = "4"
     min_words: int = MIN_WORDS
 
     def canonical_payload(self) -> dict[str, Any]:
@@ -67,7 +65,8 @@ class LedgerSegmenter:
             "version": self.version,
             "min_words": self.min_words,
             "rules": [
-                "frontmatter, headings, horizontal rules, table rows, and fenced code are not claims",
+                "frontmatter, headings, horizontal rules, table headers, delimiters, and fenced code are named exclusions",
+                "non-header Markdown table cells enter the claim population",
                 "prose lines and list items split into sentences; a sentence with a citation is one cited unit per citation",
                 "every non-empty prose sentence is retained, including short numeric and status claims",
                 "HTML comments and inline markdown are stripped before counting words",
@@ -90,8 +89,14 @@ class LedgerRow:
     source_uri: str | None = None
     support_status: str | None = None
     anchor_score: float | None = None
+    annotations: tuple[str, ...] = ()
+    annotation_conflicts: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "annotations", tuple(sorted(set(self.annotations))))
+        object.__setattr__(
+            self, "annotation_conflicts", tuple(sorted(set(self.annotation_conflicts)))
+        )
         if self.bucket not in BUCKETS:
             raise ValueError(f"unknown ledger bucket: {self.bucket}")
         if self.bucket == "citation_unconfirmed" and self.detail not in DRIFT_REASONS:
@@ -114,6 +119,8 @@ class LedgerRow:
             "source_uri": self.source_uri,
             "support_status": self.support_status,
             "anchor_score": self.anchor_score,
+            "annotations": list(self.annotations),
+            "annotation_conflicts": list(self.annotation_conflicts),
         }
 
 
@@ -122,6 +129,7 @@ class ClaimLedger:
     run_sha256: str
     artifact_sha256: str
     segmenter: LedgerSegmenter
+    population: MarkdownPopulation
     rows: tuple[LedgerRow, ...]
 
     def __post_init__(self) -> None:
@@ -142,6 +150,9 @@ class ClaimLedger:
             "units": len(self.rows),
             "by_bucket": by_bucket,
             "by_detail": dict(sorted(detail.items())),
+            "annotation_conflicts": sum(
+                len(row.annotation_conflicts) for row in self.rows
+            ),
         }
 
     def canonical_payload(self) -> dict[str, Any]:
@@ -150,6 +161,7 @@ class ClaimLedger:
             "run_sha256": self.run_sha256,
             "artifact_sha256": self.artifact_sha256,
             "segmenter": {**self.segmenter.canonical_payload(), "sha256": self.segmenter.sha256},
+            "population": self.population.to_dict(units=len(self.rows)),
             "counts": self.counts,
             "rows": [row.to_dict() for row in self.rows],
             "disclosure": (
@@ -182,33 +194,39 @@ def build_claim_ledger(
     accounts = _accounts_by_location(run)
     rows: list[LedgerRow] = []
     counter = 0
-    for line_number, line in _prose_lines(artifact_text):
-        location = f"line {line_number}"
+    content, population = scan_markdown(artifact_text)
+    for content_line in content:
+        location = f"line {content_line.line}"
         citation_index = 0
-        for raw_sentence in _raw_sentences(line):
-            links = list(_LINK.finditer(raw_sentence))
-            if links:
-                for _ in links:
-                    key = (location, citation_index)
-                    if key not in accounts:
-                        raise ValueError(
-                            f"run has no account for citation {citation_index + 1} on "
-                            f"{location}; run and artifact were produced with different "
-                            "segmenters"
+        for segment in content_line.segments:
+            for raw_sentence in _raw_sentences(segment):
+                links = list(_LINK.finditer(raw_sentence))
+                if links:
+                    for _ in links:
+                        key = (location, citation_index)
+                        if key not in accounts:
+                            raise ValueError(
+                                f"run has no account for citation {citation_index + 1} on "
+                                f"{location}; run and artifact were produced with different "
+                                "segmenters"
+                            )
+                        citation_index += 1
+                        counter += 1
+                        rows.append(
+                            _cited_row(
+                                f"u{counter}", content_line.line, raw_sentence,
+                                accounts.pop(key), profile
+                            )
                         )
-                    citation_index += 1
+                    continue
+                for sentence in _sentences(raw_sentence, segmenter):
                     counter += 1
                     rows.append(
-                        _cited_row(
-                            f"u{counter}", line_number, raw_sentence, accounts.pop(key), profile
+                        _own_row(
+                            f"u{counter}", content_line.line, sentence,
+                            raw_sentence, profile
                         )
                     )
-                continue
-            for sentence in _sentences(raw_sentence, segmenter):
-                counter += 1
-                rows.append(
-                    _own_row(f"u{counter}", line_number, sentence, raw_sentence, profile)
-                )
     if accounts:
         leftover = sorted(f"{loc}#{idx + 1}" for loc, idx in accounts)
         raise ValueError(f"run accounts not found in artifact: {leftover[:5]}")
@@ -216,6 +234,7 @@ def build_claim_ledger(
         run_sha256=run["sha256"],
         artifact_sha256=artifact_sha256,
         segmenter=segmenter,
+        population=population,
         rows=tuple(rows),
     )
 
@@ -239,6 +258,15 @@ def render_ledger_markdown(ledger: ClaimLedger, *, title: str = "Claim ledger") 
     total = counts["units"] or 1
     lines = [f"# {title}", ""]
     lines.append(f"{counts['units']} claim units · run `{ledger.run_sha256[:12]}` · artifact `{ledger.artifact_sha256[:12]}` · segmenter `{ledger.segmenter.sha256[:12]}`")
+    lines.append("")
+    population = ledger.population.to_dict(units=len(ledger.rows))
+    lines.append(
+        f"Population: **{str(population['status']).upper()}** · "
+        f"included lines `{population['included_lines']}` · "
+        f"excluded lines `{population['excluded_lines']}`"
+    )
+    if population["anomalies"]:
+        lines.append(f"Anomalies: `{population['anomalies']}`")
     lines.append("")
     lines.append("| Bucket | Units | Share |")
     lines.append("|---|---:|---:|")
@@ -266,7 +294,14 @@ def render_ledger_markdown(ledger: ClaimLedger, *, title: str = "Claim ledger") 
                 continue
             src = f" — <{row.source_uri}>" if row.source_uri else ""
             score = f" ({row.anchor_score:.2f})" if row.anchor_score is not None else ""
-            lines.append(f"- **{row.unit_id}** L{row.line} `{row.detail}`{score}: {row.text}{src}")
+            conflicts = (
+                f" conflicts={','.join(row.annotation_conflicts)}"
+                if row.annotation_conflicts else ""
+            )
+            lines.append(
+                f"- **{row.unit_id}** L{row.line} `{row.detail}`{score}{conflicts}: "
+                f"{row.text}{src}"
+            )
         lines.append("")
     return "\n".join(lines)
 
@@ -349,6 +384,7 @@ def _cited_row(
         bucket, detail = "citation_unconfirmed", "no_excerpt"
     else:
         raise ValueError(f"unknown anchor state: {anchor}")
+    annotations, conflicts = _annotation_state(line, has_citation=True, profile=profile)
     return LedgerRow(
         unit_id=unit_id,
         line=line_number,
@@ -359,6 +395,8 @@ def _cited_row(
         source_uri=str(uri) if uri else None,
         support_status=str(support_status) if support_status else None,
         anchor_score=score,
+        annotations=annotations,
+        annotation_conflicts=conflicts,
     )
 
 
@@ -373,30 +411,33 @@ def _own_row(
         detail = "numeric"
     else:
         detail = "narrative"
+    annotations, conflicts = _annotation_state(
+        raw_sentence, has_citation=False, profile=profile
+    )
     return LedgerRow(
-        unit_id=unit_id, line=line_number, text=sentence, bucket="own_reasoning", detail=detail
+        unit_id=unit_id,
+        line=line_number,
+        text=sentence,
+        bucket="own_reasoning",
+        detail=detail,
+        annotations=annotations,
+        annotation_conflicts=conflicts,
     )
 
 
-def _prose_lines(text: str):
-    lines = text.splitlines()
-    start = 0
-    if lines and lines[0].strip() == "---":
-        for index in range(1, len(lines)):
-            if lines[index].strip() == "---":
-                start = index + 1
-                break
-    in_code = False
-    for number, line in enumerate(lines[start:], start + 1):
-        stripped = line.strip()
-        if stripped.startswith("```"):
-            in_code = not in_code
-            continue
-        if in_code or not stripped:
-            continue
-        if _HEADING.match(line) or _HR.match(line) or _TABLE.match(line):
-            continue
-        yield number, line
+def _annotation_state(
+    value: str, *, has_citation: bool, profile: ArtifactProfile
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    declared = any(marker in value for marker in profile.declared_analysis_classes)
+    annotations = []
+    if has_citation:
+        annotations.append("citation")
+    if declared:
+        annotations.append("declared_analysis")
+    conflicts = (
+        ("citation_and_declared_analysis",) if has_citation and declared else ()
+    )
+    return tuple(annotations), conflicts
 
 
 def _raw_sentences(line: str) -> list[str]:

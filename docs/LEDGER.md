@@ -43,6 +43,18 @@ An intentional exception requires `--waiver waiver.json`. A waiver names a
 and complete failing unit-id set. Groundnut writes the validated waiver and
 its hash into `gate.json`. A changed report or ledger invalidates the waiver.
 
+The gate has four outcomes: `clear`, `failed`, `waived`, and `indeterminate`.
+An empty or malformed claim population is `indeterminate`, never `clear`, and
+cannot be waived. In particular, unclosed Markdown frontmatter or code fences
+are reported as population anomalies rather than silently hiding the rest of
+the artifact.
+
+Annotation combinations are observations, not generic engine verdicts. Each
+ledger row carries its detected `annotations` and any `annotation_conflicts`.
+For example, a citation combined with a declared-analysis marker is surfaced
+as `citation_and_declared_analysis`; a consuming product decides whether that
+combination is allowed by its writing contract.
+
 ## Run it
 
 One command, the IC loop:
@@ -90,16 +102,27 @@ the snapshot directory is what makes a run reproducible, not the internet.
 ## Segmentation
 
 Every count depends on the segmenter, whose identity is hashed into the
-ledger. Rules: frontmatter, headings, horizontal rules, table rows, and fenced
-code are not claims; prose lines split into sentences; a sentence with an
-HTTP citation is one cited unit per citation; uncited sentences in the same
+ledger. Segmenter v4 admits non-header table cells as units; frontmatter,
+headings, horizontal rules, table headers/delimiters and fenced code remain
+named exclusions. Prose lines split into sentences; a sentence with an HTTP
+citation is one cited unit per citation; uncited sentences in the same
 paragraph are their own units; list items split the same way; every non-empty
 prose sentence is retained. Segmenter v3 removed the previous eight-word floor
 because short deck-style claims such as `Market: $4.2B by 2030.` must enter the
 numeric gate.
 
+`ledger.json.population` prints included and excluded physical-line counts and
+any structural anomalies. This is line/region accounting, not a promise to be
+a lossless Markdown renderer.
+
 Known coarseness: a sentence with two citations appears twice, once per
 citation.
+
+The 466-unit v0.1.0a2 RxClarity beta excluded table rows. Segmenter v4 measured
+the same artifact at 567 units: 105 citation-bearing units (18.5%), 462 own
+reasoning, and 125 undeclared numerics. Admitting 13 table-body lines added 101
+units and 37 undeclared numerics. The apparent coverage decline is the correct
+effect of measuring a larger population, not a regression in cited content.
 
 ## First real ledger
 

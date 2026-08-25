@@ -32,13 +32,12 @@
   "segmenter": {
     "schema": "groundnut-segmenter-identity/v1",
     "key": "groundnut.artifact-block-segmenter",
-    "version": "1",
+    "version": "2",
     "strategies": {
-      "markdown": "one claim per HTTP citation per physical line",
+      "markdown": "one claim per HTTP citation per eligible prose or table-cell segment",
       "rendered_html": "one claim per HTTP citation per normalized block line; one claim per typed unsourced block",
       "structured_json": "one claim per configured claims-array row"
     },
-    "configuration_sha256": "f4d50381b6cd24640b9f658bfb1a828aabc5eb491ba3834b6511a4efbf9c8143"
+    "configuration_sha256": "3bbee01f4335d0f7b112172e81320306eb83c946dce7146d0fb504d67f32763f"
   }
 }
-

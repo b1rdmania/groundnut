@@ -37,7 +37,18 @@ def main(argv: list[str] | None = None) -> int:
     if args.markdown:
         args.markdown.write_text(render_ledger_markdown(ledger, title=args.title))
     counts = ledger.counts
-    print(json.dumps({"units": counts["units"], **counts["by_bucket"], "sha256": ledger.sha256}))
+    population = ledger.population.to_dict(units=len(ledger.rows))
+    print(
+        json.dumps(
+            {
+                "units": counts["units"],
+                **counts["by_bucket"],
+                "population_status": population["status"],
+                "annotation_conflicts": counts["annotation_conflicts"],
+                "sha256": ledger.sha256,
+            }
+        )
+    )
     return 0
 
 

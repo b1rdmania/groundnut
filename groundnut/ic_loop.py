@@ -99,12 +99,17 @@ def run_loop(
         profile=ArtifactProfile.from_mapping(request["artifact_profile"]),
     )
     undeclared = undeclared_numeric_rows(ledger)
+    population = ledger.population.to_dict(units=len(ledger.rows))
     waiver = None
     gate_status = "not_requested"
     if waiver_path is not None and not gate_undeclared_numerics:
         raise ValueError("a waiver may be supplied only with --gate-undeclared-numerics")
     if gate_undeclared_numerics:
-        if not undeclared:
+        if population["status"] != "observed":
+            if waiver_path is not None:
+                raise ValueError("a waiver cannot approve an indeterminate claim population")
+            gate_status = "indeterminate"
+        elif not undeclared:
             if waiver_path is not None:
                 raise ValueError("waiver supplied but the gate has no failing units")
             gate_status = "clear"
@@ -128,6 +133,15 @@ def run_loop(
         "artifact_sha256": ledger.artifact_sha256,
         "ledger_sha256": ledger.sha256,
         "failing_unit_ids": [row.unit_id for row in undeclared],
+        "population": population,
+        "annotation_conflicts": [
+            {
+                "unit_id": row.unit_id,
+                "codes": list(row.annotation_conflicts),
+            }
+            for row in ledger.rows
+            if row.annotation_conflicts
+        ],
         "waiver": waiver.to_dict() if waiver else None,
     }
     outputs = {
@@ -142,6 +156,12 @@ def run_loop(
     for name, content in outputs.items():
         (out / name).write_text(content)
     counts = ledger.counts
+    if gate_status == "indeterminate":
+        raise GateFailure(
+            "claim population is indeterminate: "
+            f"status={population['status']}, units={population['units']}, "
+            f"anomalies={population['anomalies']}"
+        )
     if gate_status == "failed":
         lines = "\n".join(
             f"  {row.unit_id} L{row.line}: {row.text[:140]}" for row in undeclared
@@ -159,6 +179,8 @@ def run_loop(
         "units": counts["units"],
         **counts["by_bucket"],
         "undeclared_numerics": len(undeclared),
+        "population_status": population["status"],
+        "annotation_conflicts": counts["annotation_conflicts"],
         "gate_status": gate_status,
         "waiver_sha256": waiver.sha256 if waiver else None,
     }
