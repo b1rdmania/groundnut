@@ -149,6 +149,53 @@ def test_html_recovers_evidence_and_declared_analysis_but_ignores_references(tmp
     assert "source list only" not in str(result.to_dict())
 
 
+def test_html_retains_untyped_unsourced_sentences_and_splits_mixed_blocks(tmp_path):
+    path = tmp_path / "full-report.html"
+    path.write_text(
+        '<h2>Performance</h2>'
+        '<p>Revenue was $4.2m per the <a href="https://example.test/a">filing</a>.'
+        ' Management expects ARR to reach $8m next year.</p>'
+        '<table><thead><tr><th>Metric</th><th>Value</th></tr></thead>'
+        '<tbody><tr><td>Monthly burn</td><td>$120,000</td></tr></tbody></table>'
+        '<footer>Generated 2026-08-26</footer>'
+    )
+
+    claims = extract_artifact(path).claims
+
+    assert [claim.text for claim in claims] == [
+        "Revenue was $4.2m per the filing.",
+        "Management expects ARR to reach $8m next year.",
+        "Monthly burn",
+        "$120,000",
+    ]
+    assert claims[0].source.uri == "https://example.test/a"
+    assert all(claim.source is None for claim in claims[1:])
+    assert "Performance" not in str([claim.to_dict() for claim in claims])
+    assert "Generated" not in str([claim.to_dict() for claim in claims])
+
+
+def test_html_profile_can_map_host_chrome_and_analysis_without_engine_vocabulary(
+    tmp_path,
+):
+    path = tmp_path / "host-report.html"
+    path.write_text(
+        '<p>Modelled margin is 72%. <span class="host-own">Host analysis</span></p>'
+        '<ol class="host-references"><li><a href="https://example.test/a">Reference</a></li></ol>'
+    )
+    profile = ArtifactProfile(
+        key="host-report",
+        version="1",
+        declared_analysis_classes=("host-own",),
+        ignored_container_classes=("host-references",),
+    )
+
+    [claim] = extract_artifact(path, profile).claims
+
+    assert claim.text == "Modelled margin is 72%."
+    assert claim.declared_analysis is True
+    assert claim.source is None
+
+
 def test_title_quote_and_locator_convention_remain_distinct(tmp_path):
     path = tmp_path / "report.html"
     path.write_text(
@@ -209,6 +256,14 @@ def test_profile_hash_changes_with_parser_contract():
         ignored_container_attributes=("data-host-evidence-exclude",),
     )
     assert default.sha256 != changed_exclusions.sha256
+
+
+def test_profile_rejects_stale_segmenter_hash():
+    profile = ArtifactProfile(key="profile", version="1").canonical_payload()
+    profile["segmenter"]["configuration_sha256"] = "0" * 64
+
+    with pytest.raises(ValueError, match="configuration_sha256"):
+        ArtifactProfile.from_mapping(profile)
 
 
 def test_profile_ports_custom_citation_and_question_comments(tmp_path):

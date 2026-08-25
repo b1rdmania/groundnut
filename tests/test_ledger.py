@@ -103,7 +103,16 @@ def test_ledger_refuses_an_artifact_the_run_did_not_check(tmp_path):
 def test_ledger_refuses_a_run_with_a_different_claim_layout(tmp_path):
     artifact, execution = _run(tmp_path)
     forged = json.loads(json.dumps(execution))
-    forged["execution"]["run"]["evidence"]["accounts"].pop()
+    accounts = forged["execution"]["run"]["evidence"]["accounts"]
+    accounts[:] = [
+        account
+        for index, account in enumerate(accounts)
+        if index != next(
+            position
+            for position, row in enumerate(accounts)
+            if row["assessment"]["verification"]["claim"].get("source")
+        )
+    ]
     with pytest.raises(ValueError, match="no account for citation"):
         build_claim_ledger(forged, artifact.read_text())
 
@@ -113,7 +122,11 @@ def test_ledger_restores_numeric_citation_order_after_canonical_sorting():
         return {
             "assessment": {
                 "verification": {
-                    "claim": {"claim_id": claim_id, "location": "line 1"}
+                    "claim": {
+                        "claim_id": claim_id,
+                        "location": "line 1",
+                        "source": {"uri": "https://example.test/source"},
+                    }
                 }
             }
         }
@@ -323,8 +336,9 @@ def test_zero_citation_report_is_a_valid_all_own_reasoning_run(tmp_path):
 
     assert code == 0
     run = json.loads((out / "run.json").read_text())
-    assert run["execution"]["run"]["artifact"]["claim_count"] == 0
-    assert run["execution"]["run"]["evidence"]["accounts"] == []
+    assert run["execution"]["run"]["artifact"]["claim_count"] == 1
+    [account] = run["execution"]["run"]["evidence"]["accounts"]
+    assert account["assessment"]["verification"]["claim"]["source"] is None
     ledger = json.loads((out / "ledger.json").read_text())
     assert ledger["counts"]["by_bucket"] == {
         "citation_unconfirmed": 0,

@@ -1,0 +1,44 @@
+{
+  "claims": [
+    {
+      "claim_id": "revenue",
+      "claim_text": "Northstar Materials reported revenue of $4.2 million in 2025.",
+      "verification_question": "What revenue did the filing report for 2025?",
+      "source_url": "https://example.test/filing",
+      "source_excerpt": "Revenue for 2025 was $4.2 million.",
+      "provenance_class": "external_evidence"
+    },
+    {
+      "claim_id": "licence",
+      "claim_text": "The Ohio operating licence was active on 30 June 2026.",
+      "source_url": "https://example.test/registry",
+      "source_locator": "table: licence status at 30 June 2026",
+      "provenance_class": "external_evidence"
+    },
+    {
+      "claim_id": "margin",
+      "claim_text": "Modelled gross margin is 72%.",
+      "declared_analysis": true,
+      "provenance_class": "analyst_calculation",
+      "calculation": {
+        "formula": "margin = (revenue - cost) / revenue",
+        "inputs": [
+          {
+            "name": "revenue",
+            "value": "$4.2 million",
+            "source_claim_ids": ["revenue"]
+          },
+          {
+            "name": "cost",
+            "value": "$1.176 million"
+          }
+        ]
+      }
+    },
+    {
+      "claim_id": "pipeline",
+      "claim_text": "Management reports six active pilots.",
+      "provenance_class": "company_assertion"
+    }
+  ]
+}

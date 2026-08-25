@@ -339,6 +339,9 @@ def _accounts_by_location(run: Mapping[str, Any]) -> dict[tuple[str, int], Mappi
     grouped: dict[str, list[Mapping[str, Any]]] = {}
     for account in accounts:
         claim = _mapping(_mapping(_mapping(account, "assessment"), "verification"), "claim")
+        source = claim.get("source")
+        if not isinstance(source, Mapping) or not source.get("uri"):
+            continue
         location = claim.get("location")
         if not isinstance(location, str):
             raise ValueError("claim account has no location")
