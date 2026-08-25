@@ -4,7 +4,7 @@
 **Order:** #20 evidence windows → #22 equivalence → #21 read-time capture
 
 **Shipped:** #20 in `v0.1.0a5`. #22 is implemented by
-`groundnut.equivalence`; #21 remains pending.
+`groundnut.equivalence`; #21 is implemented in `groundnut.capture` for a7.
 
 ## Outcome
 
@@ -89,6 +89,11 @@ not the live-fetch claim.
 
 ## Work package 3 — #21 read-time capture
 
+**Implemented for a7.** The producer declaration, HTML/PDF connector fixtures,
+first-read preservation, explicit media/access failures, credential-shaped URI
+rejection and sentinel absence test are in place. Pipeline integration and a
+real unrelated-deck live/replay/replay receipt remain operational follow-up.
+
 Define one narrow producer envelope that pipeline connectors can write using
 the same snapshot v2 contract Groundnut consumes. Connector names, allowed
 media classes and capture intent are declared in `run-config.json` before
@@ -116,9 +121,9 @@ connector only when a real IC run needs it and can supply a sanitized fixture.
 3. Freeze and implement the #22 comparison receipt; prove replay uses no live
    resolver and replay two is byte-identical.
 4. Update the pipeline run-config contract and its skill instructions for
-   declared capture producers.
+   declared capture producers. **In progress for the a7 integration.**
 5. Implement HTML and PDF producer fixtures; scan canonical artifacts for
-   credential/header sentinels.
+   credential/header sentinels. **Complete in a7.**
 6. Run one private IC report live, replay-only, then replay-only again. Preserve
    private rows outside this repository and publish only aggregate hashes and
    the comparison outcome.

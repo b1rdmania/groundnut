@@ -39,6 +39,8 @@ quotation presence, semantic support, evidence authority, and truth separate.
 
 - Markdown research reports are checked against their cited web and PDF sources.
 - Successful live fetches are normalized and snapshotted for offline replay.
+- Declared read-time producers bind connector intent and allowed media classes
+  into a capture receipt, preserve the first read, and omit connector secrets.
 - Snapshots disclose the exact searched evidence window, its extraction method,
   and whether capture was complete, truncated, or historically unknown.
 - Exact and fuzzy quotation anchoring preserve honest ambiguity and failure states.
@@ -72,7 +74,8 @@ to improve that number.
 
 The operational contract and output files are documented in
 [Claim ledger](./docs/LEDGER.md). The cross-format measurement and its limits
-are documented in [Artifact extraction](./docs/ARTIFACT-EXTRACTION.md).
+are documented in [Artifact extraction](./docs/ARTIFACT-EXTRACTION.md), and the
+producer boundary in [Declared read-time capture](./docs/READ-TIME-CAPTURE.md).
 
 ## Install for an integration
 
@@ -161,6 +164,7 @@ on it—not as a cosmetic directory shuffle.
 |---|---|---|
 | `groundnut/ic_loop.py`, `ledger.py`, `canonical_cli.py`, `runner.py` | Product | Current IC evidence-integrity path |
 | `groundnut/equivalence.py` | Product conformance | Live/replay evidence comparison and deterministic replay receipt |
+| `groundnut/capture.py` | Product integration | Declared first-read source capture and secret-safe receipt |
 | `groundnut/artifacts.py`, `sources.py`, `verification.py`, `authority.py` | Canonical core | Shared contracts used by the product path |
 | `groundnut/support_*`, navigation, relevance, signals and arena modules | Experimental | Measured candidates and admission machinery |
 | `scripts/` | Experimental operations | Reproducible preparation, evaluation and review commands |

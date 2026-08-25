@@ -16,6 +16,7 @@ look like current product stages.
 | [Artifact extraction](./ARTIFACT-EXTRACTION.md) | Measured syntax contract | Markdown, HTML and memo extraction admission and limits |
 | [Evidence windows](./EVIDENCE-WINDOWS.md) | Current | Snapshot completeness, truncation and replay contract |
 | [Live/replay equivalence](./LIVE-REPLAY-EQUIVALENCE.md) | Current | Compared evidence fields, exclusions and deterministic replay |
+| [Declared read-time capture](./READ-TIME-CAPTURE.md) | Current | Connector declaration, secret boundary and capture receipts |
 
 ## Active experiments
 
