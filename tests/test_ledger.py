@@ -144,7 +144,7 @@ def test_ledger_cli_writes_json_and_markdown(tmp_path):
     )
     assert code == 0
     payload = json.loads(out.read_text())
-    assert payload["schema"] == "groundnut-claim-ledger/v2"
+    assert payload["schema"] == "groundnut-claim-ledger/v3"
     text = md.read_text()
     assert "Report's own reasoning" in text
     assert "$184,000" in text
@@ -331,6 +331,142 @@ def test_zero_citation_report_is_a_valid_all_own_reasoning_run(tmp_path):
         "excerpt_found": 0,
         "own_reasoning": 1,
     }
+
+
+@pytest.mark.parametrize(
+    ("name", "report", "anomaly"),
+    [
+        ("empty", "# Heading only\n", None),
+        (
+            "unclosed-fence",
+            "# Memo\n\n```text\nMarket reaches $9B by 2031.\n",
+            "unclosed_fence",
+        ),
+        (
+            "unclosed-frontmatter",
+            "---\ntitle: Memo\nMarket reaches $9B by 2031.\n",
+            "unclosed_frontmatter",
+        ),
+    ],
+)
+def test_gate_never_clears_an_empty_or_malformed_population(
+    tmp_path, name, report, anomaly
+):
+    from groundnut.ic_loop import main as loop_main
+
+    artifact = tmp_path / f"{name}.md"
+    artifact.write_text(report)
+    out = tmp_path / f"{name}-out"
+
+    code = loop_main(
+        ["--report", str(artifact), "--out", str(out), "--replay-only",
+         "--gate-undeclared-numerics"]
+    )
+
+    assert code == 1
+    gate = json.loads((out / "gate.json").read_text())
+    assert gate["status"] == "indeterminate"
+    assert gate["population"]["status"] in {"empty", "malformed"}
+    assert gate["population"]["units"] == 0
+    if anomaly:
+        assert [row["code"] for row in gate["population"]["anomalies"]] == [anomaly]
+
+
+def test_markdown_table_cells_enter_the_numeric_gate(tmp_path):
+    from groundnut.ic_loop import main as loop_main
+
+    artifact = tmp_path / "table.md"
+    artifact.write_text(
+        "# Metrics\n\n"
+        "| Metric | Value |\n"
+        "|---|---|\n"
+        "| TAM 2030 | $4.2B |\n"
+        "| ARR exit | $88M |\n"
+        "| Burn | $1.4M/mo |\n"
+    )
+    out = tmp_path / "table-out"
+
+    code = loop_main(
+        ["--report", str(artifact), "--out", str(out), "--replay-only",
+         "--gate-undeclared-numerics"]
+    )
+
+    assert code == 1
+    ledger = json.loads((out / "ledger.json").read_text())
+    assert ledger["population"]["status"] == "observed"
+    assert ledger["population"]["included_lines"] == {"table_row": 3}
+    assert ledger["population"]["excluded_lines"]["table_header"] == 1
+    assert ledger["population"]["excluded_lines"]["table_delimiter"] == 1
+    assert ledger["counts"]["units"] == 6
+    assert ledger["counts"]["by_detail"]["own_reasoning:numeric"] == 4
+
+
+def test_table_without_outer_pipes_uses_the_same_population_contract(tmp_path):
+    from groundnut.ic_loop import GateFailure, run_loop
+
+    artifact = tmp_path / "compact-table.md"
+    artifact.write_text(
+        "Metric | Value\n"
+        "--- | ---\n"
+        "ARR exit | $88M\n"
+    )
+    out = tmp_path / "compact-table-out"
+
+    with pytest.raises(GateFailure, match="undeclared numeric"):
+        run_loop(artifact, out, replay_only=True, gate_undeclared_numerics=True)
+    ledger = json.loads((out / "ledger.json").read_text())
+    assert ledger["population"]["included_lines"] == {"table_row": 1}
+    assert [row["text"] for row in ledger["rows"]] == ["ARR exit", "$88M"]
+
+
+def test_citation_and_declared_analysis_are_surfaced_without_engine_policy(tmp_path):
+    artifact, execution = _run(tmp_path)
+    text = artifact.read_text().replace(
+        "in the last filing.",
+        "in the last filing. <!-- ic-own: derived from the filing -->",
+    )
+    artifact.write_text(text)
+
+    from groundnut.ic_loop import run_loop
+
+    out = tmp_path / "annotation-conflict"
+    out.mkdir()
+    (out / "snapshots").mkdir()
+    for item in (tmp_path / "snapshots").iterdir():
+        (out / "snapshots" / item.name).write_bytes(item.read_bytes())
+    run_loop(artifact, out, replay_only=True)
+    ledger = json.loads((out / "ledger.json").read_text())
+    conflicting = [row for row in ledger["rows"] if row["annotation_conflicts"]]
+
+    assert len(conflicting) == 1
+    assert conflicting[0]["annotations"] == ["citation", "declared_analysis"]
+    assert conflicting[0]["annotation_conflicts"] == [
+        "citation_and_declared_analysis"
+    ]
+    assert ledger["counts"]["annotation_conflicts"] == 1
+    gate = json.loads((out / "gate.json").read_text())
+    assert gate["annotation_conflicts"] == [
+        {"unit_id": conflicting[0]["unit_id"],
+         "codes": ["citation_and_declared_analysis"]}
+    ]
+
+
+def test_closed_fence_is_a_named_exclusion_not_a_population_anomaly(tmp_path):
+    from groundnut.ic_loop import run_loop
+
+    artifact = tmp_path / "closed-fence.md"
+    artifact.write_text(
+        "# Memo\n\nOne ordinary report statement.\n\n"
+        "```text\nMarket reaches $9B by 2031.\n```\n"
+    )
+    out = tmp_path / "closed-fence-out"
+    summary = run_loop(artifact, out, replay_only=True, gate_undeclared_numerics=True)
+    ledger = json.loads((out / "ledger.json").read_text())
+
+    assert summary["gate_status"] == "clear"
+    assert ledger["population"]["status"] == "observed"
+    assert ledger["population"]["anomalies"] == []
+    assert ledger["population"]["excluded_lines"]["fenced_code"] == 1
 
 
 def test_human_waiver_must_bind_the_exact_failed_ledger(tmp_path):

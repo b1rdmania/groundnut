@@ -15,6 +15,7 @@ import re
 from typing import Any, Mapping
 
 from .provenance import sha256_text
+from .markdown_population import scan_markdown
 from .sources import SourceReference
 from .verification import (
     ANALYST_PROVENANCE_CLASSES,
@@ -80,10 +81,13 @@ class SegmenterIdentity:
 
 DEFAULT_SEGMENTER = SegmenterIdentity(
     key="groundnut.artifact-block-segmenter",
-    version="1",
+    version="2",
     strategies=(
         ("structured_json", "one claim per configured claims-array row"),
-        ("markdown", "one claim per HTTP citation per physical line"),
+        (
+            "markdown",
+            "one claim per HTTP citation per eligible prose or table-cell segment",
+        ),
         (
             "rendered_html",
             "one claim per HTTP citation per normalized block line; one claim per typed unsourced block",
@@ -400,25 +404,27 @@ def _structured_claims(value: Any, profile: ArtifactProfile) -> list[Claim]:
 
 def _markdown_claims(raw: str, profile: ArtifactProfile) -> list[Claim]:
     claims = []
-    for line_number, line in enumerate(raw.splitlines(), 1):
-        for match in _LINK.finditer(line):
-            evidence, question = _adjacent_comments(line[match.end() :], profile)
-            excerpt, locator = _citation_evidence(
-                match.group(1), match.group(3), evidence
-            )
-            claims.append(
-                Claim(
-                    claim_id=f"c{len(claims) + 1}",
-                    text=_reading_text(line, profile),
-                    question=question,
-                    source=_reference(match.group(2)),
-                    excerpt=excerpt,
-                    locator=locator,
-                    declared_analysis=_declared(line, profile),
-                    provenance_class=_provenance_class(line, profile),
-                    location=f"line {line_number}",
+    content, _ = scan_markdown(raw)
+    for content_line in content:
+        for segment in content_line.segments:
+            for match in _LINK.finditer(segment):
+                evidence, question = _adjacent_comments(segment[match.end() :], profile)
+                excerpt, locator = _citation_evidence(
+                    match.group(1), match.group(3), evidence
                 )
-            )
+                claims.append(
+                    Claim(
+                        claim_id=f"c{len(claims) + 1}",
+                        text=_reading_text(segment, profile),
+                        question=question,
+                        source=_reference(match.group(2)),
+                        excerpt=excerpt,
+                        locator=locator,
+                        declared_analysis=_declared(segment, profile),
+                        provenance_class=_provenance_class(segment, profile),
+                        location=f"line {content_line.line}",
+                    )
+                )
     return claims
 
 
