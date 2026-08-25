@@ -44,6 +44,9 @@ quotation presence, semantic support, evidence authority, and truth separate.
 - Exact and fuzzy quotation anchoring preserve honest ambiguity and failure states.
 - A missing excerpt is reported as `evidence_window_incomplete` instead of
   `excerpt_not_found` when the stored window could have hidden it.
+- `groundnut-equivalence` compares the evidence content of a live run with its
+  replay and requires a second replay to be byte-identical, while naming every
+  deliberately excluded acquisition field.
 - The report, source snapshots, policies, engine revision, run and ledger are
   hash-bound.
 - Numeric own-reasoning units are separated as a reading aid for likely
@@ -157,6 +160,7 @@ on it—not as a cosmetic directory shuffle.
 | Area | Status | Purpose |
 |---|---|---|
 | `groundnut/ic_loop.py`, `ledger.py`, `canonical_cli.py`, `runner.py` | Product | Current IC evidence-integrity path |
+| `groundnut/equivalence.py` | Product conformance | Live/replay evidence comparison and deterministic replay receipt |
 | `groundnut/artifacts.py`, `sources.py`, `verification.py`, `authority.py` | Canonical core | Shared contracts used by the product path |
 | `groundnut/support_*`, navigation, relevance, signals and arena modules | Experimental | Measured candidates and admission machinery |
 | `scripts/` | Experimental operations | Reproducible preparation, evaluation and review commands |

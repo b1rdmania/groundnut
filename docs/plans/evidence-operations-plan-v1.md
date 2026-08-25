@@ -3,6 +3,9 @@
 **Decision date:** 25 August 2026  
 **Order:** #20 evidence windows → #22 equivalence → #21 read-time capture
 
+**Shipped:** #20 in `v0.1.0a5`. #22 is implemented by
+`groundnut.equivalence`; #21 remains pending.
+
 ## Outcome
 
 Groundnut must preserve the exact evidence a research run was able to inspect,
@@ -142,4 +145,3 @@ Semantic support remains valid roadmap work, but it cannot compensate for an
 incomplete evidence window or an unreplayable source. Presentation work and
 additional connectors stay consumer-led and should not enlarge the engine until
 the current IC path demonstrates the need.
-
