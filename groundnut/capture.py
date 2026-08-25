@@ -32,7 +32,7 @@ ALLOWED_MEDIA_TYPES = {
     "application/pdf",
 }
 _SENSITIVE_QUERY_KEY = re.compile(
-    r"(?:^|[_-])(token|secret|password|passwd|key|signature|credential|session|auth)(?:$|[_-])",
+    r"(?:^|[_-])(token|secret|password|passwd|key|sig|signature|credential|session|auth)(?:$|[_-])",
     re.IGNORECASE,
 )
 
@@ -113,17 +113,42 @@ class _DeclaredResolver:
         self.declaration = declaration
 
     def resolve(self, reference: SourceReference) -> SourceResolution:
-        resolution = self.resolver.resolve(reference)
+        try:
+            resolution = self.resolver.resolve(reference)
+        except Exception:
+            # Connector exceptions are an untrusted boundary. Their messages
+            # commonly contain request URLs, headers, cookies or retry dumps.
+            return SourceResolution(
+                source=None,
+                failure="source_unreachable",
+                detail="connector_exception",
+            )
         if not resolution.ok:
-            return resolution
+            return SourceResolution(
+                source=None,
+                failure=resolution.failure,
+                detail=_safe_failure_detail(resolution.detail),
+            )
         assert resolution.source is not None
         if resolution.source.media_type not in self.declaration.media_types:
             return SourceResolution(
                 source=None,
                 failure="source_media_unsupported",
-                detail=f"media_type:{resolution.source.media_type or 'unknown'}",
+                detail="declared_media_type_mismatch",
             )
         return resolution
+
+
+def _safe_failure_detail(detail: str | None) -> str | None:
+    """Retain only bounded connector diagnostics with no user-controlled text."""
+
+    if detail is None:
+        return None
+    if re.fullmatch(r"http_[1-5][0-9]{2}", detail):
+        return detail
+    if detail == "application/pdf: no text layer or no extractor":
+        return detail
+    return "connector_detail_redacted"
 
 
 class ReadTimeCaptureProducer:

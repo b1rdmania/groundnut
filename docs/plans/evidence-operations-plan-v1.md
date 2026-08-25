@@ -4,8 +4,9 @@
 **Order:** #20 evidence windows → #22 equivalence → #21 read-time capture
 
 **Shipped:** #20 in `v0.1.0a5`, #22 in `v0.1.0a6`, and #21 in
-`v0.1.0a7` (`2611451`). The pipeline pins a7 and declares capture producers in
-run-config v2 as of pipeline commit `a25bea1`.
+`v0.1.0a7` (`2611451`). The a8 hardening prevents transformed connector secrets
+and exception detail from escaping the capture boundary. The pipeline declares
+capture producers in run-config v2.
 
 ## Outcome
 
