@@ -28,8 +28,8 @@ The claim ledger puts each report unit in one of three buckets:
 
 | Bucket | Meaning |
 |---|---|
-| `cited_verified` | The quoted words were found in the source snapshot. |
-| `cited_drifted` | A citation exists, but its quotation could not be confirmed. |
+| `excerpt_found` | The quoted words were found in the source snapshot. |
+| `citation_unconfirmed` | A citation exists, but its quotation could not be confirmed. |
 | `own_reasoning` | The report makes an uncited statement or declared inference. |
 
 “Verified” means quotation presence, not truth. Groundnut keeps source access,
@@ -55,6 +55,19 @@ to improve that number.
 
 The operational contract and output files are documented in
 [Claim ledger](./docs/LEDGER.md).
+
+## Install for an integration
+
+Groundnut is currently an alpha package. Pin the exact revision used by a host:
+
+```bash
+python3.12 -m pip install "groundnut-evidence @ git+https://github.com/b1rdmania/groundnut.git@<commit>"
+groundnut-ic --help
+```
+
+The installed commands use bundled, versioned IC defaults and do not depend on
+a developer checkout path. A release tag is created only from a clean, tested
+revision.
 
 ## Product path
 

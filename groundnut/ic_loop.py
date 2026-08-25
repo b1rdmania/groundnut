@@ -8,6 +8,7 @@ Writes, under --out:
     run.json       the canonical response, hash-bound
     ledger.json    the three-bucket claim ledger
     ledger.md      the readable ledger
+    gate.json      the numeric gate result and any bound human waiver
     snapshots/     every source fetched, so the run replays offline
 
 By default sources are fetched live once and snapshotted (``snapshot_preferred``);
@@ -20,18 +21,26 @@ quality claim.
 from __future__ import annotations
 
 import argparse
+from importlib.resources import files
 import json
 from pathlib import Path
 from typing import Any
 
 from .artifacts import ArtifactProfile
 from .canonical_cli import RESPONSE_SCHEMA, execute_request
-from .ledger import build_claim_ledger, render_ledger_markdown
+from .ledger import build_claim_ledger, render_ledger_markdown, undeclared_numeric_rows
+from .waivers import GateWaiver
 
-_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_DOMAIN = _ROOT / "domains" / "ic_research.json"
-DEFAULT_PROFILE = _ROOT / "profiles" / "ic-research-pipeline.json"
-DEFAULT_SUPPORT_POLICY = _ROOT / "policies" / "exact-support-baseline-v1.json"
+_DATA = files("groundnut").joinpath("data")
+DEFAULT_DOMAIN = Path(str(_DATA.joinpath("domains", "ic_research.json")))
+DEFAULT_PROFILE = Path(str(_DATA.joinpath("profiles", "ic-research-pipeline.json")))
+DEFAULT_SUPPORT_POLICY = Path(
+    str(_DATA.joinpath("policies", "exact-support-baseline-v1.json"))
+)
+class GateFailure(ValueError):
+    """The report failed a preflight gate; the run itself is valid."""
+
+
 AUTHORITY_POLICY = {
     "schema": "groundnut-authority-policy/v1",
     "key": "ic_shadow_authority",
@@ -70,6 +79,8 @@ def run_loop(
     *,
     title: str | None = None,
     replay_only: bool = False,
+    gate_undeclared_numerics: bool = False,
+    waiver_path: Path | None = None,
     domain: Path = DEFAULT_DOMAIN,
     profile: Path = DEFAULT_PROFILE,
     support_policy: Path = DEFAULT_SUPPORT_POLICY,
@@ -87,6 +98,38 @@ def run_loop(
         report.read_text(),
         profile=ArtifactProfile.from_mapping(request["artifact_profile"]),
     )
+    undeclared = undeclared_numeric_rows(ledger)
+    waiver = None
+    gate_status = "not_requested"
+    if waiver_path is not None and not gate_undeclared_numerics:
+        raise ValueError("a waiver may be supplied only with --gate-undeclared-numerics")
+    if gate_undeclared_numerics:
+        if not undeclared:
+            if waiver_path is not None:
+                raise ValueError("waiver supplied but the gate has no failing units")
+            gate_status = "clear"
+        elif waiver_path is None:
+            gate_status = "failed"
+        else:
+            waiver = GateWaiver.from_mapping(json.loads(waiver_path.read_text()))
+            expected_ids = tuple(sorted(row.unit_id for row in undeclared))
+            if waiver.artifact_sha256 != ledger.artifact_sha256:
+                raise ValueError("waiver artifact_sha256 does not match this report")
+            if waiver.ledger_sha256 != ledger.sha256:
+                raise ValueError("waiver ledger_sha256 does not match this ledger")
+            if waiver.waived_unit_ids != expected_ids:
+                raise ValueError("waiver unit ids do not exactly match the failing gate units")
+            gate_status = "waived"
+    gate_receipt = {
+        "schema": "groundnut-gate-receipt/v1",
+        "gate": "undeclared_numeric_own_reasoning",
+        "enabled": gate_undeclared_numerics,
+        "status": gate_status,
+        "artifact_sha256": ledger.artifact_sha256,
+        "ledger_sha256": ledger.sha256,
+        "failing_unit_ids": [row.unit_id for row in undeclared],
+        "waiver": waiver.to_dict() if waiver else None,
+    }
     outputs = {
         "request.json": json.dumps(request, indent=2, sort_keys=True) + "\n",
         "run.json": json.dumps(response, indent=2, sort_keys=True) + "\n",
@@ -94,10 +137,20 @@ def run_loop(
         "ledger.md": render_ledger_markdown(
             ledger, title=title or f"Claim ledger — {report.stem}"
         ),
+        "gate.json": json.dumps(gate_receipt, indent=2, sort_keys=True) + "\n",
     }
     for name, content in outputs.items():
         (out / name).write_text(content)
     counts = ledger.counts
+    if gate_status == "failed":
+        lines = "\n".join(
+            f"  {row.unit_id} L{row.line}: {row.text[:140]}" for row in undeclared
+        )
+        raise GateFailure(
+            f"undeclared numeric own-reasoning units: {len(undeclared)}\n{lines}\n"
+            "Fix in the report source: cite each number, or mark the sentence as "
+            "declared analysis. Do not delete numbers to satisfy the gate."
+        )
     return {
         "report": str(report),
         "out": str(out),
@@ -105,6 +158,9 @@ def run_loop(
         "ledger_sha256": ledger.sha256,
         "units": counts["units"],
         **counts["by_bucket"],
+        "undeclared_numerics": len(undeclared),
+        "gate_status": gate_status,
+        "waiver_sha256": waiver.sha256 if waiver else None,
     }
 
 
@@ -114,6 +170,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--title")
     parser.add_argument("--replay-only", action="store_true")
+    parser.add_argument(
+        "--gate-undeclared-numerics",
+        action="store_true",
+        help="exit 1 when any own-reasoning unit carries a number without a declared-analysis marker",
+    )
+    parser.add_argument(
+        "--waiver",
+        type=Path,
+        help="human-approved groundnut-gate-waiver/v1 JSON matching the current failed ledger",
+    )
     parser.add_argument("--domain", type=Path, default=DEFAULT_DOMAIN)
     parser.add_argument("--profile", type=Path, default=DEFAULT_PROFILE)
     parser.add_argument("--support-policy", type=Path, default=DEFAULT_SUPPORT_POLICY)
@@ -121,8 +187,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         summary = run_loop(
             args.report, args.out, title=args.title, replay_only=args.replay_only,
+            gate_undeclared_numerics=args.gate_undeclared_numerics,
+            waiver_path=args.waiver,
             domain=args.domain, profile=args.profile, support_policy=args.support_policy,
         )
+    except GateFailure as error:
+        print(f"GATE FAIL: {error}")
+        return 1
     except (KeyError, TypeError, ValueError, OSError, json.JSONDecodeError) as error:
         print(f"INVALID: {error}")
         return 2
