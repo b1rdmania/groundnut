@@ -66,6 +66,7 @@ from .sources import (
     SourceReference,
     SourceResolution,
 )
+from .capture import CaptureDeclaration, ReadTimeCaptureProducer, capture_receipt
 from .arena import (
     ArenaPolicy,
     ArenaReport,
@@ -207,6 +208,7 @@ __all__ = [
     "ClaimEvidenceAccount",
     "ClaimEvidenceReport",
     "CheckCoverage",
+    "CaptureDeclaration",
     "COMPARISON_SCHEMA",
     "COMPONENT_SIGNAL_SCHEMA",
     "ComponentLicence",
@@ -245,6 +247,7 @@ __all__ = [
     "PilotReviewRow",
     "ProbeContextDigest",
     "ResolvedSource",
+    "ReadTimeCaptureProducer",
     "RecordedProbeRun",
     "RENDER_RECEIPT_SCHEMA",
     "RenderReceipt",
@@ -292,6 +295,7 @@ __all__ = [
     "compare_rendered_artifacts",
     "component_input_sha256",
     "check_claims",
+    "capture_receipt",
     "build_present_irrelevant_candidates",
     "build_pilot_probe",
     "import_legalbenchrag",

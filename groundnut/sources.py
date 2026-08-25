@@ -27,6 +27,7 @@ FAILURE_STATES = {
     "source_unreachable",
     "source_changed",
     "pdf_unsupported",
+    "source_media_unsupported",
 }
 
 
