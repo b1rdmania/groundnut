@@ -63,6 +63,41 @@ def test_snapshot_preferred_archives_once_then_replays_without_live(tmp_path):
     assert second.to_dict()["schema"] == "groundnut-source-acquisition/v1"
 
 
+def test_snapshot_preferred_archives_failure_taxonomy_for_replay(tmp_path):
+    failure = SourceResolution(
+        source=None, failure="source_paywalled", detail="http_403"
+    )
+    live = FakeResolver(failure)
+    store = SnapshotStore(tmp_path)
+    first = SnapshotFirstResolver(store, live, mode="snapshot_preferred").acquire(
+        REFERENCE
+    )
+    replay = SnapshotFirstResolver(store, mode="replay_only").acquire(REFERENCE)
+
+    assert first.strategy == "live_failed_archived"
+    assert first.snapshot_sha256 == replay.snapshot_sha256
+    assert replay.strategy == "snapshot"
+    assert replay.resolution == failure
+    assert replay.live_attempted is False
+    assert live.calls == 1
+
+
+def test_tampered_failure_snapshot_fails_closed(tmp_path):
+    store = SnapshotStore(tmp_path)
+    store.archive_failure(
+        REFERENCE,
+        SourceResolution(source=None, failure="source_paywalled", detail="http_403"),
+    )
+    payload = json.loads(store.path_for(REFERENCE.uri).read_text())
+    payload["failure"] = "truth_unknown"
+    store.path_for(REFERENCE.uri).write_text(json.dumps(payload))
+
+    replay = SnapshotFirstResolver(store, mode="replay_only").acquire(REFERENCE)
+    assert replay.strategy == "snapshot_invalid"
+    assert replay.resolution.failure == "source_changed"
+    assert replay.resolution.detail == "snapshot_failure_invalid"
+
+
 def test_invalid_existing_snapshot_fails_closed_without_live_fallback(tmp_path):
     store = SnapshotStore(tmp_path)
     store.archive(resolved().source)

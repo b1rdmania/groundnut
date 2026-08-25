@@ -8,6 +8,7 @@ from groundnut.sources import (
     ResolvedSource,
     SnapshotStore,
     SourceReference,
+    SourceResolution,
     html_to_text,
 )
 
@@ -53,6 +54,18 @@ def test_snapshot_round_trip_and_tamper_detection(tmp_path):
     tampered = store.load(reference)
     assert tampered.ok is False
     assert tampered.failure == "source_changed"
+
+
+def test_failure_snapshot_round_trip_preserves_observation(tmp_path):
+    reference = SourceReference("s1", "https://example.test/paywall")
+    resolution = SourceResolution(
+        source=None, failure="source_paywalled", detail="http_403"
+    )
+    store = SnapshotStore(tmp_path / "snapshots")
+    path = store.archive_failure(reference, resolution)
+
+    assert json.loads(path.read_text())["schema"] == "groundnut-source-failure-snapshot/v1"
+    assert store.load(reference) == resolution
 
 
 def test_html_to_text_ignores_script_and_decodes_entities():

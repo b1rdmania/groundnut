@@ -222,7 +222,12 @@ class HttpResolver:
 
 
 class SnapshotStore:
-    """JSON source archive keyed by URI hash and verified when reopened."""
+    """JSON source archive keyed by URI hash and verified when reopened.
+
+    Successful reads freeze the source bytes. Failed reads freeze the observed
+    failure taxonomy as evidence too; otherwise a live paywall silently turns
+    into a generic missing-snapshot error during replay.
+    """
 
     def __init__(self, directory: str | Path) -> None:
         self.directory = Path(directory)
@@ -253,21 +258,57 @@ class SnapshotStore:
         path.write_text(json.dumps(payload, sort_keys=True))
         return path
 
+    def archive_failure(
+        self, reference: SourceReference, resolution: SourceResolution
+    ) -> Path:
+        if resolution.ok or resolution.failure is None:
+            raise ValueError("failure snapshot requires a failed resolution")
+        self.directory.mkdir(parents=True, exist_ok=True)
+        path = self.path_for(reference.uri)
+        payload = {
+            "schema": "groundnut-source-failure-snapshot/v1",
+            "source_id": reference.source_id,
+            "uri": reference.uri,
+            "observed_at": _now(),
+            "failure": resolution.failure,
+            "detail": resolution.detail,
+        }
+        path.write_text(json.dumps(payload, sort_keys=True))
+        return path
+
     def load(self, reference: SourceReference) -> SourceResolution:
         path = self.path_for(reference.uri)
         try:
             value = json.loads(path.read_text())
         except (OSError, json.JSONDecodeError) as exc:
             return SourceResolution(
-                source=None, failure="source_unreachable", detail=type(exc).__name__
+                source=None,
+                failure="source_changed",
+                detail=f"snapshot_unreadable:{type(exc).__name__}",
             )
+        schema = value.get("schema")
         if (
-            value.get("schema") != "groundnut-source-snapshot/v1"
-            or value.get("uri") != reference.uri
+            value.get("uri") != reference.uri
             or value.get("source_id") != reference.source_id
         ):
             return SourceResolution(
                 source=None, failure="source_changed", detail="snapshot_identity_mismatch"
+            )
+        if schema == "groundnut-source-failure-snapshot/v1":
+            failure = value.get("failure")
+            detail = value.get("detail")
+            if failure not in FAILURE_STATES or (
+                detail is not None and not isinstance(detail, str)
+            ):
+                return SourceResolution(
+                    source=None,
+                    failure="source_changed",
+                    detail="snapshot_failure_invalid",
+                )
+            return SourceResolution(source=None, failure=failure, detail=detail)
+        if schema != "groundnut-source-snapshot/v1":
+            return SourceResolution(
+                source=None, failure="source_changed", detail="snapshot_schema_unknown"
             )
         text = value.get("text")
         if not isinstance(text, str) or sha256_text(text) != value.get("sha256"):
@@ -297,7 +338,7 @@ class SourceAcquisition:
     def __post_init__(self) -> None:
         if self.mode not in SnapshotFirstResolver.MODES:
             raise ValueError(f"unknown source acquisition mode: {self.mode}")
-        if self.strategy not in {"snapshot", "live_archived", "live_failed", "snapshot_missing", "snapshot_invalid"}:
+        if self.strategy not in {"snapshot", "live_archived", "live_failed", "live_failed_archived", "snapshot_missing", "snapshot_invalid"}:
             raise ValueError(f"unknown source acquisition strategy: {self.strategy}")
 
     def to_dict(self) -> dict:
@@ -354,7 +395,11 @@ class SnapshotFirstResolver:
                 reference=reference,
                 resolution=resolution,
                 mode=self.mode,
-                strategy="snapshot" if resolution.ok else "snapshot_invalid",
+                strategy=(
+                    "snapshot"
+                    if resolution.failure != "source_changed"
+                    else "snapshot_invalid"
+                ),
                 snapshot_sha256=_file_sha256(self.snapshots.path_for(reference.uri)),
                 live_attempted=False,
             )
@@ -374,15 +419,20 @@ class SnapshotFirstResolver:
         assert self.live is not None
         resolution = self.live.resolve(reference)
         if not resolution.ok:
+            archived = None
+            strategy = "live_failed"
+            if not exists:
+                archived = self.snapshots.archive_failure(reference, resolution)
+                strategy = "live_failed_archived"
             return SourceAcquisition(
                 reference=reference,
                 resolution=resolution,
                 mode=self.mode,
-                strategy="live_failed",
+                strategy=strategy,
                 snapshot_sha256=(
                     _file_sha256(self.snapshots.path_for(reference.uri))
                     if exists
-                    else None
+                    else _file_sha256(archived)
                 ),
                 live_attempted=True,
             )
