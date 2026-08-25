@@ -1,6 +1,6 @@
 {
   "schema": "groundnut-artifact-profile/v1",
-  "key": "ic-research-pipeline",
+  "key": "host-artifact-admission",
   "version": "1",
   "structured_fields": {
     "claims": "claims",
@@ -15,26 +15,11 @@
     "calculation": "calculation"
   },
   "html": {
-    "evidence_comment_prefix": "ic-source",
-    "verification_question_comment": "ic-verification-question",
-    "declared_analysis_classes": [
-      "groundnut-declared-analysis",
-      "ic-own"
-    ],
-    "provenance_class_markers": {
-      "groundnut-analyst-calculation": "analyst_calculation",
-      "groundnut-analyst-inference": "analyst_inference",
-      "groundnut-company-assertion": "company_assertion",
-      "groundnut-external-evidence": "external_evidence",
-      "groundnut-open-question": "open_question",
-      "groundnut-recommendation": "recommendation"
-    },
-    "ignored_container_classes": [
-      "groundnut-references"
-    ],
-    "ignored_container_attributes": [
-      "data-groundnut-evidence-exclude"
-    ]
+    "evidence_comment_prefix": "host-source",
+    "verification_question_comment": "host-verification-question",
+    "declared_analysis_classes": ["host-own"],
+    "ignored_container_classes": ["host-references"],
+    "ignored_container_attributes": ["data-host-evidence-exclude"]
   },
   "segmenter": {
     "schema": "groundnut-segmenter-identity/v1",

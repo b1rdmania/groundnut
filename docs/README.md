@@ -13,6 +13,7 @@ look like current product stages.
 | [Gates](../GATES.md) | Current | Published pass, fail and not-measured states |
 | [Analytical provenance](./ANALYTICAL-PROVENANCE.md) | Current | Evidence, assertion, calculation, inference and recommendation classes |
 | [Render parity](./PARITY.md) | Optional product check | Evidence survival across authored and rendered artifacts |
+| [Artifact extraction](./ARTIFACT-EXTRACTION.md) | Measured syntax contract | Markdown, HTML and memo extraction admission and limits |
 
 ## Active experiments
 
@@ -28,6 +29,7 @@ stages until their frozen admission condition passes.
 | [Annotation](./ANNOTATION.md) | Human review and benchmark interchange |
 | [Support admission plan](./plans/support-admission-plan-v1.md) | Draft preregistration; reviewer still TBD |
 | [22 August review](./plans/review-2026-08-22.md) | Read-only findings behind the admission guards |
+| [Evidence operations plan](./plans/evidence-operations-plan-v1.md) | Execution plan for issues #20–#22 |
 
 ## Legacy and history
 

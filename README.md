@@ -49,6 +49,10 @@ quotation presence, semantic support, evidence authority, and truth separate.
   anomalies are counted in the ledger.
 - Annotation conflicts are exposed without hard-coding a consuming product's
   writing policy into the engine.
+- Markdown, rendered HTML and structured memo extraction pass the frozen
+  20-claim supported-syntax admission pack with `1.000` precision, recall,
+  field accuracy and location coverage. This is conformance evidence, not a
+  representative arbitrary-document accuracy claim.
 - The RxClarity table-aware run measured 567 units: 105 citation-bearing
   (18.5%), 462 own reasoning, and 125 undeclared numerics. Its gate blocked.
 
@@ -59,7 +63,8 @@ report, not a pipeline failure, and the pipeline must not edit the report merely
 to improve that number.
 
 The operational contract and output files are documented in
-[Claim ledger](./docs/LEDGER.md).
+[Claim ledger](./docs/LEDGER.md). The cross-format measurement and its limits
+are documented in [Artifact extraction](./docs/ARTIFACT-EXTRACTION.md).
 
 ## Install for an integration
 
