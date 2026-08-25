@@ -17,10 +17,7 @@
   "html": {
     "evidence_comment_prefix": "ic-source",
     "verification_question_comment": "ic-verification-question",
-    "declared_analysis_classes": [
-      "groundnut-declared-analysis",
-      "ic-own"
-    ],
+    "declared_analysis_classes": ["groundnut-declared-analysis", "ic-own"],
     "provenance_class_markers": {
       "groundnut-analyst-calculation": "analyst_calculation",
       "groundnut-analyst-inference": "analyst_inference",
@@ -29,12 +26,8 @@
       "groundnut-open-question": "open_question",
       "groundnut-recommendation": "recommendation"
     },
-    "ignored_container_classes": [
-      "groundnut-references"
-    ],
-    "ignored_container_attributes": [
-      "data-groundnut-evidence-exclude"
-    ]
+    "ignored_container_classes": ["groundnut-references"],
+    "ignored_container_attributes": ["data-groundnut-evidence-exclude"]
   },
   "segmenter": {
     "schema": "groundnut-segmenter-identity/v1",

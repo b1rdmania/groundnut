@@ -186,6 +186,7 @@ def execute_canonical_check(
         SourceDigest.from_record(
             acquisition.resolution.source.record,
             snapshot_sha256=acquisition.snapshot_sha256,
+            evidence_window=acquisition.resolution.source.evidence_window,
         )
         for acquisition in run.acquisitions
         if acquisition.resolution.source is not None

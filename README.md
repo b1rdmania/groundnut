@@ -28,8 +28,8 @@ The claim ledger puts each report unit in one of three buckets:
 
 | Bucket | Meaning |
 |---|---|
-| `cited_verified` | The quoted words were found in the source snapshot. |
-| `cited_drifted` | A citation exists, but its quotation could not be confirmed. |
+| `excerpt_found` | The quoted words were found in the source snapshot. |
+| `citation_unconfirmed` | A citation exists, but its quotation could not be confirmed. |
 | `own_reasoning` | The report makes an uncited statement or declared inference. |
 
 “Verified” means quotation presence, not truth. Groundnut keeps source access,
@@ -39,13 +39,32 @@ quotation presence, semantic support, evidence authority, and truth separate.
 
 - Markdown research reports are checked against their cited web and PDF sources.
 - Successful live fetches are normalized and snapshotted for offline replay.
+- Declared read-time producers bind connector intent and allowed media classes
+  into a capture receipt, preserve the first read, and omit connector secrets.
+- Snapshots disclose the exact searched evidence window, its extraction method,
+  and whether capture was complete, truncated, or historically unknown.
 - Exact and fuzzy quotation anchoring preserve honest ambiguity and failure states.
+- A missing excerpt is reported as `evidence_window_incomplete` instead of
+  `excerpt_not_found` when the stored window could have hidden it.
+- `groundnut-equivalence` compares the evidence content of a live run with its
+  replay and requires a second replay to be byte-identical, while naming every
+  deliberately excluded acquisition field.
 - The report, source snapshots, policies, engine revision, run and ledger are
   hash-bound.
 - Numeric own-reasoning units are separated as a reading aid for likely
   extrapolation.
-- The RxClarity run exercised the loop on 401 report units: 64 cited-verified,
-  41 cited-drifted and 296 own-reasoning, including 80 numeric units.
+- Empty or malformed claim populations cannot pass the numeric gate as clear.
+- Table cells enter the claim population; excluded Markdown regions and parser
+  anomalies are counted in the ledger.
+- Annotation conflicts are exposed without hard-coding a consuming product's
+  writing policy into the engine.
+- Markdown, rendered HTML and structured memo extraction pass the frozen
+  20-claim supported-syntax admission pack with `1.000` precision, recall,
+  field accuracy and location coverage. This is conformance evidence, not a
+  representative arbitrary-document accuracy claim.
+- The last preserved RxClarity population measurement was produced on `a3`:
+  567 units, 105 citation-bearing (18.5%), 462 own reasoning, and 125 undeclared
+  numerics. It is historical context, not an `a4` or later measurement.
 
 Groundnut does not currently decide that a paraphrase is semantically supported
 or contradicted. The learned semantic-support gate is **NOT MEASURED** and only
@@ -54,7 +73,22 @@ report, not a pipeline failure, and the pipeline must not edit the report merely
 to improve that number.
 
 The operational contract and output files are documented in
-[Claim ledger](./docs/LEDGER.md).
+[Claim ledger](./docs/LEDGER.md). The cross-format measurement and its limits
+are documented in [Artifact extraction](./docs/ARTIFACT-EXTRACTION.md), and the
+producer boundary in [Declared read-time capture](./docs/READ-TIME-CAPTURE.md).
+
+## Install for an integration
+
+Groundnut is currently an alpha package. Pin the exact revision used by a host:
+
+```bash
+python3.12 -m pip install "groundnut-evidence @ git+https://github.com/b1rdmania/groundnut.git@<commit>"
+groundnut-ic --help
+```
+
+The installed commands use bundled, versioned IC defaults and do not depend on
+a developer checkout path. A release tag is created only from a clean, tested
+revision.
 
 ## Product path
 
@@ -129,6 +163,8 @@ on it—not as a cosmetic directory shuffle.
 | Area | Status | Purpose |
 |---|---|---|
 | `groundnut/ic_loop.py`, `ledger.py`, `canonical_cli.py`, `runner.py` | Product | Current IC evidence-integrity path |
+| `groundnut/equivalence.py` | Product conformance | Live/replay evidence comparison and deterministic replay receipt |
+| `groundnut/capture.py` | Product integration | Declared first-read source capture and secret-safe receipt |
 | `groundnut/artifacts.py`, `sources.py`, `verification.py`, `authority.py` | Canonical core | Shared contracts used by the product path |
 | `groundnut/support_*`, navigation, relevance, signals and arena modules | Experimental | Measured candidates and admission machinery |
 | `scripts/` | Experimental operations | Reproducible preparation, evaluation and review commands |

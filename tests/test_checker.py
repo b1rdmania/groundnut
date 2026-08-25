@@ -92,6 +92,16 @@ def test_missing_resolution_is_visible_source_unavailable():
     assert report.complete is False
 
 
+def test_empty_claim_batch_is_a_valid_complete_report():
+    detector, policy = exact_policy()
+    report = check_claims([], {}, detector=detector, policy=policy)
+
+    assert report.claims == ()
+    assert report.complete is True
+    assert report.summary["claims"] == 0
+    assert report.summary["mechanical"]["rates"]["citation_coverage"]["denominator"] == 0
+
+
 class BrokenDetector:
     identity = DetectorIdentity("test.broken", "broken", "r1", "test", "1")
 
