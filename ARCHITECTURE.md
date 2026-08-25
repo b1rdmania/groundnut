@@ -154,6 +154,13 @@ extraction method, and the hash of the exact normalized text searched. V1
 snapshots remain replayable but their completeness is `unknown`; Groundnut does
 not reinterpret a historical missing field as a complete capture.
 
+`groundnut-live-replay-equivalence/v1` compares the artifact, source/snapshot/
+window identities, evidence assessments, arena result, and material manifest
+identities. Acquisition mode, strategy and live-attempt state are declared
+exclusions; hashes derived from those complete-run fields are excluded with
+them. A second replay must be byte-identical. The receipt reports hash-only
+differences so a comparison does not leak private report or source text.
+
 ## Artifact ingestion
 
 `groundnut-artifact-profile/v1` maps generic structured fields and rendered

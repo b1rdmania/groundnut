@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "groundnut-evidence"
-version = "0.1.0a5"
+version = "0.1.0a6"
 description = "Source-bound evidence integrity and replay contracts"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -21,6 +21,7 @@ groundnut-ic = "groundnut.ic_loop:main"
 groundnut-ledger = "groundnut.ledger_cli:main"
 groundnut-arena = "groundnut.arena_cli:main"
 groundnut-render = "groundnut.render_cli:main"
+groundnut-equivalence = "groundnut.equivalence:main"
 
 [tool.setuptools.packages.find]
 include = ["groundnut*", "pipeline*"]
