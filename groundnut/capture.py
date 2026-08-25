@@ -10,10 +10,11 @@ from pathlib import Path
 import re
 import sys
 from typing import Any, Mapping
-from urllib.parse import parse_qsl, urlsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from .sources import (
     HttpResolver,
+    ResolvedSource,
     SnapshotFirstResolver,
     SnapshotStore,
     SourceAcquisition,
@@ -23,7 +24,7 @@ from .sources import (
 )
 
 
-CAPTURE_REQUEST_SCHEMA = "groundnut-read-capture-request/v1"
+CAPTURE_REQUEST_SCHEMA = "groundnut-read-capture-request/v2"
 CAPTURE_RECEIPT_SCHEMA = "groundnut-read-capture/v1"
 ALLOWED_MEDIA_TYPES = {
     "text/html",
@@ -48,6 +49,7 @@ class CaptureDeclaration:
 
     connector: str
     media_types: tuple[str, ...]
+    retained_query_parameters: tuple[str, ...] = ()
     intent: str = "evidence_verification"
 
     def __post_init__(self) -> None:
@@ -60,13 +62,23 @@ class CaptureDeclaration:
         unknown = set(self.media_types) - ALLOWED_MEDIA_TYPES
         if unknown:
             raise ValueError(f"unsupported declared media types: {sorted(unknown)}")
+        if len(set(self.retained_query_parameters)) != len(
+            self.retained_query_parameters
+        ):
+            raise ValueError("retained_query_parameters must be unique")
+        for name in self.retained_query_parameters:
+            if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_.-]{0,127}", name):
+                raise ValueError("retained query parameter names must be stable identifiers")
+            if _SENSITIVE_QUERY_KEY.search(name):
+                raise ValueError("credential-shaped query parameters cannot be retained")
 
     def canonical_payload(self) -> dict[str, Any]:
         return {
-            "schema": "groundnut-capture-declaration/v1",
+            "schema": "groundnut-capture-declaration/v2",
             "connector": self.connector,
             "intent": self.intent,
             "media_types": sorted(self.media_types),
+            "retained_query_parameters": sorted(self.retained_query_parameters),
         }
 
     @property
@@ -80,21 +92,34 @@ class CaptureDeclaration:
     def from_mapping(cls, value: Mapping[str, Any]) -> "CaptureDeclaration":
         if not isinstance(value, Mapping):
             raise ValueError("capture declaration must be an object")
-        if set(value) != {"connector", "intent", "media_types"}:
+        if set(value) != {
+            "connector",
+            "intent",
+            "media_types",
+            "retained_query_parameters",
+        }:
             raise ValueError("capture declaration has unknown or missing fields")
         media_types = value["media_types"]
         if not isinstance(media_types, list) or not all(
             isinstance(item, str) for item in media_types
         ):
             raise ValueError("capture declaration media_types must be strings")
+        retained = value["retained_query_parameters"]
+        if not isinstance(retained, list) or not all(
+            isinstance(item, str) for item in retained
+        ):
+            raise ValueError("retained_query_parameters must be strings")
         return cls(
             connector=str(value["connector"]),
             intent=str(value["intent"]),
             media_types=tuple(media_types),
+            retained_query_parameters=tuple(retained),
         )
 
 
-def validate_public_reference(reference: SourceReference) -> None:
+def canonical_reference(
+    reference: SourceReference, declaration: CaptureDeclaration
+) -> SourceReference:
     """Reject credentials in canonical source identity instead of redacting it."""
 
     parsed = urlsplit(reference.uri)
@@ -102,26 +127,43 @@ def validate_public_reference(reference: SourceReference) -> None:
         raise ValueError("read-time HTTP capture requires an http(s) URI")
     if parsed.username is not None or parsed.password is not None:
         raise ValueError("source URI must not contain credentials")
-    sensitive = [key for key, _ in parse_qsl(parsed.query) if _SENSITIVE_QUERY_KEY.search(key)]
-    if sensitive:
-        raise ValueError("source URI contains a credential-shaped query parameter")
+    if any(_SENSITIVE_QUERY_KEY.search(segment) for segment in parsed.path.split("/")):
+        raise ValueError("source URI path contains a credential-shaped segment")
+    retain = set(declaration.retained_query_parameters)
+    retained = [(key, value) for key, value in parse_qsl(parsed.query) if key in retain]
+    canonical_uri = urlunsplit(
+        (parsed.scheme, parsed.netloc, parsed.path, urlencode(sorted(retained)), "")
+    )
+    return SourceReference(reference.source_id, canonical_uri)
+
+
+def validate_public_reference(reference: SourceReference) -> None:
+    """Compatibility validator using the default-deny query policy."""
+
+    canonical_reference(reference, CaptureDeclaration("public_web", ("text/html",)))
 
 
 class _DeclaredResolver:
-    def __init__(self, resolver: SourceResolver, declaration: CaptureDeclaration) -> None:
+    def __init__(
+        self,
+        resolver: SourceResolver,
+        declaration: CaptureDeclaration,
+        fetch_reference: SourceReference,
+    ) -> None:
         self.resolver = resolver
         self.declaration = declaration
+        self.fetch_reference = fetch_reference
 
     def resolve(self, reference: SourceReference) -> SourceResolution:
         try:
-            resolution = self.resolver.resolve(reference)
-        except Exception:
+            resolution = self.resolver.resolve(self.fetch_reference)
+        except Exception as error:
             # Connector exceptions are an untrusted boundary. Their messages
             # commonly contain request URLs, headers, cookies or retry dumps.
             return SourceResolution(
                 source=None,
                 failure="source_unreachable",
-                detail="connector_exception",
+                detail=_bounded_detail("connector_exception", str(error)),
             )
         if not resolution.ok:
             return SourceResolution(
@@ -134,9 +176,22 @@ class _DeclaredResolver:
             return SourceResolution(
                 source=None,
                 failure="source_media_unsupported",
-                detail="declared_media_type_mismatch",
+                detail=_bounded_detail(
+                    "declared_media_type_mismatch",
+                    resolution.source.media_type or "unknown",
+                ),
             )
-        return resolution
+        source = resolution.source
+        return SourceResolution(
+            source=ResolvedSource(
+                reference=reference,
+                text=source.text,
+                fetched_at=source.fetched_at,
+                status=source.status,
+                media_type=source.media_type,
+                evidence_window=source.evidence_window,
+            )
+        )
 
 
 def _safe_failure_detail(detail: str | None) -> str | None:
@@ -148,7 +203,14 @@ def _safe_failure_detail(detail: str | None) -> str | None:
         return detail
     if detail == "application/pdf: no text layer or no extractor":
         return detail
-    return "connector_detail_redacted"
+    return _bounded_detail("connector_detail_redacted", detail)
+
+
+def _bounded_detail(classification: str, raw_detail: str) -> str:
+    digest = hashlib.sha256(
+        b"groundnut-capture-detail/v1\0" + raw_detail.encode(errors="replace")
+    ).hexdigest()[:16]
+    return f"{classification};detail_ref=sha256:{digest}"
 
 
 class ReadTimeCaptureProducer:
@@ -162,15 +224,18 @@ class ReadTimeCaptureProducer:
     ) -> None:
         self.snapshots = snapshots
         self.declaration = declaration
-        self.resolver = SnapshotFirstResolver(
-            snapshots,
-            _DeclaredResolver(resolver, declaration),
-            mode="snapshot_preferred",
-        )
+        self.live_resolver = resolver
 
     def capture(self, reference: SourceReference) -> dict[str, Any]:
-        validate_public_reference(reference)
-        acquisition = self.resolver.acquire(reference)
+        canonical = canonical_reference(reference, self.declaration)
+        resolver = SnapshotFirstResolver(
+            self.snapshots,
+            _DeclaredResolver(
+                self.live_resolver, self.declaration, fetch_reference=reference
+            ),
+            mode="snapshot_preferred",
+        )
+        acquisition = resolver.acquire(canonical)
         return capture_receipt(acquisition, self.declaration)
 
 
@@ -222,7 +287,7 @@ def execute_request(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Capture declared source reads")
-    parser.add_argument("request", help="groundnut-read-capture-request/v1 JSON")
+    parser.add_argument("request", help="groundnut-read-capture-request/v2 JSON")
     parser.add_argument("--out", required=True, help="batch receipt path")
     parser.add_argument("--allow-live", action="store_true")
     args = parser.parse_args(argv)

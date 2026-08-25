@@ -5,8 +5,9 @@
 
 **Shipped:** #20 in `v0.1.0a5`, #22 in `v0.1.0a6`, and #21 in
 `v0.1.0a7` (`2611451`). The a8 hardening prevents transformed connector secrets
-and exception detail from escaping the capture boundary. The pipeline declares
-capture producers in run-config v2.
+and exception detail from escaping the capture boundary. The a9 contract makes
+query retention default-deny and adds correlatable redacted diagnostics. The
+pipeline declaration moves with each invoked capture-contract release.
 
 ## Outcome
 
