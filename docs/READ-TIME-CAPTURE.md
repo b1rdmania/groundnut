@@ -1,8 +1,8 @@
 # Declared read-time capture
 
-**Declaration:** `groundnut-capture-declaration/v1`  
-**Receipt:** `groundnut-read-capture/v1`  
-**Batch request:** `groundnut-read-capture-request/v1`
+**Declaration:** `groundnut-capture-declaration/v2`
+**Receipt:** `groundnut-read-capture/v1`
+**Batch request:** `groundnut-read-capture-request/v2`
 
 `groundnut-capture` is a narrow producer boundary for a host that reads a cited
 source. It archives the first successful or failed read into Groundnut's source
@@ -26,15 +26,20 @@ failure states.
 Canonical capture artifacts contain the public source identity, normalized
 text, status, media type, retrieval time, evidence window and hashes. They have
 no field for request headers, response headers, cookies, authorization values
-or connector session state. HTTP URIs containing user information or
-credential-shaped query keys are rejected rather than redacted.
+or connector session state. Query parameters are default-deny: the connector
+may use the original URI to fetch, but canonical identity retains only parameter
+names declared in `retained_query_parameters`. The default is an empty query.
+Credential-shaped parameter names cannot be declared retainable. User
+information and credential-shaped path segments are rejected.
 
 The integration fixture deliberately gives its connector high-entropy
 authorization, cookie and private-response-header sentinels. It scans snapshots,
 receipts, logs, standard streams and forced-failure output for raw, case-folded,
 URL-encoded, base64, hexadecimal, JSON-escaped, digest and delimiter-split forms.
 Connector exception text and unbounded failure detail are replaced with bounded
-diagnostics before archiving. This proves the producer boundary does not
+diagnostics before archiving. A domain-separated, truncated SHA-256 reference
+lets operators recognize two identical redacted failures or distinguish a new
+one without publishing the raw detail. This proves the producer boundary does not
 serialize those values. It does not claim that arbitrary source body text can
 be classified as secret.
 
@@ -42,12 +47,13 @@ be classified as secret.
 
 ```json
 {
-  "schema": "groundnut-read-capture-request/v1",
+  "schema": "groundnut-read-capture-request/v2",
   "snapshot_directory": "snapshots",
   "declaration": {
     "connector": "public_web",
     "intent": "evidence_verification",
-    "media_types": ["text/html", "application/pdf"]
+    "media_types": ["text/html", "application/pdf"],
+    "retained_query_parameters": []
   },
   "sources": [
     {"source_id": "source-1", "uri": "https://example.test/evidence"}

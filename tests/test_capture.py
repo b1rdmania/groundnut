@@ -11,6 +11,7 @@ from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 from groundnut.capture import (
     CaptureDeclaration,
     ReadTimeCaptureProducer,
+    canonical_reference,
     execute_request,
     validate_public_reference,
 )
@@ -98,8 +99,10 @@ def assert_secrets_absent(*emitted):
         assert _collapsed(sentinel) not in collapsed
 
 
-def _declaration(*media_types):
-    return CaptureDeclaration("public_web", tuple(media_types))
+def _declaration(*media_types, retained=()):
+    return CaptureDeclaration(
+        "public_web", tuple(media_types), retained_query_parameters=tuple(retained)
+    )
 
 
 def _pdf_text() -> tuple[bytes, str]:
@@ -266,7 +269,7 @@ def test_connector_exception_message_cannot_reach_artifacts_logs_or_streams(
 
     result = receipt["acquisition"]["result"]
     assert result["failure"] == "source_unreachable"
-    assert result["detail"] == "connector_exception"
+    assert result["detail"].startswith("connector_exception;detail_ref=sha256:")
     assert_secrets_absent(serialized, caplog.text, streams.out, streams.err)
 
 
@@ -292,13 +295,74 @@ def test_connector_failure_detail_and_undeclared_media_value_are_redacted(tmp_pa
         assert_secrets_absent(store.path_for(reference.uri).read_text(), json.dumps(receipt))
 
 
+def test_redacted_failure_references_are_correlatable_but_not_reversible(tmp_path):
+    class Failure:
+        def __init__(self, detail):
+            self.detail = detail
+
+        def resolve(self, reference):
+            return SourceResolution(None, "source_unreachable", self.detail)
+
+    details = []
+    for index, raw in enumerate(("novel failure A", "novel failure A", "novel failure B")):
+        reference = SourceReference(f"failure-{index}", f"https://example.test/{index}")
+        receipt = ReadTimeCaptureProducer(
+            SnapshotStore(tmp_path / str(index)),
+            Failure(raw),
+            _declaration("text/html"),
+        ).capture(reference)
+        details.append(receipt["acquisition"]["result"]["detail"])
+
+    assert details[0] == details[1]
+    assert details[0] != details[2]
+    assert all(value.startswith("connector_detail_redacted;detail_ref=sha256:") for value in details)
+    assert "novel failure" not in "".join(details)
+
+
+def test_query_parameters_are_default_deny_but_original_uri_is_used_for_fetch(tmp_path):
+    class RecordingConnector:
+        def __init__(self):
+            self.uris = []
+
+        def resolve(self, reference):
+            self.uris.append(reference.uri)
+            return SourceResolution(source=_resolved(reference))
+
+    raw_uri = (
+        f"https://example.test/article?article_id=42&se={COOKIE_SENTINEL}"
+        f"&sp=read&sv=2026&sr=blob"
+    )
+    reference = SourceReference("article", raw_uri)
+    connector = RecordingConnector()
+    declaration = _declaration("text/html", retained=("article_id",))
+    store = SnapshotStore(tmp_path)
+    receipt = ReadTimeCaptureProducer(store, connector, declaration).capture(reference)
+    canonical = canonical_reference(reference, declaration)
+
+    assert connector.uris == [raw_uri]
+    assert canonical.uri == "https://example.test/article?article_id=42"
+    assert receipt["acquisition"]["result"]["uri"] == canonical.uri
+    assert store.path_for(canonical.uri).is_file()
+    assert_secrets_absent(store.path_for(canonical.uri).read_text(), json.dumps(receipt))
+
+
+def test_query_parameter_retention_must_be_declared_and_noncredential_shaped():
+    reference = SourceReference("article", "https://example.test/article?id=42&view=full")
+    assert canonical_reference(reference, _declaration("text/html")).uri == (
+        "https://example.test/article"
+    )
+    assert canonical_reference(
+        reference, _declaration("text/html", retained=("id",))
+    ).uri == "https://example.test/article?id=42"
+    with pytest.raises(ValueError, match="cannot be retained"):
+        _declaration("text/html", retained=("access_token",))
+
+
 @pytest.mark.parametrize(
     "uri",
     [
         "https://user:password@example.test/source",
-        "https://example.test/source?access_token=secret",
-        f"https://example.test/source?session={COOKIE_SENTINEL}",
-        f"https://example.test/source?sig={AUTH_SENTINEL}",
+        "https://example.test/auth/credential/source",
         "file:///private/report.html",
     ],
 )
@@ -310,12 +374,13 @@ def test_credential_bearing_or_non_http_source_identity_is_rejected(uri):
 
 def test_capture_request_requires_explicit_live_authority(tmp_path):
     request = {
-        "schema": "groundnut-read-capture-request/v1",
+        "schema": "groundnut-read-capture-request/v2",
         "snapshot_directory": "snapshots",
         "declaration": {
             "connector": "public_web",
             "intent": "evidence_verification",
             "media_types": ["text/html", "application/pdf"],
+            "retained_query_parameters": [],
         },
         "sources": [{"source_id": "web-1", "uri": "https://example.test"}],
     }
