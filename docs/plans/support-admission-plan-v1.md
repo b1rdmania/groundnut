@@ -74,7 +74,17 @@ Candidate: **one** detector policy, to be frozen as
 `policies/composed-support-candidate-v1.json` before the probe runs. It must be
 the *composed* policy — exact check first, then AlignScore-NLI
 (entailment / neutral / contradiction preserved) on the residue, Groundnut
-abstention on low margin — not the bare detector.
+abstention below confidence **0.50** — not the bare detector. The threshold was
+selected on the 184-case exploratory-only pack before any recorded review row:
+it produced macro-F1 0.425 while retaining 46/46 exact verbatim cases. The
+adjudicated pack is not used to select or change it.
+
+The candidate policy is now frozen with SHA-256
+`1e0b4705bc3c8ff57d161b8c95ac4e4f37bb34012156bbd09a0a6c9fbe6a318b`.
+Its composed identity binds the exact detector, the exploratory AlignScore NLI
+identity (`9fd0aabb…1420`), and the exact-first routing rule. Changing any of
+those inputs changes the policy hash and requires plan v2 once the probe plan
+artifact exists.
 
 Reason, and this is the point of the plan: the admission rule fails any
 candidate whose per-kind accuracy drops below baseline on *any* kind
@@ -135,10 +145,11 @@ or the threshold.
 2. `build_support_probe.py --build-attempt 1` →
    `support-pilot-cases.jsonl` plus its `.build.json` receipt (fails closed on
    any pending row; must report exactly 50 groups)
-3. Freeze `composed-support-candidate-v1.json`; commit its hash. The composed
-   detector needs an entry in `groundnut/admitted_detectors.py` before the
-   canonical runner can execute it. That is engine code, written before any case is
-   scored, and it must not read the review rows.
+3. Freeze `composed-support-candidate-v1.json`; commit its hash. The bake-off
+   instantiates this frozen candidate directly under the probe plan. Do **not**
+   add it to `groundnut/admitted_detectors.py` before scoring: that registry is
+   the production admission boundary and receives the candidate only after a
+   passing `groundnut-support-admission/v1` artifact exists.
 4. `freeze_support_plan.py --key support-admission-v1 --probe support-pilot-cases.jsonl
    --build-receipt support-pilot-cases.jsonl.build.json --primary-metric macro_f1
    --minimum-improvement 0.20 --baseline-policy exact-support-baseline-v1.json
