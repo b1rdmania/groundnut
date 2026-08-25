@@ -3,8 +3,9 @@
 **Decision date:** 25 August 2026  
 **Order:** #20 evidence windows → #22 equivalence → #21 read-time capture
 
-**Shipped:** #20 in `v0.1.0a5`. #22 is implemented by
-`groundnut.equivalence`; #21 is implemented in `groundnut.capture` for a7.
+**Shipped:** #20 in `v0.1.0a5`, #22 in `v0.1.0a6`, and #21 in
+`v0.1.0a7` (`2611451`). The pipeline pins a7 and declares capture producers in
+run-config v2 as of pipeline commit `a25bea1`.
 
 ## Outcome
 
@@ -89,10 +90,11 @@ not the live-fetch claim.
 
 ## Work package 3 — #21 read-time capture
 
-**Implemented for a7.** The producer declaration, HTML/PDF connector fixtures,
+**Shipped in a7.** The producer declaration, HTML/PDF connector fixtures,
 first-read preservation, explicit media/access failures, credential-shaped URI
-rejection and sentinel absence test are in place. Pipeline integration and a
-real unrelated-deck live/replay/replay receipt remain operational follow-up.
+rejection and sentinel absence test are in place. Pipeline integration is
+merged. A real unrelated-deck live/replay/replay receipt remains operational
+validation and must not be inferred from the sanitized fixtures.
 
 Define one narrow producer envelope that pipeline connectors can write using
 the same snapshot v2 contract Groundnut consumes. Connector names, allowed
@@ -121,14 +123,16 @@ connector only when a real IC run needs it and can supply a sanitized fixture.
 3. Freeze and implement the #22 comparison receipt; prove replay uses no live
    resolver and replay two is byte-identical.
 4. Update the pipeline run-config contract and its skill instructions for
-   declared capture producers. **In progress for the a7 integration.**
+   declared capture producers. **Complete in pipeline `a25bea1`.**
 5. Implement HTML and PDF producer fixtures; scan canonical artifacts for
    credential/header sentinels. **Complete in a7.**
-6. Run one private IC report live, replay-only, then replay-only again. Preserve
+6. Run one private IC report live, replay-only, then replay-only again. **Still
+   pending a real unrelated deck.** Preserve
    private rows outside this repository and publish only aggregate hashes and
    the comparison outcome.
 7. Tag the tested Groundnut revision, pin that immutable revision in the
-   pipeline, and close #20, #22 and #21 in dependency order with receipt links.
+   pipeline, and close #20, #22 and #21 in dependency order. **Complete for the
+   implementation issues; the step 6 operational receipt is still pending.**
 
 ## Roadmap judgment
 
@@ -150,3 +154,8 @@ Semantic support remains valid roadmap work, but it cannot compensate for an
 incomplete evidence window or an unreplayable source. Presentation work and
 additional connectors stay consumer-led and should not enlarge the engine until
 the current IC path demonstrates the need.
+
+As of a7, #18 is the only open Groundnut roadmap issue. Its position remains
+correct, but the immediate next operation is step 6 on a genuinely unrelated
+deck. A hard stop on an incomplete window is an expected result of that run,
+not permission to weaken the gate; it routes to source operations.
