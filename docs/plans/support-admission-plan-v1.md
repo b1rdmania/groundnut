@@ -28,11 +28,12 @@ Cases per group: 4 (`verbatim_supported`, `paraphrase_supported`,
 `contradicted`, `present_irrelevant`). Probe N = 200 cases, 50 per kind.
 Expected labels: `supported` (×2 kinds), `contradicted`, `insufficient`.
 
-## Human review protocol
+## Recorded review protocol
 
-Reviewer identity: **TBD** — a named human other than the project owner,
-recorded as `human:<id>`. No reviewer is currently assigned; until one is,
-the gate stays NOT MEASURED. No agent may write a `*_decision` field.
+Reviewer identity is recorded on every accepted decision. The identifier is
+an audit label, not evidence that the reviewer is human or independent: the
+same actor may author, operate, review, and accept a row. The gate stays
+NOT MEASURED until this preregistered review and detector comparison run.
 
 Per row, three rulings, in this order:
 
@@ -43,7 +44,7 @@ Per row, three rulings, in this order:
 2. **Paraphrase.** The agent draft is a proposal. Accept only if (a) a lawyer
    would say it asserts the same obligation as the attested text, no more, no
    less, and (b) it is not a substring of the context. Edit freely; an edited
-   paraphrase keeps `model_authored` provenance with `human:andy` as reviewer.
+   paraphrase keeps `model_authored` provenance with the recorded reviewer id.
    If it cannot be made to satisfy (a) inside the overlap band, `rejected`.
 3. **Contradiction.** The negation-flip proposal is deterministic and often
    clumsy. Accept only if the flipped text, placed where the attested text is,
@@ -121,11 +122,12 @@ is a separate plan.
 ## Preconditions from the 22 Aug review (docs/plans/review-2026-08-22.md)
 
 Fix before step 1, none of which reads a review row: gate verifies gold rows
-against the loaded probe (A1); reviewer ids must carry `human:` and differ from
-the author (A3); build records rejected/ambiguous counts and an attempt number,
-and the plan binds `review_manifest_sha256` (A5); canonical runner accepts the
-registered composed policy (B2). These are guards on the process, not changes
-to the cases or the threshold.
+against the loaded probe (A1); accepted decisions retain a non-empty reviewer
+identity for attribution (A3, revised 2026-08-25 without a human or independence
+claim); build records rejected/ambiguous counts and an attempt number, and the
+plan binds `review_manifest_sha256` (A5); canonical runner accepts the registered
+composed policy (B2). These are guards on the process, not changes to the cases
+or the threshold.
 
 ## Execution order (session B)
 

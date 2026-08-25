@@ -578,7 +578,7 @@ def test_closed_fence_is_a_named_exclusion_not_a_population_anomaly(tmp_path):
     assert ledger["population"]["excluded_lines"]["fenced_code"] == 1
 
 
-def test_human_waiver_must_bind_the_exact_failed_ledger(tmp_path):
+def test_recorded_waiver_must_bind_the_exact_failed_ledger(tmp_path):
     from groundnut.ic_loop import main as loop_main
 
     artifact, _ = _run(tmp_path)
@@ -606,7 +606,7 @@ def test_human_waiver_must_bind_the_exact_failed_ledger(tmp_path):
                 "gate": "undeclared_numeric_own_reasoning",
                 "artifact_sha256": ledger["artifact_sha256"],
                 "ledger_sha256": ledger["sha256"],
-                "approved_by": "human:reviewer",
+                "approved_by": "pipeline:research-pm",
                 "approved_at": "2026-08-25T12:00:00Z",
                 "reason": "Reviewed as an explicit scenario assumption.",
                 "waived_unit_ids": failing,
@@ -617,5 +617,20 @@ def test_human_waiver_must_bind_the_exact_failed_ledger(tmp_path):
     assert loop_main([*args, "--waiver", str(waiver_path)]) == 0
     gate = json.loads((out / "gate.json").read_text())
     assert gate["status"] == "waived"
-    assert gate["waiver"]["approved_by"] == "human:reviewer"
+    assert gate["waiver"]["approved_by"] == "pipeline:research-pm"
     assert len(gate["waiver"]["sha256"]) == 64
+
+
+def test_waiver_still_requires_an_approver_identity():
+    from groundnut.waivers import GateWaiver
+
+    with pytest.raises(ValueError, match="approver identity"):
+        GateWaiver(
+            gate="undeclared_numeric_own_reasoning",
+            artifact_sha256="a" * 64,
+            ledger_sha256="b" * 64,
+            approved_by="  ",
+            approved_at="2026-08-25T12:00:00Z",
+            reason="Recorded exception.",
+            waived_unit_ids=("unit-1",),
+        )

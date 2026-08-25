@@ -166,12 +166,25 @@ def test_completed_review_builds_a_valid_balanced_probe():
         {"paraphrase_author_id": "human:r1", "paraphrase_author_kind": "agent"},
     ],
 )
-def test_accepted_decisions_require_a_separate_human_reviewer(overrides):
-    with pytest.raises(ValueError, match="human: reviewer|cannot be its author"):
+def test_reviewer_identity_is_recorded_without_identity_policy(overrides):
+    _, rows = completed_rows(overrides=overrides)
+    assert all(row.ready for row in rows)
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"irrelevant_reviewer_id": ""},
+        {"paraphrase_reviewer_id": ""},
+        {"contradiction_reviewer_id": ""},
+    ],
+)
+def test_accepted_decisions_still_require_a_reviewer_identity(overrides):
+    with pytest.raises(ValueError, match="reviewer identity"):
         completed_rows(overrides=overrides)
 
 
-def test_human_may_author_and_accept_their_own_paraphrase():
+def test_author_may_accept_their_own_paraphrase():
     _, rows = completed_rows(
         overrides={"paraphrase_author_id": "human:r1", "paraphrase_author_kind": "human"}
     )
