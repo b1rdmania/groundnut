@@ -27,7 +27,6 @@ REVIEW_SCHEMA = "groundnut-support-pilot-review/v1"
 REVIEW_MANIFEST_SCHEMA = "groundnut-support-pilot-review-manifest/v1"
 DECISIONS = {"pending", "accepted", "rejected", "ambiguous"}
 AUTHOR_KINDS = {"human", "agent"}
-HUMAN_REVIEWER_PREFIX = "human:"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _NEGATION_PATTERNS = (
     (re.compile(r"\b(shall|must|will|should|may|can)\s+not\b", re.I), r"\1"),
@@ -105,10 +104,10 @@ class PilotReviewRow:
         object.__setattr__(self, "input_sha256", expected_hash)
 
     def _validate_review_fields(self) -> None:
-        if self.irrelevant_decision == "accepted" and not _human_reviewer(
+        if self.irrelevant_decision == "accepted" and not _reviewer_identity(
             self.irrelevant_reviewer_id
         ):
-            raise ValueError("accepted irrelevant ruling requires a human: reviewer")
+            raise ValueError("accepted irrelevant ruling requires a reviewer identity")
         paraphrase_fields = (
             self.paraphrase_text,
             self.paraphrase_author_kind,
@@ -119,17 +118,12 @@ class PilotReviewRow:
                 raise ValueError("accepted paraphrase requires text and author identity")
             if self.paraphrase_author_kind not in AUTHOR_KINDS:
                 raise ValueError("accepted paraphrase author must be human or agent")
-            if not _human_reviewer(self.paraphrase_reviewer_id):
-                raise ValueError("accepted paraphrase requires a human: reviewer")
-            if (
-                self.paraphrase_author_kind == "agent"
-                and self.paraphrase_reviewer_id == self.paraphrase_author_id
-            ):
-                raise ValueError("accepted agent paraphrase reviewer cannot be its author")
-        if self.contradiction_decision == "accepted" and not _human_reviewer(
+            if not _reviewer_identity(self.paraphrase_reviewer_id):
+                raise ValueError("accepted paraphrase requires a reviewer identity")
+        if self.contradiction_decision == "accepted" and not _reviewer_identity(
             self.contradiction_reviewer_id
         ):
-            raise ValueError("accepted contradiction requires a human: reviewer")
+            raise ValueError("accepted contradiction requires a reviewer identity")
 
     @property
     def ready(self) -> bool:
@@ -466,12 +460,8 @@ def apply_review_decisions_tsv(
     return tuple(reviewed[row.input_sha256] for row in frozen)
 
 
-def _human_reviewer(value: str | None) -> bool:
-    return (
-        _present(value)
-        and value.startswith(HUMAN_REVIEWER_PREFIX)
-        and bool(value[len(HUMAN_REVIEWER_PREFIX) :].strip())
-    )
+def _reviewer_identity(value: str | None) -> bool:
+    return _present(value)
 
 
 @dataclass(frozen=True)

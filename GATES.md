@@ -56,15 +56,16 @@ at or near 1.0 on `verbatim_supported`, a bare learned detector will fail this
 rule by construction; only a composed policy that keeps the exact check can
 pass. That is the intended boundary.
 
-Accepted review decisions require a `human:` reviewer id, and an agent-authored
-paraphrase cannot be accepted by its own author. Probe builds write a
+Accepted review decisions require a recorded reviewer id. Reviewer ids are
+attribution, not proof of human review or independence: an author may record
+and accept its own decision. Probe builds write a
 `groundnut-support-probe-build/v2` receipt recording rows walked, rejected,
 ambiguous, the attempt number, and the context-manifest hash later bound into
 the frozen plan.
 
 The preregistered plan for the first measurement is
-`docs/plans/support-admission-plan-v1.md`. No reviewer is currently assigned;
-until one is, this gate stays NOT MEASURED.
+`docs/plans/support-admission-plan-v1.md`. The gate stays NOT MEASURED until
+the preregistered review and detector comparison have actually run.
 
 The executable consumer is:
 

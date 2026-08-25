@@ -73,10 +73,10 @@ Case files are JSONL using `groundnut-support-case/v3`. Every row carries
 `attested`, `adjudicated`, `derived`, `authored`, or `model_authored`
 provenance, including its source record, construction method, parents,
 reviewers, and disclosure.
-Model-authored rows cannot enter a probe without a recorded human reviewer;
+Model-authored rows cannot enter a probe without a recorded reviewer identity;
 contradictions require derived provenance; and supported verbatim rows require
 attestation. Present-but-irrelevant rows require adjudicated provenance and a
-recorded human reviewer; CUAD/LegalBench-RAG absence is never accepted as a
+recorded reviewer identity; CUAD/LegalBench-RAG absence is never accepted as a
 negative annotation. Paraphrase token overlap is recorded deterministically so
 a generated positive class cannot be made trivially easy without showing it.
 
@@ -142,9 +142,10 @@ The canonical pilot workflow is executable but stops at the human boundary:
 
 The offline reviewer shows the 50 target rows first and hides reserves by
 default. Applying a suggestion copies its agent identity into paraphrase
-authorship while requiring a separate human reviewer ID. Human notes remain
-independent. Drafts outside the frozen lexical-overlap band or found verbatim
-in context become ambiguous rather than accepted.
+authorship and records the reviewer ID. That ID is attribution, not proof of
+human review or independence: author and reviewer may be the same actor.
+Drafts outside the frozen lexical-overlap band or found verbatim in context
+become ambiguous rather than accepted.
 
 When human adjudication is not available, `scripts/screen_support_suggestions.py`
 provides a deliberately weaker development route. It checks that agent

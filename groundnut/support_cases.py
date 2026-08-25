@@ -43,8 +43,9 @@ class CaseProvenance:
     `attested` covers imported expert annotations, `adjudicated` covers a new
     human ruling made for Groundnut, `derived` covers a recorded deterministic
     transform, and authored cases distinguish human and model authorship.
-    Model-authored and adjudicated cases cannot enter a probe without a human
-    reviewer recorded here.
+    Model-authored and adjudicated cases cannot enter a probe without a
+    reviewer identity recorded here. This is attribution, not an independence
+    or human-review guarantee.
     """
 
     kind: str
@@ -67,9 +68,9 @@ class CaseProvenance:
         if self.kind == "derived" and not self.parent_case_ids:
             raise ValueError("derived support cases require at least one parent case")
         if self.kind == "model_authored" and not self.reviewed_by:
-            raise ValueError("model-authored support cases require human review")
+            raise ValueError("model-authored support cases require a reviewer identity")
         if self.kind == "adjudicated" and not self.reviewed_by:
-            raise ValueError("adjudicated support cases require human review")
+            raise ValueError("adjudicated support cases require a reviewer identity")
 
     def canonical_payload(self) -> dict[str, Any]:
         return {

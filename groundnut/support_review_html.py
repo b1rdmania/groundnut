@@ -80,7 +80,7 @@ button:hover { background: #405c35; }
 <main>
   <div class="card">
     <div class="grid">
-      <div><label>Default human reviewer ID</label><input id="defaultReviewer" placeholder="human:name"></div>
+      <div><label>Default reviewer ID</label><input id="defaultReviewer" placeholder="operator-or-agent-id"></div>
       <div><label>Source</label><input id="source" readonly></div>
     </div>
     <label>Question</label><textarea id="question" readonly></textarea>
@@ -103,7 +103,7 @@ button:hover { background: #405c35; }
     <p class="small">Write an accurate restatement that is absent from the source. Keep it neither trivially copied nor unrelated.</p>
     <label>Paraphrase <span id="overlap" class="warning"></span></label><textarea id="paraphraseText"></textarea>
     <div class="grid"><div><label>Author kind</label><select id="paraphraseAuthorKind"><option value=""></option><option>human</option><option>agent</option></select></div><div><label>Immutable author ID</label><input id="paraphraseAuthorId"></div></div>
-    <div class="grid"><div><label>Decision</label><select id="paraphraseDecision"></select></div><div><label>Human reviewer ID</label><input id="paraphraseReviewer"></div></div>
+    <div class="grid"><div><label>Decision</label><select id="paraphraseDecision"></select></div><div><label>Reviewer ID</label><input id="paraphraseReviewer"></div></div>
     <label>Note</label><textarea id="paraphraseNote"></textarea>
   </div>
 
@@ -169,7 +169,7 @@ function save() {
 function activeLength() { return includeReserves ? state.length : data.target_group_count; }
 function reviewer() {
   const value = document.getElementById('defaultReviewer').value.trim();
-  if (!value) { alert('Enter your human reviewer ID first, for example human:andy'); return null; }
+  if (!value) { alert('Enter the reviewer identity to record first'); return null; }
   return value;
 }
 function suggestion() { return data.suggestions[state[index].input_sha256] || null; }

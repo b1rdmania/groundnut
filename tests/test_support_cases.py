@@ -139,7 +139,7 @@ def test_manifest_hash_is_order_independent_and_gold_keeps_kinds():
 
 
 def test_provenance_prevents_unreviewed_or_mislabelled_cases():
-    with pytest.raises(ValueError, match="human review"):
+    with pytest.raises(ValueError, match="reviewer identity"):
         CaseProvenance(
             kind="model_authored",
             source="generator",
@@ -147,7 +147,7 @@ def test_provenance_prevents_unreviewed_or_mislabelled_cases():
             method="prompt-v1",
         )
 
-    with pytest.raises(ValueError, match="human review"):
+    with pytest.raises(ValueError, match="reviewer identity"):
         CaseProvenance(
             kind="adjudicated",
             source="groundnut-review",

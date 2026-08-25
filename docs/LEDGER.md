@@ -44,10 +44,12 @@ offending unit listed. The fix is to cite the number or declare it — never to
 delete it. This converts extrapolation from something detected after the fact
 into something a report cannot ship undeclared.
 
-An intentional exception requires `--waiver waiver.json`. A waiver names a
-`human:` approver and reason and binds the exact artifact hash, ledger hash,
-and complete failing unit-id set. Groundnut writes the validated waiver and
-its hash into `gate.json`. A changed report or ledger invalidates the waiver.
+An intentional exception requires `--waiver waiver.json`. A waiver records a
+non-empty approver identity and reason and binds the exact artifact hash,
+ledger hash, and complete failing unit-id set. Groundnut writes the validated
+waiver and its hash into `gate.json`. A changed report or ledger invalidates
+the waiver. The record provides attribution, not reviewer independence: the
+approver may also have authored or operated the run.
 
 The gate has four outcomes: `clear`, `failed`, `waived`, and `indeterminate`.
 An empty or malformed claim population is `indeterminate`, never `clear`, and

@@ -8,7 +8,7 @@ Writes, under --out:
     run.json       the canonical response, hash-bound
     ledger.json    the three-bucket claim ledger
     ledger.md      the readable ledger
-    gate.json      the numeric gate result and any bound human waiver
+    gate.json      the numeric gate result and any bound recorded waiver
     snapshots/     every source fetched, so the run replays offline
 
 By default sources are fetched live once and snapshotted (``snapshot_preferred``);
@@ -217,7 +217,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--waiver",
         type=Path,
-        help="human-approved groundnut-gate-waiver/v1 JSON matching the current failed ledger",
+        help="approved groundnut-gate-waiver/v1 JSON matching the current failed ledger",
     )
     parser.add_argument("--domain", type=Path, default=DEFAULT_DOMAIN)
     parser.add_argument("--profile", type=Path, default=DEFAULT_PROFILE)
