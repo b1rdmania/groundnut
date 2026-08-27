@@ -17,6 +17,7 @@ look like current product stages.
 | [Evidence windows](./EVIDENCE-WINDOWS.md) | Current | Snapshot completeness, truncation and replay contract |
 | [Live/replay equivalence](./LIVE-REPLAY-EQUIVALENCE.md) | Current | Compared evidence fields, exclusions and deterministic replay |
 | [Declared read-time capture](./READ-TIME-CAPTURE.md) | Current | Connector declaration, secret boundary and capture receipts |
+| [Acquisition and locator hardening plan](./plans/security-hardening-plan-v1.md) | Work in progress | Known live-fetch controls, locator migration, acceptance tests and residual security boundaries |
 
 ## Active experiments
 

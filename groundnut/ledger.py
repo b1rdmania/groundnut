@@ -46,6 +46,7 @@ DRIFT_REASONS = (
     "quote_ambiguous",
     "no_excerpt",
     "source_unavailable",
+    "unresolvable_source",
 )
 OWN_KINDS = ("declared", "numeric", "narrative")
 
@@ -80,7 +81,7 @@ MIN_WORDS = 1
 @dataclass(frozen=True)
 class LedgerSegmenter:
     key: str = "groundnut.ledger-prose-segmenter"
-    version: str = "6"
+    version: str = "7"
     min_words: int = MIN_WORDS
 
     def canonical_payload(self) -> dict[str, Any]:
@@ -92,6 +93,7 @@ class LedgerSegmenter:
                 "frontmatter, headings, horizontal rules, table headers, delimiters, and fenced code are named exclusions",
                 "non-header Markdown table cells enter the claim population",
                 "prose lines and list items split into sentences; a sentence with a citation is one cited unit per citation",
+                "a sentence with a bare source locator is one unresolvable cited unit rather than own reasoning",
                 "every non-empty prose sentence is retained, including short numeric and status claims",
                 "bare ordinals, document coordinates, and standalone or generated dates remain visible but are not numeric claims",
                 "HTML comments and inline markdown are stripped before counting words",
@@ -130,10 +132,14 @@ class LedgerRow:
             raise ValueError(f"unknown drift reason: {self.detail}")
         if self.bucket == "own_reasoning" and self.detail not in OWN_KINDS:
             raise ValueError(f"unknown own-reasoning kind: {self.detail}")
-        if self.bucket in {"excerpt_found", "citation_unconfirmed"} and not (
-            self.claim_id and self.source_uri
-        ):
-            raise ValueError("cited ledger rows need a claim id and source")
+        if self.bucket in {"excerpt_found", "citation_unconfirmed"}:
+            if not self.claim_id:
+                raise ValueError("cited ledger rows need a claim id")
+            if self.source_uri is None and self.detail != "unresolvable_source":
+                raise ValueError(
+                    "cited ledger rows need a source URI unless the preserved "
+                    "source is explicitly unresolvable"
+                )
         if (self.evidence_window_sha256 is None) != (
             self.evidence_window_truncation is None
         ):
@@ -259,6 +265,26 @@ def build_claim_ledger(
                                 accounts.pop(key), profile
                             )
                         )
+                    continue
+                if _has_bare_locator(raw_sentence, profile):
+                    key = (location, citation_index)
+                    if key not in accounts:
+                        raise ValueError(
+                            f"run has no account for locator {citation_index + 1} on "
+                            f"{location}; run and artifact were produced with different "
+                            "segmenters"
+                        )
+                    citation_index += 1
+                    counter += 1
+                    rows.append(
+                        _cited_row(
+                            f"u{counter}",
+                            content_line.line,
+                            raw_sentence,
+                            accounts.pop(key),
+                            profile,
+                        )
+                    )
                     continue
                 for sentence in _sentences(raw_sentence, segmenter):
                     counter += 1
@@ -387,7 +413,11 @@ def _accounts_by_location(run: Mapping[str, Any]) -> dict[tuple[str, int], Mappi
     for account in accounts:
         claim = _mapping(_mapping(_mapping(account, "assessment"), "verification"), "claim")
         source = claim.get("source")
-        if not isinstance(source, Mapping) or not source.get("uri"):
+        locator = claim.get("locator")
+        if (
+            (not isinstance(source, Mapping) or not source.get("uri"))
+            and not locator
+        ):
             continue
         location = claim.get("location")
         if not isinstance(location, str):
@@ -409,6 +439,16 @@ def _markdown_claim_ordinal(account: Mapping[str, Any]) -> int:
     return int(match.group(1))
 
 
+def _has_bare_locator(value: str, profile: ArtifactProfile) -> bool:
+    return bool(
+        re.search(
+            rf"<!--\s*{re.escape(profile.evidence_comment_prefix)}-locator:\s*[\s\S]*?-->",
+            value,
+            re.IGNORECASE,
+        )
+    )
+
+
 def _cited_row(
     unit_id: str, line_number: int, line: str, account: Mapping[str, Any], profile: ArtifactProfile
 ) -> LedgerRow:
@@ -423,7 +463,9 @@ def _cited_row(
     uri = source.get("uri") if isinstance(source, Mapping) else None
     score = verification.get("score")
     score = float(score) if isinstance(score, (int, float)) else None
-    if support_status == "source_unavailable":
+    if outcome == "unresolvable_source":
+        bucket, detail = "citation_unconfirmed", "unresolvable_source"
+    elif support_status == "source_unavailable":
         bucket, detail = "citation_unconfirmed", "source_unavailable"
     elif outcome == "evidence_window_incomplete":
         bucket, detail = "citation_unconfirmed", "evidence_window_incomplete"

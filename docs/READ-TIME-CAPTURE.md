@@ -23,6 +23,26 @@ Other media produce the explicit `source_media_unsupported` failure. Paywalls,
 unreachable sources and PDFs without a usable text layer retain their existing
 failure states.
 
+## Live acquisition security status
+
+Groundnut's shared resolver permits only absolute HTTP(S) URIs without embedded
+credentials. It rejects DNS answers that include non-public IPv4 or IPv6
+destinations, applies the same policy to redirects, bounds encoded and decoded
+response bytes, and limits admitted media, PDF pages and extracted characters.
+The default transport connects to the validated address while retaining the
+original hostname for the Host header and TLS verification. PDF extraction runs
+in a separate worker with wall-clock, CPU, resident-memory and output ceilings.
+Policy rejection and size rejection remain distinct acquisition failures.
+
+These controls are **security work in progress**, not a comprehensive security
+review. They have not yet passed independent adversarial review. Custom injected
+HTTP or DNS transports require an explicit privileged opt-in and do not inherit
+the default connection-pinning guarantee. PDF resource enforcement combines
+native process limits with a parent-side resident-memory watchdog because OS
+facilities differ. The current boundary, tests and required future admission are
+recorded in the
+[security hardening plan](./plans/security-hardening-plan-v1.md).
+
 ## Secret boundary
 
 Canonical capture artifacts contain the public source identity, normalized

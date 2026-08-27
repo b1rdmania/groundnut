@@ -7,6 +7,25 @@ moved out of the original CUAD compatibility path.
 The migration is additive: compatibility behaviour remains stable while the IC
 loop adopts the canonical checking and ledger contracts deliberately.
 
+## 0.2.0a1 acquisition and locator hardening
+
+The 0.2 alpha boundary builds on 0.1.0a15 rather than replacing its
+snapshot-qualification contract. The default live transport admits only public
+HTTP(S) destinations, revalidates redirects, and binds each socket to an
+admitted address while preserving the original HTTP and TLS hostname. Encoded,
+decoded and extracted content are bounded. PDF extraction runs in a separate
+resource-limited worker. Injected HTTP or DNS transports now require the
+explicit privileged opt-in `allow_injected_transport=True`.
+
+Bare locators without a public URI remain in the claim population as
+`unresolvable_source`; they count as declared evidence but not as resolvable or
+accessible evidence. Artifact segmenter v4 and ledger segmenter v7 carry that
+classification. The combined claim-verification serialization is v4 and
+verification metrics are v5, avoiding a collision with a15's v3/v4 contracts.
+
+This release remains security work in progress. These controls are not a
+comprehensive security review or approval.
+
 ## 0.1.0a15 snapshot-qualification migration
 
 Issue #40 replaces the mechanically misleading quotation method `exact` with

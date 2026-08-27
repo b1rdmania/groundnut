@@ -35,7 +35,10 @@ _TAG = re.compile(r"<[^>]+>")
 _ANY_COMMENT = re.compile(r"<!--[\s\S]*?-->")
 _SENTENCE_END = re.compile(r"(?P<end>[.!?][*_\"')\]]*)\s+(?=[A-Z\"'(\[*_])")
 _TRAILING_SENTINELS = re.compile(
-    r"(?:\s*__GROUNDNUT_(?:DECLARED_ANALYSIS|PROVENANCE_[A-Z_]+)__)+"
+    r"(?:\s*__GROUNDNUT_(?:"
+    r"DECLARED_ANALYSIS|PROVENANCE_[A-Z_]+|"
+    r"EVIDENCE_(?:QUOTE|LOCATOR)_[^\s]+|QUESTION_[^\s]+"
+    r")__)+"
 )
 _TRAILING_COMMENTS = re.compile(r"(?:\s*<!--[\s\S]*?-->)+")
 
@@ -91,16 +94,16 @@ class SegmenterIdentity:
 
 DEFAULT_SEGMENTER = SegmenterIdentity(
     key="groundnut.artifact-block-segmenter",
-    version="3",
+    version="4",
     strategies=(
         ("structured_json", "one claim per configured claims-array row"),
         (
             "markdown",
-            "one claim per eligible prose or table-cell sentence; cited sentences repeat once per HTTP citation",
+            "one claim per eligible prose or table-cell sentence; cited sentences repeat once per HTTP citation; bare locators remain attached",
         ),
         (
             "rendered_html",
-            "one claim per eligible normalized sentence or table cell; cited sentences repeat once per HTTP citation",
+            "one claim per eligible normalized sentence or table cell; cited sentences repeat once per HTTP citation; bare locators remain attached",
         ),
     ),
 )
@@ -444,10 +447,15 @@ def _markdown_claims(raw: str, profile: ArtifactProfile) -> list[Claim]:
                 elif reading:
                     provenance_class = _provenance_class(sentence, profile)
                     declared = _declared(sentence, profile)
+                    locator, question = _standalone_locator_comments(
+                        sentence, profile
+                    )
                     claims.append(
                         Claim(
                             claim_id=f"c{len(claims) + 1}",
                             text=reading,
+                            question=question,
+                            locator=locator,
                             declared_analysis=(
                                 declared
                                 or provenance_class in ANALYST_PROVENANCE_CLASSES
@@ -558,10 +566,13 @@ def _html_claims(raw: str, profile: ArtifactProfile) -> list[Claim]:
                         )
                     )
             elif reading:
+                locator, question = _standalone_locator_sentinels(sentence)
                 claims.append(
                     Claim(
                         claim_id=f"c{len(claims) + 1}",
                         text=reading,
+                        question=question,
+                        locator=locator,
                         declared_analysis=(
                             declared or provenance_class in ANALYST_PROVENANCE_CLASSES
                         ),
@@ -718,6 +729,40 @@ def _adjacent_sentinels(value: str) -> tuple[tuple[str, str] | None, str | None]
             question = _decode(marker.group("question"))
         remaining = remaining[marker.end() :]
     return evidence, question
+
+
+def _standalone_locator_comments(
+    value: str, profile: ArtifactProfile
+) -> tuple[str | None, str | None]:
+    evidence = list(_comment_pattern(profile).finditer(value))
+    questions = list(_question_comment_pattern(profile).finditer(value))
+    if len(evidence) > 1:
+        raise ValueError("claim declares more than one evidence marker")
+    if len(questions) > 1:
+        raise ValueError("claim declares more than one verification question")
+    locator = None
+    if evidence and evidence[0].group(1).casefold() == "locator":
+        locator = evidence[0].group(2).strip()
+    question = questions[0].group(1).strip() if questions else None
+    return locator, question or None
+
+
+def _standalone_locator_sentinels(value: str) -> tuple[str | None, str | None]:
+    evidence = re.findall(
+        r"__GROUNDNUT_EVIDENCE_(QUOTE|LOCATOR)_([^\s]+)__", value
+    )
+    questions = re.findall(r"__GROUNDNUT_QUESTION_([^\s]+)__", value)
+    if len(evidence) > 1:
+        raise ValueError("claim declares more than one evidence marker")
+    if len(questions) > 1:
+        raise ValueError("claim declares more than one verification question")
+    locator = (
+        _decode(evidence[0][1])
+        if evidence and evidence[0][0] == "LOCATOR"
+        else None
+    )
+    question = _decode(questions[0]) if questions else None
+    return locator, question
 
 
 def _declared(value: str, profile: ArtifactProfile) -> bool:

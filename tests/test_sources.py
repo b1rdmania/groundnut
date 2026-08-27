@@ -2,11 +2,17 @@ import json
 import io
 import urllib.error
 from pathlib import Path
+import zlib
+
+import pytest
+import groundnut.sources as source_module
 
 from groundnut.sources import (
     EvidenceWindow,
     FileResolver,
     HttpResolver,
+    _PinnedHTTPTransport,
+    _validate_public_http_uri,
     ResolvedSource,
     SnapshotStore,
     SourceReference,
@@ -20,6 +26,18 @@ from groundnut.verification import Claim, verify_claim
 HOLLOW_CAPTURE_FIXTURES = (
     Path(__file__).parent / "fixtures" / "hollow_capture_cases.json"
 )
+
+
+def _public_addresses(hostname, port):
+    return ("93.184.216.34",)
+
+
+def _http_resolver(**kwargs):
+    return HttpResolver(
+        address_resolver=_public_addresses,
+        allow_injected_transport=True,
+        **kwargs,
+    )
 
 
 def test_file_resolver_returns_hashed_source(tmp_path):
@@ -89,22 +107,30 @@ def test_html_to_text_ignores_script_and_decodes_entities():
 
 
 class _Headers:
-    def __init__(self, media_type):
+    def __init__(self, media_type, values=None):
         self.media_type = media_type
+        self.values = values or {}
 
     def get_content_type(self):
         return self.media_type
+
+    def get(self, name, default=None):
+        return self.values.get(name, default)
 
 
 class _Response:
     status = 200
 
-    def __init__(self, body, media_type="text/html"):
+    def __init__(self, body, media_type="text/html", headers=None, final_uri=None):
         self.body = body
-        self.headers = _Headers(media_type)
+        self.headers = _Headers(media_type, headers)
+        self.final_uri = final_uri
 
-    def read(self):
-        return self.body
+    def read(self, size=-1):
+        return self.body if size < 0 else self.body[:size]
+
+    def geturl(self):
+        return self.final_uri or "https://example.test/final"
 
     def __enter__(self):
         return self
@@ -114,7 +140,7 @@ class _Response:
 
 
 def test_http_resolver_normalizes_html_without_live_network():
-    resolver = HttpResolver(
+    resolver = _http_resolver(
         opener=lambda request, timeout: _Response(b"<p>Source <b>fact</b></p>")
     )
     result = resolver.resolve(SourceReference("web-1", "https://example.test"))
@@ -129,8 +155,316 @@ def test_http_resolver_normalizes_html_without_live_network():
     assert result.source.evidence_window.captured_characters == len("Source fact")
 
 
-def test_empty_html_window_is_incomplete_not_searched_and_absent():
+def test_http_resolver_requires_explicit_opt_in_for_injected_transport():
+    with pytest.raises(ValueError, match="privileged"):
+        HttpResolver(opener=lambda request, timeout: _Response(b"source"))
+    with pytest.raises(ValueError, match="privileged"):
+        HttpResolver(address_resolver=_public_addresses)
+
+
+@pytest.mark.parametrize(
+    "uri",
+    [
+        "data:text/plain,self-authored",
+        "file:///tmp/source.txt",
+        "//example.test/source",
+        "https://user:password@example.test/source",
+        "https:///missing-host",
+        "https://example.test/line\nbreak",
+        "https://example.test/space in path",
+        "https://example.test/unicode-\u2028-path",
+        "https://example.test/backslash\\path",
+        "https://%00example.test/source",
+    ],
+)
+def test_http_resolver_rejects_non_http_and_ambiguous_source_uris(uri):
+    calls = []
     resolver = HttpResolver(
+        opener=lambda request, timeout: calls.append(request),
+        address_resolver=_public_addresses,
+        allow_injected_transport=True,
+    )
+
+    result = resolver.resolve(SourceReference("blocked", uri))
+
+    assert result.failure == "source_policy_blocked"
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "address",
+    [
+        "127.0.0.1",
+        "10.0.0.1",
+        "169.254.169.254",
+        "0.0.0.0",
+        "224.0.0.1",
+        "::1",
+        "fc00::1",
+        "fe80::1",
+        "::",
+        "ff02::1",
+    ],
+)
+def test_http_resolver_rejects_non_public_ipv4_and_ipv6(address):
+    calls = []
+    resolver = HttpResolver(
+        opener=lambda request, timeout: calls.append(request),
+        address_resolver=lambda hostname, port: (address,),
+        allow_injected_transport=True,
+    )
+
+    result = resolver.resolve(SourceReference("blocked", "https://host.test/source"))
+
+    assert result.failure == "source_policy_blocked"
+    assert result.detail.startswith("non_public_address:")
+    assert calls == []
+
+
+def test_http_resolver_rejects_hostname_when_any_dns_answer_is_non_public():
+    resolver = HttpResolver(
+        opener=lambda request, timeout: _Response(b"should not be read"),
+        address_resolver=lambda hostname, port: (
+            "93.184.216.34",
+            "169.254.169.254",
+        ),
+        allow_injected_transport=True,
+    )
+
+    result = resolver.resolve(SourceReference("mixed", "https://host.test/source"))
+
+    assert result.failure == "source_policy_blocked"
+    assert result.detail == "non_public_address:169.254.169.254"
+
+
+def test_default_transport_validates_redirect_before_second_request():
+    class RedirectResponse:
+        status = 302
+        headers = {"Location": "http://169.254.169.254/latest/meta-data/"}
+
+        def close(self):
+            pass
+
+    opened = []
+
+    class ProbeTransport(_PinnedHTTPTransport):
+        def _open(self, target, headers, timeout):
+            opened.append(target.uri)
+            return RedirectResponse()
+
+    def addresses(hostname, port):
+        return (
+            "169.254.169.254"
+            if hostname == "169.254.169.254"
+            else "93.184.216.34",
+        )
+
+    transport = ProbeTransport(
+        lambda uri: _validate_public_http_uri(uri, addresses)
+    )
+
+    with pytest.raises(ValueError, match="non_public_address"):
+        transport(
+            source_module.urllib.request.Request("https://example.test/start"),
+            timeout=1,
+        )
+
+    assert opened == ["https://example.test/start"]
+
+
+def test_default_transport_connects_to_the_preflighted_address(monkeypatch):
+    calls = []
+
+    def connect(address, timeout, source_address, *, all_errors):
+        calls.append((address, timeout, source_address, all_errors))
+        return object()
+
+    monkeypatch.setattr(source_module.socket, "create_connection", connect)
+    target = _validate_public_http_uri(
+        "http://example.test:8080/source", _public_addresses
+    )
+    connection = _PinnedHTTPTransport(
+        lambda uri: target
+    )._connection(target, "93.184.216.34", 7)
+
+    result = connection._create_connection(("example.test", 8080), 7)
+
+    assert result is not None
+    assert calls == [(('93.184.216.34', 8080), 7, None, False)]
+
+
+def test_http_resolver_revalidates_final_response_uri():
+    resolver = HttpResolver(
+        opener=lambda request, timeout: _Response(
+            b"secret",
+            media_type="text/plain",
+            final_uri="http://127.0.0.1/private",
+        ),
+        address_resolver=lambda hostname, port: (
+            "127.0.0.1" if hostname == "127.0.0.1" else "93.184.216.34",
+        ),
+        allow_injected_transport=True,
+    )
+
+    result = resolver.resolve(SourceReference("redirect", "https://example.test/start"))
+
+    assert result.failure == "source_policy_blocked"
+
+
+def test_http_resolver_rejects_declared_oversize_without_reading_body():
+    response = _Response(
+        b"unused",
+        media_type="text/plain",
+        headers={"Content-Length": "101"},
+    )
+    reads = []
+    response.read = lambda size=-1: reads.append(size) or b"unused"
+    resolver = _http_resolver(
+        opener=lambda request, timeout: response,
+        max_response_bytes=100,
+    )
+
+    result = resolver.resolve(SourceReference("large", "https://example.test/large"))
+
+    assert result.failure == "source_too_large"
+    assert reads == []
+
+
+def test_http_resolver_bounds_undeclared_response_body():
+    resolver = _http_resolver(
+        opener=lambda request, timeout: _Response(b"x" * 101, media_type="text/plain"),
+        max_response_bytes=100,
+    )
+
+    result = resolver.resolve(SourceReference("large", "https://example.test/large"))
+
+    assert result.failure == "source_too_large"
+    assert result.detail == "response_body_exceeds_limit"
+
+
+@pytest.mark.parametrize("declared", ["-1", "not-a-number", "10, 10"])
+def test_http_resolver_rejects_invalid_content_length(declared):
+    resolver = _http_resolver(
+        opener=lambda request, timeout: _Response(
+            b"body",
+            media_type="text/plain",
+            headers={"Content-Length": declared},
+        )
+    )
+
+    result = resolver.resolve(SourceReference("length", "https://example.test/length"))
+
+    assert result.failure == "source_policy_blocked"
+    assert result.detail == "invalid_content_length"
+
+
+def _gzip(data):
+    compressor = zlib.compressobj(wbits=16 + zlib.MAX_WBITS)
+    return compressor.compress(data) + compressor.flush()
+
+
+def test_http_resolver_bounds_decompressed_response_body():
+    resolver = _http_resolver(
+        opener=lambda request, timeout: _Response(
+            _gzip(b"x" * 101),
+            media_type="text/plain",
+            headers={"Content-Encoding": "gzip"},
+        ),
+        max_response_bytes=100,
+        max_decompressed_bytes=100,
+    )
+
+    result = resolver.resolve(SourceReference("zip", "https://example.test/zip"))
+
+    assert result.failure == "source_too_large"
+    assert result.detail == "decompressed_body_exceeds_limit"
+
+
+def test_http_resolver_decodes_bounded_gzip_content():
+    resolver = _http_resolver(
+        opener=lambda request, timeout: _Response(
+            _gzip(b"bounded source"),
+            media_type="text/plain",
+            headers={"Content-Encoding": "gzip"},
+        )
+    )
+
+    result = resolver.resolve(SourceReference("zip", "https://example.test/zip"))
+
+    assert result.ok is True
+    assert result.source.text == "bounded source"
+
+
+@pytest.mark.parametrize("body", [b"not gzip", _gzip(b"first") + _gzip(b"second")])
+def test_http_resolver_rejects_invalid_or_concatenated_gzip(body):
+    resolver = _http_resolver(
+        opener=lambda request, timeout: _Response(
+            body,
+            media_type="text/plain",
+            headers={"Content-Encoding": "gzip"},
+        )
+    )
+
+    result = resolver.resolve(SourceReference("gzip", "https://example.test/gzip"))
+
+    assert result.failure == "source_policy_blocked"
+    assert result.detail == "invalid_compressed_body"
+
+
+def test_http_resolver_decodes_bounded_raw_deflate_content():
+    compressor = zlib.compressobj(wbits=-zlib.MAX_WBITS)
+    body = compressor.compress(b"raw deflate source") + compressor.flush()
+    resolver = _http_resolver(
+        opener=lambda request, timeout: _Response(
+            body,
+            media_type="text/plain",
+            headers={"Content-Encoding": "deflate"},
+        )
+    )
+
+    result = resolver.resolve(SourceReference("deflate", "https://example.test/deflate"))
+
+    assert result.ok is True
+    assert result.source.text == "raw deflate source"
+
+
+def test_http_resolver_rejects_unsupported_media_and_content_encoding():
+    binary = _http_resolver(
+        opener=lambda request, timeout: _Response(
+            b"binary", media_type="application/octet-stream"
+        )
+    ).resolve(SourceReference("binary", "https://example.test/binary"))
+    encoded = _http_resolver(
+        opener=lambda request, timeout: _Response(
+            b"encoded",
+            media_type="text/plain",
+            headers={"Content-Encoding": "br"},
+        )
+    ).resolve(SourceReference("br", "https://example.test/br"))
+
+    assert binary.failure == "source_media_unsupported"
+    assert encoded.failure == "source_policy_blocked"
+    assert encoded.detail == "content_encoding_not_allowed"
+
+
+def test_http_text_window_declares_extracted_character_truncation():
+    resolver = _http_resolver(
+        opener=lambda request, timeout: _Response(
+            b"abcdefghij", media_type="text/plain"
+        ),
+        max_extracted_characters=5,
+    )
+
+    result = resolver.resolve(SourceReference("text-window", "https://example.test/text"))
+
+    assert result.ok is True
+    assert result.source.text == "abcde"
+    assert result.source.evidence_window.truncation == "truncated"
+    assert result.source.evidence_window.original_characters == 10
+
+
+def test_empty_html_window_is_incomplete_not_searched_and_absent():
+    resolver = _http_resolver(
         opener=lambda request, timeout: _Response(b"<script>app()</script>")
     )
     reference = SourceReference("empty", "https://example.test/empty")
@@ -148,7 +482,7 @@ def test_empty_html_window_is_incomplete_not_searched_and_absent():
 
 def test_sparse_html_shell_is_not_declared_complete():
     body = ("<script>" + "x" * 5000 + "</script><main>Enable JavaScript</main>").encode()
-    resolver = HttpResolver(opener=lambda request, timeout: _Response(body))
+    resolver = _http_resolver(opener=lambda request, timeout: _Response(body))
     result = resolver.resolve(SourceReference("shell", "https://example.test/app"))
 
     assert result.ok is True
@@ -161,7 +495,9 @@ def test_known_interstitial_shapes_are_hollow_and_unusable():
     for index, fixture in enumerate(fixtures):
         body = fixture["html"].encode()
         reference = SourceReference(fixture["name"], f"https://example.test/{index}")
-        result = HttpResolver(opener=lambda request, timeout, body=body: _Response(body)).resolve(reference)
+        result = _http_resolver(
+            opener=lambda request, timeout, body=body: _Response(body)
+        ).resolve(reference)
         assert result.source.evidence_window.truncation == fixture["expected"]
         if fixture["expected"] != "hollow":
             continue
@@ -180,15 +516,15 @@ def test_normal_short_record_and_long_article_with_block_word_remain_complete():
         "The article discusses Cloudflare and cookie policy in context.</article>"
     ).encode()
     for body in (short, long):
-        result = HttpResolver(opener=lambda request, timeout, body=body: _Response(body)).resolve(
-            SourceReference("record", "https://example.test/record")
-        )
+        result = _http_resolver(
+            opener=lambda request, timeout, body=body: _Response(body)
+        ).resolve(SourceReference("record", "https://example.test/record"))
         assert result.source.evidence_window.truncation == "complete"
 
 
 def test_hollow_snapshot_round_trip_preserves_classification(tmp_path):
     reference = SourceReference("challenge", "https://example.test/challenge")
-    result = HttpResolver(
+    result = _http_resolver(
         opener=lambda request, timeout: _Response(b"<main>Verify you are human to continue.</main>")
     ).resolve(reference)
     store = SnapshotStore(tmp_path)
@@ -243,7 +579,7 @@ def test_http_resolver_keeps_paywall_distinct_from_unreachable():
             request.full_url, 403, "forbidden", {}, io.BytesIO()
         )
 
-    result = HttpResolver(opener=paywall).resolve(
+    result = _http_resolver(opener=paywall).resolve(
         SourceReference("web-2", "https://example.test/paywall")
     )
 
@@ -282,7 +618,7 @@ def _pdf_bytes(*texts: str) -> bytes:
 
 def test_http_resolver_extracts_pdf_text_layer():
     body = _pdf_bytes("Revenue was 4.2 million.")
-    resolver = HttpResolver(
+    resolver = _http_resolver(
         opener=lambda request, timeout: _Response(body, media_type="application/pdf")
     )
     result = resolver.resolve(SourceReference("pdf-1", "https://example.test/filing.pdf"))
@@ -295,9 +631,60 @@ def test_http_resolver_extracts_pdf_text_layer():
     assert result.source.evidence_window.original_characters is None
 
 
+def test_http_pdf_extraction_is_not_run_in_resolver_process(monkeypatch):
+    body = _pdf_bytes("Isolated evidence.")
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("in-process PDF extractor was called")
+
+    monkeypatch.setattr(source_module, "_pdf_to_text_and_pages", fail_if_called)
+    resolver = _http_resolver(
+        opener=lambda request, timeout: _Response(body, media_type="application/pdf")
+    )
+
+    result = resolver.resolve(
+        SourceReference("pdf-isolated", "https://example.test/isolated.pdf")
+    )
+
+    assert result.ok is True
+    assert result.source.text == "Isolated evidence."
+
+
+def test_isolated_pdf_worker_is_killed_at_memory_limit(monkeypatch):
+    class MemoryHungryWorker:
+        pid = 1234
+        returncode = None
+        killed = False
+
+        def communicate(self, input=None, timeout=None):
+            if self.killed:
+                self.returncode = -9
+                return (None, None)
+            raise source_module.subprocess.TimeoutExpired("pdf-worker", timeout)
+
+        def kill(self):
+            self.killed = True
+
+    worker = MemoryHungryWorker()
+    monkeypatch.setattr(source_module.subprocess, "Popen", lambda *a, **k: worker)
+    monkeypatch.setattr(source_module, "_resident_memory_bytes", lambda pid: 101)
+
+    result = source_module._isolated_pdf_to_text_and_pages(
+        b"%PDF",
+        max_pages=1,
+        max_characters=10,
+        timeout_seconds=1,
+        cpu_seconds=1,
+        memory_bytes=100,
+    )
+
+    assert result == (None, None, False, "pdf_worker_memory_limit")
+    assert worker.killed is True
+
+
 def test_http_pdf_window_declares_page_limit_truncation():
     body = _pdf_bytes("Visible evidence.", "Hidden evidence after boundary.")
-    resolver = HttpResolver(
+    resolver = _http_resolver(
         opener=lambda request, timeout: _Response(body, media_type="application/pdf"),
         max_pdf_pages=1,
     )
@@ -307,7 +694,24 @@ def test_http_pdf_window_declares_page_limit_truncation():
     assert "Visible evidence." in result.source.text
     assert "Hidden evidence" not in result.source.text
     assert result.source.evidence_window.truncation == "truncated"
-    assert result.source.evidence_window.extraction_method.endswith("max_pages=1")
+    assert "max_pages=1" in result.source.evidence_window.extraction_method
+
+
+def test_http_pdf_window_declares_extracted_character_truncation():
+    body = _pdf_bytes("Visible evidence exceeds the small output boundary.")
+    resolver = _http_resolver(
+        opener=lambda request, timeout: _Response(body, media_type="application/pdf"),
+        max_extracted_characters=16,
+    )
+
+    result = resolver.resolve(
+        SourceReference("pdf-text-window", "https://example.test/window.pdf")
+    )
+
+    assert result.ok is True
+    assert result.source.text == "Visible evidence"
+    assert result.source.evidence_window.truncation == "truncated"
+    assert "max_characters=16" in result.source.evidence_window.extraction_method
 
 
 def test_http_resolver_reports_pdf_without_text_layer_as_unsupported():
@@ -318,7 +722,7 @@ def test_http_resolver_reports_pdf_without_text_layer_as_unsupported():
     writer.add_blank_page(width=100, height=100)
     out = io.BytesIO()
     writer.write(out)
-    resolver = HttpResolver(
+    resolver = _http_resolver(
         opener=lambda request, timeout: _Response(out.getvalue(), media_type="application/pdf")
     )
     result = resolver.resolve(SourceReference("pdf-2", "https://example.test/scan.pdf"))

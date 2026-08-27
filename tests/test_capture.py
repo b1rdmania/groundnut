@@ -137,6 +137,9 @@ class _Headers:
     def get_content_type(self):
         return self.media_type
 
+    def get(self, name, default=None):
+        return default
+
 
 class _Response:
     status = 200
@@ -145,8 +148,8 @@ class _Response:
         self.body = body
         self.headers = _Headers(media_type)
 
-    def read(self):
-        return self.body
+    def read(self, size=-1):
+        return self.body if size < 0 else self.body[:size]
 
     def __enter__(self):
         return self
@@ -184,7 +187,9 @@ def test_http_html_and_pdf_connector_outputs_feed_snapshot_replay(
     tmp_path, body, media_type, expected
 ):
     resolver = HttpResolver(
-        opener=lambda request, timeout: _Response(body, media_type)
+        opener=lambda request, timeout: _Response(body, media_type),
+        address_resolver=lambda hostname, port: ("93.184.216.34",),
+        allow_injected_transport=True,
     )
     reference = SourceReference("fixture", f"https://example.test/{media_type}")
     store = SnapshotStore(tmp_path)

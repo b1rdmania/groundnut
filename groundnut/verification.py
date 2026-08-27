@@ -35,6 +35,7 @@ ANALYST_PROVENANCE_CLASSES = {
 }
 VERIFICATION_OUTCOMES = {
     "not_applicable",
+    "unresolvable_source",
     "source_unavailable",
     "no_excerpt",
     "excerpt_found",
@@ -117,6 +118,8 @@ class Claim:
             raise ValueError("claim identity and text are required")
         if self.question is not None and not self.question.strip():
             raise ValueError("claim verification question must not be empty")
+        if self.locator is not None and not self.locator.strip():
+            raise ValueError("claim source locator must not be empty")
         if self.provenance_class not in CLAIM_PROVENANCE_CLASSES:
             raise ValueError(f"unknown claim provenance class: {self.provenance_class}")
         if self.declared_analysis and self.provenance_class == "unclassified":
@@ -214,7 +217,7 @@ class VerifiedClaim:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema": "groundnut-claim-verification/v3",
+            "schema": "groundnut-claim-verification/v4",
             "claim": self.claim.to_dict(),
             "anchor": self.anchor,
             "outcome": self.outcome,
@@ -368,6 +371,20 @@ def best_window_similarity(needle: str, haystack: str) -> float:
 def verify_claim(claim: Claim, resolution: SourceResolution | None) -> VerifiedClaim:
     """Mechanically verify citation apparatus without judging claim support."""
     if claim.source is None:
+        if claim.locator:
+            return VerifiedClaim(
+                claim=claim,
+                anchor=None,
+                outcome="unresolvable_source",
+                method="locator",
+                score=None,
+                support="not_assessed",
+                failure="unresolvable_source",
+                note=(
+                    "A source locator is preserved, but no resolvable source URI "
+                    "is attached; no source or support check was possible."
+                ),
+            )
         typed = claim.provenance_class != "unclassified"
         return VerifiedClaim(
             claim=claim,
@@ -452,9 +469,14 @@ def verify_claim(claim: Claim, resolution: SourceResolution | None) -> VerifiedC
 
 
 def verification_metrics(rows: list[VerifiedClaim]) -> dict[str, Any]:
-    cited = [row for row in rows if row.claim.source is not None]
-    readable = [row for row in cited if row.method != "fetch_failed"]
-    excerpts = [row for row in cited if row.claim.excerpt]
+    cited = [
+        row
+        for row in rows
+        if row.claim.source is not None or row.claim.locator is not None
+    ]
+    resolvable = [row for row in cited if row.claim.source is not None]
+    readable = [row for row in resolvable if row.method != "fetch_failed"]
+    excerpts = [row for row in resolvable if row.claim.excerpt]
     anchored = [row for row in excerpts if row.anchor == "found"]
     byte_exact_anchored = [row for row in anchored if row.method == "byte_exact"]
     normalised_anchored = [row for row in anchored if row.method == "normalised"]
@@ -481,6 +503,9 @@ def verification_metrics(rows: list[VerifiedClaim]) -> dict[str, Any]:
             row.outcome == "evidence_window_incomplete" for row in excerpts
         ),
         "locator_only": sum(row.method == "locator" for row in cited),
+        "unresolvable_source": sum(
+            row.outcome == "unresolvable_source" for row in cited
+        ),
         "no_excerpt": sum(row.method == "no_excerpt" for row in cited),
         "fetch_failed": sum(row.method == "fetch_failed" for row in cited),
         "no_source": sum(row.method == "no_source" for row in rows),
@@ -495,11 +520,18 @@ def verification_metrics(rows: list[VerifiedClaim]) -> dict[str, Any]:
             "all detected claims",
         ),
         MetricEnvelope(
+            "source_resolvability",
+            "resolvability",
+            len(resolvable),
+            len(cited),
+            "claims with declared evidence",
+        ),
+        MetricEnvelope(
             "source_accessibility",
             "accessibility",
             len(readable),
-            len(cited),
-            "claims with a cited source",
+            len(resolvable),
+            "claims with a resolvable source URI",
         ),
         MetricEnvelope(
             "excerpt_anchoring",
@@ -542,10 +574,21 @@ def verification_metrics(rows: list[VerifiedClaim]) -> dict[str, Any]:
         population = [
             row for row in rows if row.claim.provenance_class == provenance_class
         ]
-        population_cited = [row for row in population if row.claim.source is not None]
+        population_cited = [
+            row
+            for row in population
+            if row.claim.source is not None or row.claim.locator is not None
+        ]
+        population_resolvable = [
+            row for row in population_cited if row.claim.source is not None
+        ]
         per_provenance[provenance_class] = {
             "claims": len(population),
             "cited_claims": len(population_cited),
+            "resolvable_citations": len(population_resolvable),
+            "unresolvable_locator_claims": sum(
+                row.outcome == "unresolvable_source" for row in population
+            ),
             "no_source": sum(row.method == "no_source" for row in population),
             "typed_provenance": sum(
                 row.method == "provenance" for row in population
@@ -563,10 +606,14 @@ def verification_metrics(rows: list[VerifiedClaim]) -> dict[str, Any]:
             ).to_dict(),
         }
     return {
-        "schema": "groundnut-verification-metrics/v4",
+        "schema": "groundnut-verification-metrics/v5",
         "counts": {
             "detected_claims": len(rows),
             "cited_claims": len(cited),
+            "resolvable_citations": len(resolvable),
+            "unresolvable_locator_claims": sum(
+                row.outcome == "unresolvable_source" for row in cited
+            ),
             "readable_citations": len(readable),
             "excerpt_claims": len(excerpts),
             "anchored_excerpts": len(anchored),

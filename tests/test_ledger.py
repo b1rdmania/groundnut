@@ -521,6 +521,30 @@ def test_zero_citation_report_is_a_valid_all_own_reasoning_run(tmp_path):
     }
 
 
+def test_bare_locator_is_unconfirmed_citation_not_own_reasoning(tmp_path):
+    from groundnut.ic_loop import main as loop_main
+
+    artifact = tmp_path / "locator.md"
+    artifact.write_text(
+        "# Memo\n\nConfidential revenue was £4.2m."
+        "<!-- ic-source-locator: investment memo, page 7 -->\n"
+    )
+    out = tmp_path / "locator-out"
+
+    code = loop_main(["--report", str(artifact), "--out", str(out), "--replay-only"])
+
+    assert code == 0
+    run = json.loads((out / "run.json").read_text())
+    [account] = run["execution"]["run"]["evidence"]["accounts"]
+    verification = account["assessment"]["verification"]
+    assert verification["outcome"] == "unresolvable_source"
+    assert verification["claim"]["locator"] == "investment memo, page 7"
+    ledger = json.loads((out / "ledger.json").read_text())
+    assert ledger["counts"]["by_detail"] == {
+        "citation_unconfirmed:unresolvable_source": 1
+    }
+
+
 @pytest.mark.parametrize(
     ("name", "report", "anomaly"),
     [

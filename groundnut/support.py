@@ -331,6 +331,12 @@ def assess_claim_support(
         )
 
     if claim.source is None:
+        if claim.locator:
+            return result(
+                "source_unavailable",
+                "A source locator is preserved, but no resolvable source URI is attached.",
+                failure="unresolvable_source",
+            )
         return result(
             "not_assessed",
             "Claim has no external source; semantic support was not assessed.",
