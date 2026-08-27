@@ -67,13 +67,20 @@ _GENERATED_BYLINE = re.compile(
     r"^[^.!?]*\bgenerated\s+(?:19|20)\d{2}(?:-\d{2}-\d{2})?[.]?$",
     re.IGNORECASE,
 )
+_DOCUMENT_COORDINATE = re.compile(
+    r"(?:\b(?:sections?|phases?)\s+|§+\s*)"
+    r"\d+(?:\.\d+)*(?:['’]s)?"
+    r"(?:\s*(?:(?:,|&)\s*|\band\s+|\bto\s+|\bthrough\s+|[-–—]\s*)"
+    r"\d+(?:\.\d+)*(?:['’]s)?)*",
+    re.IGNORECASE,
+)
 MIN_WORDS = 1
 
 
 @dataclass(frozen=True)
 class LedgerSegmenter:
     key: str = "groundnut.ledger-prose-segmenter"
-    version: str = "5"
+    version: str = "6"
     min_words: int = MIN_WORDS
 
     def canonical_payload(self) -> dict[str, Any]:
@@ -86,7 +93,7 @@ class LedgerSegmenter:
                 "non-header Markdown table cells enter the claim population",
                 "prose lines and list items split into sentences; a sentence with a citation is one cited unit per citation",
                 "every non-empty prose sentence is retained, including short numeric and status claims",
-                "bare ordinals and standalone or generated dates remain visible but are not numeric claims",
+                "bare ordinals, document coordinates, and standalone or generated dates remain visible but are not numeric claims",
                 "HTML comments and inline markdown are stripped before counting words",
             ],
         }
@@ -468,7 +475,7 @@ def _own_row(
     declared = any(marker in raw_sentence for marker in profile.declared_analysis_classes)
     if declared:
         detail = "declared"
-    elif _NUMERIC.search(sentence) and not _is_document_furniture(sentence):
+    elif _has_gate_numeric(sentence):
         detail = "numeric"
     else:
         detail = "narrative"
@@ -496,6 +503,15 @@ def _is_document_furniture(sentence: str) -> bool:
         or _DATED_FURNITURE.fullmatch(value)
         or _GENERATED_BYLINE.fullmatch(value)
     )
+
+
+def _has_gate_numeric(sentence: str) -> bool:
+    """Detect quantitative content after removing narrowly defined document coordinates."""
+
+    if _is_document_furniture(sentence):
+        return False
+    without_coordinates = _DOCUMENT_COORDINATE.sub("", sentence)
+    return bool(_NUMERIC.search(without_coordinates))
 
 
 def _annotation_state(

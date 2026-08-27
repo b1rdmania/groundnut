@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "groundnut-evidence"
-version = "0.1.0a13"
+version = "0.1.0a14"
 description = "Source-bound evidence integrity and replay contracts"
 readme = "README.md"
 requires-python = ">=3.12"
