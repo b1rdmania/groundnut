@@ -441,6 +441,39 @@ def test_document_furniture_does_not_enter_the_numeric_gate(tmp_path):
     assert ledger["counts"]["by_detail"] == {"own_reasoning:narrative": 4}
 
 
+def test_document_coordinates_do_not_mask_or_spend_the_numeric_gate(tmp_path):
+    from groundnut.ic_loop import main as loop_main
+
+    artifact = tmp_path / "coordinates.md"
+    artifact.write_text(
+        "# Synthetic report\n\n"
+        "See Section 6.5.\n\n"
+        "See sections 4 and 6.\n\n"
+        "Phase 4 analyst report.\n\n"
+        "See §6.4’s discussion.\n\n"
+        "Section 6 reports $4.2M in revenue.\n\n"
+        "Phase 2 assumes 15 customers.\n"
+    )
+    out = tmp_path / "coordinates-out"
+
+    code = loop_main(
+        ["--report", str(artifact), "--out", str(out), "--replay-only",
+         "--gate-undeclared-numerics"]
+    )
+
+    assert code == 1
+    ledger = json.loads((out / "ledger.json").read_text())
+    details = {row["text"]: row["detail"] for row in ledger["rows"]}
+    assert details == {
+        "See Section 6.5.": "narrative",
+        "See sections 4 and 6.": "narrative",
+        "Phase 4 analyst report.": "narrative",
+        "See §6.4’s discussion.": "narrative",
+        "Section 6 reports $4.2M in revenue.": "numeric",
+        "Phase 2 assumes 15 customers.": "numeric",
+    }
+
+
 @pytest.mark.parametrize(
     "claim",
     [

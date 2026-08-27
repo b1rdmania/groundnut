@@ -46,9 +46,11 @@ into something a report cannot ship undeclared.
 
 The gate does not spend a writer fix cycle on tightly defined document
 furniture: bare list ordinals, standalone dates, generated-report bylines and
-data-cutoff lines remain visible as narrative ledger units but are not numeric
-claims. A dated factual sentence (for example, a founding year or forecast)
-still enters the numeric gate.
+data-cutoff lines, plus section and phase coordinates, remain visible as
+narrative ledger units but are not numeric claims. Removing a document
+coordinate does not exempt other numbers in the same sentence: `Section 6
+reports $4.2M` still enters the gate. A dated factual sentence (for example, a
+founding year or forecast) also still enters the numeric gate.
 
 An intentional exception requires `--waiver waiver.json`. A waiver records a
 non-empty approver identity and reason and binds the exact artifact hash,
@@ -119,7 +121,9 @@ the snapshot directory is what makes a run reproducible, not the internet.
 ## Segmentation
 
 Every count depends on the segmenter, whose identity is hashed into the
-ledger. Segmenter v4 admits non-header table cells as units; frontmatter,
+ledger. Segmenter v6 excludes narrowly defined section and phase coordinates
+from the numeric gate without hiding other quantities in the same sentence.
+Segmenter v4 admits non-header table cells as units; frontmatter,
 headings, horizontal rules, table headers/delimiters and fenced code remain
 named exclusions. Prose lines split into sentences; a sentence with an HTTP
 citation is one cited unit per citation; uncited sentences in the same
