@@ -48,6 +48,11 @@ def test_claim_rejects_blank_verification_question():
         Claim("c1", "A claim", question="  ")
 
 
+def test_claim_rejects_blank_source_locator():
+    with pytest.raises(ValueError, match="locator"):
+        Claim("c1", "A claim", locator="  ")
+
+
 def test_exact_and_format_normalised_excerpt_anchor():
     exact = anchor_excerpt("Revenue was $14.2M.", "Revenue was $14.2M.")
     assert (exact.anchor, exact.method, exact.normalisation_reasons) == (
@@ -110,6 +115,22 @@ def test_anchor_presence_never_becomes_support():
     assert result.anchor == "found"
     assert result.support == "not_assessed"
     assert "support has not been assessed" in result.note
+
+
+def test_bare_locator_is_unresolvable_not_unsourced_or_not_applicable():
+    claim = Claim(
+        "locator",
+        "Confidential revenue was £4.2m.",
+        locator="investment memo, page 7",
+    )
+
+    result = verify_claim(claim, None)
+
+    assert result.outcome == "unresolvable_source"
+    assert result.method == "locator"
+    assert result.failure == "unresolvable_source"
+    assert result.claim.locator == "investment memo, page 7"
+    assert result.to_dict()["schema"] == "groundnut-claim-verification/v4"
 
 
 def test_calculation_lineage_is_hash_bound_but_never_becomes_support():
@@ -209,7 +230,7 @@ def test_metrics_keep_coverage_accessibility_and_anchoring_separate():
     ]
 
     metrics = verification_metrics(rows)
-    assert metrics["schema"] == "groundnut-verification-metrics/v4"
+    assert metrics["schema"] == "groundnut-verification-metrics/v5"
     assert metrics["rates"]["citation_coverage"] == {
         "schema": "groundnut-metric-envelope/v1",
         "name": "citation_coverage",
@@ -220,10 +241,30 @@ def test_metrics_keep_coverage_accessibility_and_anchoring_separate():
         "value": 0.5,
     }
     assert metrics["rates"]["source_accessibility"]["value"] == 1.0
+    assert metrics["rates"]["source_resolvability"]["value"] == 1.0
     assert metrics["rates"]["excerpt_anchoring"]["value"] == 1.0
     assert metrics["anchor_outcome_counts"]["no_source"] == 1
     by_class = metrics["by_provenance_class"]["unclassified"]
     assert by_class["citation_coverage"]["denominator"] == 2
+
+
+def test_metrics_count_bare_locator_as_declared_but_unresolvable_evidence():
+    rows = [
+        verify_claim(
+            Claim("c1", "Confidential claim.", locator="memo, page 7"), None
+        ),
+        verify_claim(Claim("c2", "No evidence declared."), None),
+    ]
+
+    metrics = verification_metrics(rows)
+
+    assert metrics["counts"]["cited_claims"] == 1
+    assert metrics["counts"]["resolvable_citations"] == 0
+    assert metrics["counts"]["unresolvable_locator_claims"] == 1
+    assert metrics["rates"]["citation_coverage"]["value"] == 0.5
+    assert metrics["rates"]["source_resolvability"]["value"] == 0.0
+    assert metrics["rates"]["source_accessibility"]["value"] is None
+    assert metrics["anchor_outcome_counts"]["unresolvable_source"] == 1
 
 
 def test_metrics_keep_fuzzy_anchors_as_their_own_population():

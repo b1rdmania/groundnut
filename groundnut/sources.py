@@ -11,14 +11,24 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from html.parser import HTMLParser
+import http.client
+import ipaddress
 import io
 import json
 import hashlib
 from pathlib import Path
 import re
+import socket
+import ssl
+import subprocess
+import sys
+import tempfile
+import time
 from typing import Any, Callable, Mapping, Protocol
 import urllib.error
+import urllib.parse
 import urllib.request
+import zlib
 
 from .provenance import SourceRecord, sha256_text
 
@@ -79,9 +89,18 @@ FAILURE_STATES = {
     "source_paywalled",
     "source_unreachable",
     "source_changed",
+    "source_policy_blocked",
+    "source_too_large",
     "pdf_unsupported",
     "source_media_unsupported",
 }
+
+DEFAULT_MAX_RESPONSE_BYTES = 16 * 1024 * 1024
+DEFAULT_MAX_DECOMPRESSED_BYTES = 32 * 1024 * 1024
+DEFAULT_MAX_EXTRACTED_CHARACTERS = 8 * 1024 * 1024
+DEFAULT_PDF_TIMEOUT_SECONDS = 20
+DEFAULT_PDF_CPU_SECONDS = 10
+DEFAULT_PDF_MEMORY_BYTES = 512 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -319,8 +338,11 @@ def html_to_text(value: str) -> str:
 
 
 def _pdf_to_text_and_pages(
-    data: bytes, *, max_pages: int = 400
-) -> tuple[str | None, int | None]:
+    data: bytes,
+    *,
+    max_pages: int = 400,
+    max_characters: int = DEFAULT_MAX_EXTRACTED_CHARACTERS,
+) -> tuple[str | None, int | None, bool]:
     """Text layer of a PDF via pypdf, page-joined; None when unavailable.
 
     Scanned PDFs with no text layer return None rather than an empty source,
@@ -329,82 +351,564 @@ def _pdf_to_text_and_pages(
     try:
         from pypdf import PdfReader
     except ImportError:  # pragma: no cover - depends on the host environment
-        return None, None
+        return None, None, False
     try:
         reader = PdfReader(io.BytesIO(data))
         total_pages = len(reader.pages)
-        pages = [page.extract_text() or "" for page in reader.pages[:max_pages]]
+        pages = []
+        captured = 0
+        character_truncated = False
+        for page in reader.pages[:max_pages]:
+            text = (page.extract_text() or "").strip()
+            separator = 2 if pages else 0
+            remaining = max_characters - captured - separator
+            if remaining <= 0:
+                character_truncated = True
+                break
+            if len(text) > remaining:
+                pages.append(text[:remaining])
+                captured += separator + remaining
+                character_truncated = True
+                break
+            pages.append(text)
+            captured += separator + len(text)
     except Exception:  # pypdf raises a wide family on malformed files
-        return None, None
-    text = "\n\n".join(page.strip() for page in pages)
-    return (text if text.strip() else None), total_pages
+        return None, None, False
+    text = "\n\n".join(pages)
+    return (text if text.strip() else None), total_pages, character_truncated
 
 
 def pdf_to_text(data: bytes, *, max_pages: int = 400) -> str | None:
     """Return the extracted PDF text while preserving the historical API."""
-    text, _ = _pdf_to_text_and_pages(data, max_pages=max_pages)
+    text, _, _ = _pdf_to_text_and_pages(data, max_pages=max_pages)
     return text
 
 
-def default_opener() -> Callable:
-    """urlopen with a certifi CA bundle when one is installed.
+def _isolated_pdf_to_text_and_pages(
+    data: bytes,
+    *,
+    max_pages: int,
+    max_characters: int,
+    timeout_seconds: int,
+    cpu_seconds: int,
+    memory_bytes: int,
+) -> tuple[str | None, int | None, bool, str | None]:
+    package_root = Path(__file__).resolve().parent.parent
+    max_output_bytes = max(4096, max_characters * 6 + 4096)
+    with tempfile.TemporaryDirectory(prefix="groundnut-pdf-") as directory:
+        output = Path(directory) / "result.json"
+        command = [
+            sys.executable,
+            "-m",
+            "groundnut.pdf_worker",
+            "--out",
+            str(output),
+            "--max-input-bytes",
+            str(len(data)),
+            "--max-pages",
+            str(max_pages),
+            "--max-characters",
+            str(max_characters),
+            "--cpu-seconds",
+            str(cpu_seconds),
+            "--memory-bytes",
+            str(memory_bytes),
+            "--max-output-bytes",
+            str(max_output_bytes),
+        ]
+        try:
+            process = subprocess.Popen(
+                command,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                cwd=directory,
+                env={"PYTHONHASHSEED": "0", "PYTHONPATH": str(package_root)},
+            )
+            deadline = time.monotonic() + timeout_seconds
+            pending_input: bytes | None = data
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    process.kill()
+                    process.communicate()
+                    return None, None, False, "pdf_worker_timeout"
+                try:
+                    process.communicate(
+                        input=pending_input, timeout=min(0.1, remaining)
+                    )
+                    break
+                except subprocess.TimeoutExpired:
+                    # communicate() retains the buffered input after a timeout.
+                    pending_input = None
+                    resident = _resident_memory_bytes(process.pid)
+                    if resident is None:
+                        process.kill()
+                        process.communicate()
+                        return None, None, False, "pdf_worker_memory_unobservable"
+                    if resident > memory_bytes:
+                        process.kill()
+                        process.communicate()
+                        return None, None, False, "pdf_worker_memory_limit"
+        except OSError:
+            return None, None, False, "pdf_worker_failed"
+        if process.returncode != 0 or not output.is_file():
+            return None, None, False, "pdf_worker_failed"
+        if output.stat().st_size > max_output_bytes:
+            return None, None, False, "pdf_worker_output_exceeds_limit"
+        try:
+            payload = json.loads(output.read_text())
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            return None, None, False, "pdf_worker_output_invalid"
+        if payload.get("schema") != "groundnut-pdf-worker-result/v1":
+            return None, None, False, "pdf_worker_output_invalid"
+        if payload.get("status") != "ok":
+            return None, None, False, str(payload.get("detail") or "pdf_unsupported")
+        text = payload.get("text")
+        total_pages = payload.get("total_pages")
+        truncated = payload.get("character_truncated")
+        if (
+            not isinstance(text, str)
+            or len(text) > max_characters
+            or not isinstance(total_pages, int)
+            or total_pages < 0
+            or not isinstance(truncated, bool)
+        ):
+            return None, None, False, "pdf_worker_output_invalid"
+        return text or None, total_pages, truncated, None
 
-    Some Python builds ship without a usable system trust store and fail every
-    HTTPS fetch with ``CERTIFICATE_VERIFY_FAILED``; the ledger then reports
-    every source as unreachable, which is a tooling fact, not an evidence fact.
-    """
+
+def _resident_memory_bytes(pid: int) -> int | None:
+    """Return a worker's resident set size without trusting the worker itself."""
+    status = Path(f"/proc/{pid}/status")
+    if status.is_file():
+        try:
+            for line in status.read_text().splitlines():
+                if line.startswith("VmRSS:"):
+                    return int(line.split()[1]) * 1024
+        except (OSError, UnicodeError, ValueError, IndexError):
+            return None
+    try:
+        observed = subprocess.run(
+            ["/bin/ps", "-o", "rss=", "-p", str(pid)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=1,
+            check=False,
+        )
+        if observed.returncode == 0 and observed.stdout.strip():
+            return int(observed.stdout.strip()) * 1024
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        pass
+    return None
+
+
+class _SourcePolicyBlocked(ValueError):
+    pass
+
+
+class _SourceTooLarge(ValueError):
+    pass
+
+
+@dataclass(frozen=True)
+class _ValidatedHTTPURI:
+    uri: str
+    scheme: str
+    hostname: str
+    port: int
+    addresses: tuple[str, ...]
+    request_target: str
+
+
+def _system_addresses(hostname: str, port: int) -> tuple[str, ...]:
+    return tuple(
+        dict.fromkeys(
+            row[4][0]
+            for row in socket.getaddrinfo(
+                hostname, port, type=socket.SOCK_STREAM
+            )
+        )
+    )
+
+
+def _validate_public_http_uri(
+    uri: str, address_resolver: Callable[[str, int], tuple[str, ...]]
+) -> _ValidatedHTTPURI:
+    if not isinstance(uri, str) or any(
+        ord(character) <= 0x20
+        or ord(character) >= 0x7F
+        or character == "\\"
+        for character in uri
+    ):
+        raise _SourcePolicyBlocked("invalid_uri")
+    try:
+        parsed = urllib.parse.urlsplit(uri)
+        port = parsed.port or (443 if parsed.scheme.casefold() == "https" else 80)
+    except (TypeError, ValueError) as exc:
+        raise _SourcePolicyBlocked("invalid_uri") from exc
+    if parsed.scheme.casefold() not in {"http", "https"}:
+        raise _SourcePolicyBlocked("scheme_not_allowed")
+    if not parsed.hostname:
+        raise _SourcePolicyBlocked("hostname_required")
+    if "%" in parsed.hostname or "\\" in parsed.hostname:
+        raise _SourcePolicyBlocked("invalid_hostname")
+    if parsed.username is not None or parsed.password is not None:
+        raise _SourcePolicyBlocked("embedded_credentials_not_allowed")
+    addresses = address_resolver(parsed.hostname, port)
+    if not addresses:
+        raise OSError("hostname resolved to no addresses")
+    canonical_addresses = []
+    for value in addresses:
+        try:
+            address = ipaddress.ip_address(value.split("%", 1)[0])
+        except ValueError as exc:
+            raise _SourcePolicyBlocked("resolver_returned_invalid_address") from exc
+        if (
+            not address.is_global
+            or address.is_loopback
+            or address.is_private
+            or address.is_link_local
+            or address.is_multicast
+            or address.is_unspecified
+            or address.is_reserved
+        ):
+            raise _SourcePolicyBlocked(f"non_public_address:{address.compressed}")
+        canonical_addresses.append(address.compressed)
+    path = parsed.path or "/"
+    request_target = f"{path}?{parsed.query}" if parsed.query else path
+    return _ValidatedHTTPURI(
+        uri=uri,
+        scheme=parsed.scheme.casefold(),
+        hostname=parsed.hostname,
+        port=port,
+        addresses=tuple(canonical_addresses),
+        request_target=request_target,
+    )
+
+
+def _default_tls_context() -> ssl.SSLContext:
     try:
         import certifi
     except ImportError:  # pragma: no cover - depends on the host environment
-        return urllib.request.urlopen
-    import ssl
+        return ssl.create_default_context()
+    return ssl.create_default_context(cafile=certifi.where())
 
-    context = ssl.create_default_context(cafile=certifi.where())
 
-    def opener(request, *, timeout):
-        return urllib.request.urlopen(request, timeout=timeout, context=context)
+class _PinnedResponse:
+    def __init__(
+        self,
+        response: http.client.HTTPResponse,
+        connection: http.client.HTTPConnection,
+        uri: str,
+    ) -> None:
+        self._response = response
+        self._connection = connection
+        self._uri = uri
+        self.status = response.status
+        self.headers = response.headers
 
-    return opener
+    def read(self, size: int = -1) -> bytes:
+        return self._response.read(size)
+
+    def geturl(self) -> str:
+        return self._uri
+
+    def close(self) -> None:
+        try:
+            self._response.close()
+        finally:
+            self._connection.close()
+
+    def __enter__(self) -> "_PinnedResponse":
+        return self
+
+    def __exit__(self, *args) -> bool:
+        self.close()
+        return False
+
+
+class _PinnedHTTPTransport:
+    """HTTP(S) GET transport pinned to preflighted IP addresses."""
+
+    REDIRECTS = {301, 302, 303, 307, 308}
+    SAFE_HEADERS = {"accept", "accept-encoding", "user-agent"}
+
+    def __init__(
+        self,
+        validator: Callable[[str], _ValidatedHTTPURI],
+        *,
+        tls_context: ssl.SSLContext | None = None,
+        max_redirects: int = 10,
+    ) -> None:
+        self.validator = validator
+        self.tls_context = tls_context or _default_tls_context()
+        self.max_redirects = max_redirects
+
+    def __call__(self, request, *, timeout):
+        current_uri = request.full_url
+        headers = {
+            name: value
+            for name, value in request.header_items()
+            if name.casefold() in self.SAFE_HEADERS
+        }
+        for redirect_count in range(self.max_redirects + 1):
+            target = self.validator(current_uri)
+            response = self._open(target, headers, timeout)
+            location = response.headers.get("Location")
+            if response.status not in self.REDIRECTS or not location:
+                return response
+            response.close()
+            if redirect_count == self.max_redirects:
+                raise urllib.error.URLError("redirect_limit")
+            current_uri = urllib.parse.urljoin(current_uri, location)
+        raise urllib.error.URLError("redirect_limit")  # pragma: no cover
+
+    def _open(
+        self,
+        target: _ValidatedHTTPURI,
+        headers: Mapping[str, str],
+        timeout: int,
+    ) -> _PinnedResponse:
+        failures = []
+        for address in target.addresses:
+            connection = self._connection(target, address, timeout)
+            try:
+                connection.connect()
+                peer = ipaddress.ip_address(connection.sock.getpeername()[0])
+                if peer != ipaddress.ip_address(address):
+                    raise _SourcePolicyBlocked("connected_peer_mismatch")
+                connection.request("GET", target.request_target, headers=dict(headers))
+                response = connection.getresponse()
+                return _PinnedResponse(response, connection, target.uri)
+            except _SourcePolicyBlocked:
+                connection.close()
+                raise
+            except (OSError, http.client.HTTPException) as exc:
+                failures.append(exc)
+                connection.close()
+        if failures:
+            raise failures[-1]
+        raise OSError("no validated addresses available")
+
+    def _connection(
+        self, target: _ValidatedHTTPURI, address: str, timeout: int
+    ) -> http.client.HTTPConnection:
+        if target.scheme == "https":
+            connection = http.client.HTTPSConnection(
+                target.hostname,
+                target.port,
+                timeout=timeout,
+                context=self.tls_context,
+            )
+        else:
+            connection = http.client.HTTPConnection(
+                target.hostname, target.port, timeout=timeout
+            )
+
+        def create_pinned_connection(
+            ignored_address,
+            connection_timeout=socket._GLOBAL_DEFAULT_TIMEOUT,
+            source_address=None,
+            *,
+            all_errors=False,
+        ):
+            return socket.create_connection(
+                (address, target.port),
+                connection_timeout,
+                source_address,
+                all_errors=all_errors,
+            )
+
+        connection._create_connection = create_pinned_connection
+        return connection
+
+
+def _default_public_uri_validator(uri: str) -> _ValidatedHTTPURI:
+    return _validate_public_http_uri(uri, _system_addresses)
+
+
+def default_opener(
+    validator: Callable[[str], _ValidatedHTTPURI] | None = None,
+) -> Callable:
+    """Return the redirect-aware transport pinned to validated addresses."""
+    if validator is None:
+        validator = _default_public_uri_validator
+    return _PinnedHTTPTransport(validator)
+
+
+def _header(response: Any, name: str) -> str | None:
+    headers = getattr(response, "headers", None)
+    if headers is None or not hasattr(headers, "get"):
+        return None
+    value = headers.get(name)
+    return str(value) if value is not None else None
+
+
+def _read_limited(response: Any, limit: int) -> bytes:
+    declared = _header(response, "Content-Length")
+    if declared is not None:
+        try:
+            declared_bytes = int(declared)
+        except ValueError as exc:
+            raise _SourcePolicyBlocked("invalid_content_length") from exc
+        if declared_bytes < 0:
+            raise _SourcePolicyBlocked("invalid_content_length")
+        if declared_bytes > limit:
+            raise _SourceTooLarge("response_content_length_exceeds_limit")
+    body = response.read(limit + 1)
+    if len(body) > limit:
+        raise _SourceTooLarge("response_body_exceeds_limit")
+    return body
+
+
+def _bounded_zlib_decode(data: bytes, *, limit: int, wbits: int) -> bytes:
+    decoder = zlib.decompressobj(wbits)
+    decoded = decoder.decompress(data, limit + 1)
+    if len(decoded) > limit or decoder.unconsumed_tail:
+        raise _SourceTooLarge("decompressed_body_exceeds_limit")
+    remaining = limit + 1 - len(decoded)
+    tail = decoder.flush(remaining) if remaining > 0 else b""
+    decoded += tail
+    if len(decoded) > limit:
+        raise _SourceTooLarge("decompressed_body_exceeds_limit")
+    if not decoder.eof or decoder.unused_data:
+        raise _SourcePolicyBlocked("invalid_compressed_body")
+    return decoded
+
+
+def _decode_content(data: bytes, encoding: str | None, *, limit: int) -> bytes:
+    normalized = (encoding or "identity").strip().casefold()
+    if normalized in {"", "identity"}:
+        if len(data) > limit:
+            raise _SourceTooLarge("decoded_body_exceeds_limit")
+        return data
+    try:
+        if normalized in {"gzip", "x-gzip"}:
+            return _bounded_zlib_decode(data, limit=limit, wbits=16 + zlib.MAX_WBITS)
+        if normalized == "deflate":
+            try:
+                return _bounded_zlib_decode(data, limit=limit, wbits=zlib.MAX_WBITS)
+            except (_SourcePolicyBlocked, zlib.error):
+                return _bounded_zlib_decode(data, limit=limit, wbits=-zlib.MAX_WBITS)
+    except zlib.error as exc:
+        raise _SourcePolicyBlocked("invalid_compressed_body") from exc
+    raise _SourcePolicyBlocked("content_encoding_not_allowed")
 
 
 class HttpResolver:
-    """Small standard-library HTTP adapter; no provider credentials involved."""
+    """Fail-closed HTTP adapter for untrusted evidence URIs and response bytes.
+
+    The default transport validates every destination and binds each connection
+    to one of the public addresses returned by that validation, while retaining
+    the original hostname for the HTTP Host header and TLS verification.
+    Injected HTTP/DNS transports are privileged test or specialist-host seams
+    and require an explicit opt-in because their connection behavior cannot be
+    constrained by the default transport.
+    """
 
     def __init__(
         self,
         *,
         timeout: int = 20,
         opener: Callable | None = None,
+        address_resolver: Callable[[str, int], tuple[str, ...]] | None = None,
+        allow_injected_transport: bool = False,
         max_pdf_pages: int = 400,
+        pdf_timeout_seconds: int = DEFAULT_PDF_TIMEOUT_SECONDS,
+        pdf_cpu_seconds: int = DEFAULT_PDF_CPU_SECONDS,
+        pdf_memory_bytes: int = DEFAULT_PDF_MEMORY_BYTES,
+        max_response_bytes: int = DEFAULT_MAX_RESPONSE_BYTES,
+        max_decompressed_bytes: int = DEFAULT_MAX_DECOMPRESSED_BYTES,
+        max_extracted_characters: int = DEFAULT_MAX_EXTRACTED_CHARACTERS,
     ) -> None:
-        if max_pdf_pages < 1:
-            raise ValueError("max_pdf_pages must be positive")
+        limits = (
+            max_pdf_pages,
+            pdf_timeout_seconds,
+            pdf_cpu_seconds,
+            pdf_memory_bytes,
+            max_response_bytes,
+            max_decompressed_bytes,
+            max_extracted_characters,
+        )
+        if any(value < 1 for value in limits):
+            raise ValueError("resolver limits must be positive")
+        if (opener is not None or address_resolver is not None) and not (
+            allow_injected_transport
+        ):
+            raise ValueError(
+                "injected HTTP or DNS transport is privileged; "
+                "set allow_injected_transport=True explicitly"
+            )
         self.timeout = timeout
-        self.opener = opener or default_opener()
+        self.address_resolver = address_resolver or _system_addresses
+        self._validate_uri = lambda uri: _validate_public_http_uri(
+            uri, self.address_resolver
+        )
+        self.opener = opener or default_opener(self._validate_uri)
         self.max_pdf_pages = max_pdf_pages
+        self.pdf_timeout_seconds = pdf_timeout_seconds
+        self.pdf_cpu_seconds = pdf_cpu_seconds
+        self.pdf_memory_bytes = pdf_memory_bytes
+        self.max_response_bytes = max_response_bytes
+        self.max_decompressed_bytes = max_decompressed_bytes
+        self.max_extracted_characters = max_extracted_characters
 
     def resolve(self, reference: SourceReference) -> SourceResolution:
-        request = urllib.request.Request(
-            reference.uri,
-            headers={
-                "User-Agent": "groundnut/0.1 source-verification",
-                "Accept": "text/html,text/plain,application/pdf;q=0.5,*/*;q=0.1",
-            },
-        )
         try:
+            self._validate_uri(reference.uri)
+            request = urllib.request.Request(
+                reference.uri,
+                headers={
+                    "User-Agent": "groundnut/0.1 source-verification",
+                    "Accept": "text/html,text/plain,application/json,application/xml,application/pdf;q=0.5",
+                    "Accept-Encoding": "gzip, deflate",
+                },
+            )
             with self.opener(request, timeout=self.timeout) as response:
+                final_uri = (
+                    response.geturl()
+                    if hasattr(response, "geturl")
+                    else reference.uri
+                )
+                self._validate_uri(final_uri)
                 status = getattr(response, "status", None)
+                if isinstance(status, int) and status >= 300:
+                    failure = (
+                        "source_paywalled"
+                        if status in {401, 402, 403, 429}
+                        else "source_unreachable"
+                    )
+                    return SourceResolution(
+                        source=None, failure=failure, detail=f"http_{status}"
+                    )
                 media_type = response.headers.get_content_type()
-                body = response.read()
+                encoded_body = _read_limited(response, self.max_response_bytes)
+                body = _decode_content(
+                    encoded_body,
+                    _header(response, "Content-Encoding"),
+                    limit=self.max_decompressed_bytes,
+                )
                 if media_type == "application/pdf":
-                    extracted, total_pages = _pdf_to_text_and_pages(
-                        body, max_pages=self.max_pdf_pages
+                    (
+                        extracted,
+                        total_pages,
+                        character_truncated,
+                        pdf_failure,
+                    ) = _isolated_pdf_to_text_and_pages(
+                        body,
+                        max_pages=self.max_pdf_pages,
+                        max_characters=self.max_extracted_characters,
+                        timeout_seconds=self.pdf_timeout_seconds,
+                        cpu_seconds=self.pdf_cpu_seconds,
+                        memory_bytes=self.pdf_memory_bytes,
                     )
                     if extracted is None:
                         return SourceResolution(
                             source=None,
                             failure="pdf_unsupported",
-                            detail="application/pdf: no text layer or no extractor",
+                            detail=pdf_failure or "application/pdf: no text layer",
                         )
                     text = extracted
                     window = EvidenceWindow.from_text(
@@ -413,32 +917,72 @@ class HttpResolver:
                         original_characters=None,
                         truncation=(
                             "truncated"
-                            if total_pages is not None
-                            and total_pages > self.max_pdf_pages
+                            if character_truncated
+                            or (
+                                total_pages is not None
+                                and total_pages > self.max_pdf_pages
+                            )
                             else "complete"
                         ),
                         extraction_method=(
-                            f"pypdf-text-layer/v1:max_pages={self.max_pdf_pages}"
+                            "pypdf-text-layer/v2:"
+                            f"max_pages={self.max_pdf_pages}:"
+                            f"max_characters={self.max_extracted_characters}"
                         ),
                     )
                 else:
+                    if not (
+                        media_type.startswith("text/")
+                        or media_type
+                        in {
+                            "application/json",
+                            "application/xml",
+                            "application/xhtml+xml",
+                        }
+                    ):
+                        return SourceResolution(
+                            source=None,
+                            failure="source_media_unsupported",
+                            detail=media_type,
+                        )
                     raw = body.decode("utf-8", errors="replace")
                     text = (
                         html_to_text(raw)
                         if media_type in {"text/html", "application/xhtml+xml"}
                         else raw
                     )
+                    character_truncated = len(text) > self.max_extracted_characters
+                    if character_truncated:
+                        text = text[: self.max_extracted_characters]
                     window = EvidenceWindow.from_text(
                         text,
                         original_bytes=len(body),
                         original_characters=len(raw),
-                        truncation="complete",
+                        truncation="truncated" if character_truncated else "complete",
                         extraction_method=(
                             "html.parser-visible-text/v1"
                             if media_type in {"text/html", "application/xhtml+xml"}
                             else "http-text:utf-8-errors-replace/v1"
                         ),
                     )
+        except _SourcePolicyBlocked as exc:
+            return SourceResolution(
+                source=None,
+                failure="source_policy_blocked",
+                detail=str(exc),
+            )
+        except _SourceTooLarge as exc:
+            return SourceResolution(
+                source=None,
+                failure="source_too_large",
+                detail=str(exc),
+            )
+        except http.client.InvalidURL:
+            return SourceResolution(
+                source=None,
+                failure="source_policy_blocked",
+                detail="invalid_uri",
+            )
         except urllib.error.HTTPError as exc:
             failure = (
                 "source_paywalled"

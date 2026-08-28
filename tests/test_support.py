@@ -112,6 +112,25 @@ def test_unavailable_source_fails_closed_without_calling_detector():
     assert detector.calls == 0
 
 
+def test_bare_locator_is_source_unavailable_without_calling_detector():
+    detector = StubDetector(DetectorDecision("supported", 0.99, "supported"))
+    mechanical = verify_claim(
+        Claim("c1", "Confidential claim.", locator="memo, page 7"), None
+    )
+
+    result = assess_claim_support(
+        mechanical,
+        None,
+        detector=detector,
+        policy=policy_for(detector),
+    )
+
+    assert result.support.status == "source_unavailable"
+    assert result.support.failure == "unresolvable_source"
+    assert result.support.decision is None
+    assert detector.calls == 0
+
+
 def test_low_confidence_cannot_become_supported():
     detector = StubDetector(DetectorDecision("supported", 0.79, "weak support"))
     result = assess_claim_support(

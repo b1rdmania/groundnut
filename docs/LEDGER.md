@@ -7,7 +7,7 @@ buckets:
 | bucket | meaning |
 |---|---|
 | `excerpt_found` | the cited excerpt was found verbatim in the source snapshot |
-| `citation_unconfirmed` | a citation exists but the excerpt was `excerpt_not_found`, the `evidence_window_incomplete`, the quote was ambiguous, no excerpt was supplied, or the source was unavailable |
+| `citation_unconfirmed` | evidence is declared but the excerpt was `excerpt_not_found`, the `evidence_window_incomplete`, the quote was ambiguous, no excerpt was supplied, the source was unavailable, or a preserved bare locator was `unresolvable_source` |
 | `own_reasoning` | no citation, or declared analysis; split into `declared`, `numeric` (carries a number, %, currency, or multiplier), `narrative` |
 
 `excerpt_found` means the quoted words are in the snapshot. It is not a
@@ -20,6 +20,12 @@ evidence window complete. A failed search over a truncated, legacy, or otherwise
 unknown window is `evidence_window_incomplete`. Ledger rows retain the window
 hash and truncation state so the distinction survives into IC JSON and Markdown
 surfaces. See [Evidence windows](./EVIDENCE-WINDOWS.md).
+
+A confidential document, physical record or filing may have a usable locator
+but no public URL. Groundnut preserves that bare locator and records
+`citation_unconfirmed:unresolvable_source`. It counts as declared evidence for
+citation coverage, but not as a resolvable or accessible source. No mechanical
+or semantic support check is claimed.
 
 `own_reasoning:numeric` is where LLM extrapolation in a diligence report tends
 to live — derived market sizes, paybacks, unit economics. The split is

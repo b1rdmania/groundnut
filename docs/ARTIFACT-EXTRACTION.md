@@ -1,13 +1,19 @@
 # Artifact extraction admission
 
 Groundnut's canonical artifact extractor accepts Markdown, rendered HTML and
-structured memo JSON. Segmenter version 3 emits every eligible prose sentence
+structured memo JSON. The frozen admission below measures segmenter version 3,
+which emits every eligible prose sentence
 and table cell, including uncited statements. Citations, excerpts, locators,
 questions, declared analysis and canonical provenance classes remain attached
 when the artifact supplies them; the extractor does not invent missing
 evidence.
 
-## Measured contract
+Segmenter version 4 preserves a bare locator even when the source has no URL.
+That migration has deterministic Markdown and HTML regression coverage, but it
+has not inherited version 3's frozen admission result and is not presented as a
+new representative accuracy measurement.
+
+## Measured version 3 contract
 
 The frozen public conformance pack is
 [`evaluation/artifact_extraction/v1/benchmark.json`](../evaluation/artifact_extraction/v1/benchmark.json).
@@ -50,4 +56,3 @@ python3.12 -m groundnut.extraction_admission \
   --out results/artifact-extraction-admission-v1.json \
   --markdown results/artifact-extraction-admission-v1.md
 ```
-

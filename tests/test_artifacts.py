@@ -120,6 +120,39 @@ def test_markdown_preserves_adjacent_quote_and_locator(tmp_path):
     assert result.claims[1].locator == "table: licence status"
 
 
+def test_markdown_preserves_bare_locator_without_inventing_a_source(tmp_path):
+    path = tmp_path / "confidential.md"
+    path.write_text(
+        "Confidential revenue was £4.2m."
+        "<!-- groundnut-source-locator: investment memo, page 7 -->"
+        "<!-- groundnut-verification-question: What revenue was reported? -->\n"
+    )
+
+    [claim] = extract_artifact(path).claims
+
+    assert claim.text == "Confidential revenue was £4.2m."
+    assert claim.source is None
+    assert claim.locator == "investment memo, page 7"
+    assert claim.question == "What revenue was reported?"
+
+
+def test_html_preserves_bare_locator_without_inventing_a_source(tmp_path):
+    path = tmp_path / "confidential.html"
+    path.write_text(
+        "<p>Confidential revenue was £4.2m."
+        "<!-- groundnut-source-locator: investment memo, page 7 -->"
+        "<!-- groundnut-verification-question: What revenue was reported? -->"
+        "</p>"
+    )
+
+    [claim] = extract_artifact(path).claims
+
+    assert claim.text == "Confidential revenue was £4.2m."
+    assert claim.source is None
+    assert claim.locator == "investment memo, page 7"
+    assert claim.question == "What revenue was reported?"
+
+
 def test_empty_verification_question_comment_is_ignored(tmp_path):
     path = tmp_path / "report.md"
     path.write_text(
