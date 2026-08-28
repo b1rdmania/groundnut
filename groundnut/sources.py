@@ -15,6 +15,7 @@ import io
 import json
 import hashlib
 from pathlib import Path
+import re
 from typing import Any, Callable, Mapping, Protocol
 import urllib.error
 import urllib.request
@@ -24,6 +25,29 @@ from .provenance import SourceRecord, sha256_text
 
 _SPARSE_HTML_MAX_CHARACTERS = 1024
 _SPARSE_HTML_MIN_ORIGINAL_BYTES = 4096
+_HOLLOW_HTML_MAX_CHARACTERS = 4096
+_HOLLOW_PATTERNS = (
+    re.compile(r"\b(?:verify|confirm) (?:that )?you are (?:a )?human\b", re.I),
+    re.compile(r"\b(?:captcha|access denied|forbidden|request blocked)\b", re.I),
+    re.compile(r"\b(?:enable|requires?) javascript\b", re.I),
+    re.compile(r"\bjavascript (?:is required|must be enabled)\b", re.I),
+    re.compile(r"\bjust a moment\b.*\b(?:cloudflare|security|browser)\b", re.I | re.S),
+    re.compile(r"\bchecking (?:your )?browser\b", re.I),
+    re.compile(r"\b(?:too many requests|rate limit(?:ed| exceeded)?)\b", re.I),
+    re.compile(r"\b(?:subscribe|sign in|log in) to (?:continue|read|view|access)\b", re.I),
+    re.compile(r"\b(?:accept|manage) (?:all )?cookies\b.*\b(?:continue|consent|preferences?)\b", re.I | re.S),
+)
+
+
+def _is_hollow_html(text: str, extraction_method: str) -> bool:
+    if not extraction_method.startswith("html.parser-visible-text/"):
+        return False
+    searchable = text.strip()
+    return bool(
+        searchable
+        and len(searchable) <= _HOLLOW_HTML_MAX_CHARACTERS
+        and any(pattern.search(searchable) for pattern in _HOLLOW_PATTERNS)
+    )
 
 
 def _honest_truncation(
@@ -39,6 +63,8 @@ def _honest_truncation(
         return truncation
     if not text.strip():
         return "empty"
+    if _is_hollow_html(text, extraction_method):
+        return "hollow"
     if (
         extraction_method.startswith("html.parser-visible-text/")
         and len(text) < _SPARSE_HTML_MAX_CHARACTERS
@@ -76,7 +102,14 @@ class EvidenceWindow:
     original_bytes: int | None = None
     original_characters: int | None = None
 
-    TRUNCATION_STATES = {"complete", "truncated", "unknown", "empty", "sparse"}
+    TRUNCATION_STATES = {
+        "complete",
+        "truncated",
+        "unknown",
+        "empty",
+        "sparse",
+        "hollow",
+    }
 
     def __post_init__(self) -> None:
         lengths = (
@@ -168,7 +201,7 @@ class EvidenceWindow:
         )
         if recorded_window != expected and not (
             recorded_window.truncation == "complete"
-            and expected.truncation in {"empty", "sparse"}
+            and expected.truncation in {"empty", "sparse", "hollow"}
             and replace(expected, truncation="complete") == recorded_window
         ):
             raise ValueError("evidence window does not match captured text")

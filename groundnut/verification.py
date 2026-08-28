@@ -171,6 +171,7 @@ class MatchOutcome:
     anchor: str
     method: str
     score: float
+    normalisation_reasons: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -184,8 +185,12 @@ class VerifiedClaim:
     note: str
     failure: str | None = None
     evidence_window: EvidenceWindow | None = None
+    normalisation_reasons: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "normalisation_reasons", tuple(sorted(set(self.normalisation_reasons)))
+        )
         if self.outcome not in VERIFICATION_OUTCOMES:
             raise ValueError(f"unknown verification outcome: {self.outcome}")
         if self.outcome.startswith("excerpt_") or self.outcome in {
@@ -209,12 +214,13 @@ class VerifiedClaim:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema": "groundnut-claim-verification/v2",
+            "schema": "groundnut-claim-verification/v3",
             "claim": self.claim.to_dict(),
             "anchor": self.anchor,
             "outcome": self.outcome,
             "method": self.method,
             "score": self.score,
+            "normalisation_reasons": list(self.normalisation_reasons),
             "support": self.support,
             "note": self.note,
             "failure": self.failure,
@@ -236,17 +242,89 @@ def normalise(value: str) -> str:
     return " ".join(value.replace("_", " ").split())
 
 
+def _normalise_with_map(value: str) -> tuple[str, list[int]]:
+    """Return the baseline normalisation and a raw-character provenance map."""
+
+    output: list[str] = []
+    offsets: list[int] = []
+    pending_space: int | None = None
+    for index, raw_character in enumerate(value):
+        for character in raw_character.casefold().translate(_TRANS):
+            if character == "_" or not re.match(r"[\w$%£€.,'\"-]", character):
+                if output and pending_space is None:
+                    pending_space = index
+                continue
+            if pending_space is not None:
+                output.append(" ")
+                offsets.append(pending_space)
+                pending_space = None
+            output.append(character)
+            offsets.append(index)
+    return "".join(output), offsets
+
+
+def _dimension_normalise(value: str, *, omit: str | None = None) -> str:
+    if omit != "case":
+        value = value.casefold()
+    if omit != "quotes":
+        value = value.translate(str.maketrans({"‘": "'", "’": "'", "‛": "'", "“": '"', "”": '"'}))
+    if omit != "dashes":
+        value = value.translate(str.maketrans({"–": "-", "—": "-"}))
+    if omit != "punctuation":
+        characters: list[str] = []
+        for index, character in enumerate(value):
+            if character.isspace() or re.fullmatch(
+                r"[\w$%£€.,'\"-]", character, flags=re.UNICODE
+            ):
+                characters.append(character)
+            elif (
+                (not characters or not characters[-1].isspace())
+                and (index + 1 == len(value) or not value[index + 1].isspace())
+            ):
+                characters.append(" ")
+        value = "".join(characters)
+    if omit != "whitespace":
+        value = " ".join(value.replace("_", " ").split())
+    return value
+
+
+def _normalisation_reasons(excerpt: str, source_text: str, start: int) -> tuple[str, ...]:
+    needle, _ = _normalise_with_map(excerpt)
+    haystack, offsets = _normalise_with_map(source_text)
+    if not needle or not offsets:
+        return ()
+    end = start + len(needle) - 1
+    candidate = source_text[offsets[start] : offsets[end] + 1]
+    reasons = [
+        reason
+        for reason in ("case", "whitespace", "quotes", "dashes", "punctuation")
+        if _dimension_normalise(excerpt, omit=reason)
+        != _dimension_normalise(candidate, omit=reason)
+    ]
+    # A defensive fallback keeps the contract honest if a future Unicode edge
+    # case is normalised by the baseline but is outside the named dimensions.
+    return tuple(reasons or ("punctuation",))
+
+
 def numeric_tokens(normalised: str) -> tuple[str, ...]:
     return tuple(_NUMERIC.findall(normalised))
 
 
 def anchor_excerpt(excerpt: str, source_text: str) -> MatchOutcome:
+    if excerpt and excerpt in source_text:
+        return MatchOutcome("found", "byte_exact", 1.0)
     needle = normalise(excerpt)
     haystack = normalise(source_text)
     if not needle or not haystack:
-        return MatchOutcome("not_found", "exact", 0.0)
-    if needle in haystack:
-        return MatchOutcome("found", "exact", 1.0)
+        return MatchOutcome("not_found", "fuzzy", 0.0)
+    normalised_at = haystack.find(needle)
+    if normalised_at >= 0:
+        return MatchOutcome(
+            "found",
+            "normalised",
+            1.0,
+            _normalisation_reasons(excerpt, source_text, normalised_at),
+        )
     score = best_window_similarity(needle, haystack)
     if score >= 0.95:
         if all(token in haystack for token in numeric_tokens(needle)):
@@ -340,7 +418,10 @@ def verify_claim(claim: Claim, resolution: SourceResolution | None) -> VerifiedC
         )
     match = anchor_excerpt(claim.excerpt, resolution.source.text)
     window = resolution.source.evidence_window
-    if match.anchor == "found":
+    if window.truncation == "hollow":
+        match = MatchOutcome("not_found", "unusable_evidence_window", 0.0)
+        outcome = "evidence_window_incomplete"
+    elif match.anchor == "found":
         outcome = "excerpt_found"
     elif match.anchor == "ambiguous":
         outcome = "excerpt_ambiguous"
@@ -366,6 +447,7 @@ def verify_claim(claim: Claim, resolution: SourceResolution | None) -> VerifiedC
             )
         ),
         evidence_window=window,
+        normalisation_reasons=match.normalisation_reasons,
     )
 
 
@@ -374,7 +456,8 @@ def verification_metrics(rows: list[VerifiedClaim]) -> dict[str, Any]:
     readable = [row for row in cited if row.method != "fetch_failed"]
     excerpts = [row for row in cited if row.claim.excerpt]
     anchored = [row for row in excerpts if row.anchor == "found"]
-    exact_anchored = [row for row in anchored if row.method == "exact"]
+    byte_exact_anchored = [row for row in anchored if row.method == "byte_exact"]
+    normalised_anchored = [row for row in anchored if row.method == "normalised"]
     fuzzy_anchored = [row for row in anchored if row.method == "fuzzy"]
     calculations = [
         row for row in rows if row.claim.provenance_class == "analyst_calculation"
@@ -383,7 +466,8 @@ def verification_metrics(rows: list[VerifiedClaim]) -> dict[str, Any]:
         row for row in calculations if row.claim.calculation_lineage is not None
     ]
     anchor_outcomes = {
-        "exact_found": len(exact_anchored),
+        "byte_exact_found": len(byte_exact_anchored),
+        "normalised_found": len(normalised_anchored),
         "fuzzy_found": len(fuzzy_anchored),
         "fuzzy_ambiguous": sum(
             row.method == "fuzzy" and row.anchor == "ambiguous" for row in excerpts
@@ -425,9 +509,16 @@ def verification_metrics(rows: list[VerifiedClaim]) -> dict[str, Any]:
             "cited claims with a supplied verbatim excerpt",
         ),
         MetricEnvelope(
-            "exact_anchor_share",
+            "byte_exact_anchor_share",
             "anchoring_method",
-            len(exact_anchored),
+            len(byte_exact_anchored),
+            len(anchored),
+            "anchored excerpts",
+        ),
+        MetricEnvelope(
+            "normalised_anchor_share",
+            "anchoring_method",
+            len(normalised_anchored),
             len(anchored),
             "anchored excerpts",
         ),
@@ -472,14 +563,15 @@ def verification_metrics(rows: list[VerifiedClaim]) -> dict[str, Any]:
             ).to_dict(),
         }
     return {
-        "schema": "groundnut-verification-metrics/v3",
+        "schema": "groundnut-verification-metrics/v4",
         "counts": {
             "detected_claims": len(rows),
             "cited_claims": len(cited),
             "readable_citations": len(readable),
             "excerpt_claims": len(excerpts),
             "anchored_excerpts": len(anchored),
-            "exact_anchored_excerpts": len(exact_anchored),
+            "byte_exact_anchored_excerpts": len(byte_exact_anchored),
+            "normalised_anchored_excerpts": len(normalised_anchored),
             "fuzzy_anchored_excerpts": len(fuzzy_anchored),
             "analyst_calculations": len(calculations),
             "calculations_with_lineage": len(calculations_with_lineage),

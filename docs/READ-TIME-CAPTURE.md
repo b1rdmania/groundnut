@@ -1,6 +1,7 @@
 # Declared read-time capture
 
-**Declaration:** `groundnut-capture-declaration/v2`
+**Declaration:** `groundnut-capture-declaration/v2` or
+`groundnut-capture-declaration/v3`
 **Receipt:** `groundnut-read-capture/v1`
 **Batch request:** `groundnut-read-capture-request/v2`
 
@@ -29,10 +30,30 @@ text, status, media type, retrieval time, evidence window and hashes. They have
 no field for request headers, response headers, cookies, authorization values
 or connector session state. Query parameters are default-deny: the connector
 may use the original URI to fetch, but canonical identity retains only parameter
-names declared in `retained_query_parameters`. The default is an empty query.
-Credential-shaped parameter names cannot be declared retainable. User
+names declared by policy. V2 retains its global `retained_query_parameters`
+contract for byte-identical replay. V3 uses exact lower-case host entries in
+`retained_query_parameters_by_host`; an undeclared host retains no query key.
+Wildcards are not accepted. Credential-shaped parameter names cannot be
+declared retainable. User
 information is rejected. Public path segments are retained verbatim: path-word
 blocklists produce false positives and silently change the cited resource.
+
+Every v3 receipt records the query keys present, retained and non-sensitively
+dropped, plus a count of credential-shaped dropped keys. Values are never
+copied into that policy record and credential-shaped names are redacted. A
+retained value can appear only in the canonical URI, where policy explicitly
+permits it. This exposes a stripped record identifier without claiming that an
+HTTP 200 response is the requested record.
+
+## Canonical replay resolution
+
+`resolve_snapshot(reference, declaration, store)` is the public citation join.
+It canonicalizes the raw citation once, computes the one snapshot key, and
+loads only that path. It never fetches, scans another directory or retries a
+second URI. Its result keeps both raw and canonical identities and reports one
+of `snapshot_missing`, `source_changed`, `http_status`, `empty_text`,
+`incomplete_evidence_window`, or `hollow_capture` when no usable observation is
+available.
 
 `source_id` remains recorded attribution, but it is not snapshot identity. This
 is also the migration rule for snapshots produced before the URI join was made
@@ -61,7 +82,11 @@ be classified as secret.
     "connector": "public_web",
     "intent": "evidence_verification",
     "media_types": ["text/html", "application/pdf"],
-    "retained_query_parameters": []
+    "retained_query_parameters_by_host": {
+      "api.nsf.gov": ["AWD_ID"],
+      "corp.sec.state.ma.us": ["FEIN"],
+      "journals.plos.org": ["id"]
+    }
   },
   "sources": [
     {"source_id": "source-1", "uri": "https://example.test/evidence"}

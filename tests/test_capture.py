@@ -13,6 +13,8 @@ from groundnut.capture import (
     ReadTimeCaptureProducer,
     canonical_reference,
     execute_request,
+    query_policy_application,
+    validate_capture_receipt,
     validate_public_reference,
 )
 from groundnut.sources import (
@@ -356,6 +358,99 @@ def test_query_parameter_retention_must_be_declared_and_noncredential_shaped():
     ).uri == "https://example.test/article?id=42"
     with pytest.raises(ValueError, match="cannot be retained"):
         _declaration("text/html", retained=("access_token",))
+
+
+def test_v3_query_retention_is_exact_host_specific_and_normalises_uri_host_case():
+    declaration = CaptureDeclaration(
+        "public_web",
+        ("text/html",),
+        retained_query_parameters_by_host={"journals.plos.org": ("id",)},
+    )
+    retained = canonical_reference(
+        SourceReference("plos", "https://JOURNALS.PLOS.ORG/article?id=10&view=full#part"),
+        declaration,
+    )
+    dropped = canonical_reference(
+        SourceReference("other", "https://example.test/article?id=10"), declaration
+    )
+    assert retained.uri == "https://journals.plos.org/article?id=10"
+    assert dropped.uri == "https://example.test/article"
+    with pytest.raises(ValueError, match="lower-case"):
+        CaptureDeclaration(
+            "public_web",
+            ("text/html",),
+            retained_query_parameters_by_host={"Journals.Plos.org": ("id",)},
+        )
+
+
+def test_v3_receipt_exposes_query_policy_without_values_or_sensitive_names(tmp_path):
+    class Connector:
+        def resolve(self, reference):
+            return SourceResolution(source=_resolved(reference))
+
+    declaration = CaptureDeclaration(
+        "public_web",
+        ("text/html",),
+        retained_query_parameters_by_host={"api.nsf.gov": ("AWD_ID",)},
+    )
+    reference = SourceReference(
+        "award",
+        f"https://api.nsf.gov/award?AWD_ID=1234&view=full&access_token={AUTH_SENTINEL}#fragment",
+    )
+    receipt = ReadTimeCaptureProducer(
+        SnapshotStore(tmp_path), Connector(), declaration
+    ).capture(reference)
+    policy = receipt["query_policy_application"]
+    assert policy == {
+        "schema": "groundnut-query-policy-application/v1",
+        "host": "api.nsf.gov",
+        "keys_present": ["AWD_ID", "view"],
+        "keys_retained": ["AWD_ID"],
+        "non_sensitive_keys_dropped": ["view"],
+        "credential_shaped_keys_dropped_count": 1,
+    }
+    policy_serialized = json.dumps(policy)
+    assert "1234" not in policy_serialized
+    assert "access_token" not in policy_serialized
+    assert "fragment" not in receipt["acquisition"]["result"]["uri"]
+    validate_capture_receipt(receipt)
+    receipt["query_policy_application"]["keys_retained"] = []
+    with pytest.raises(ValueError, match="receipt sha256"):
+        validate_capture_receipt(receipt)
+
+
+def test_v2_declaration_replay_is_byte_identical_and_hash_validated():
+    original = _declaration("text/html", retained=("id",)).to_dict()
+    replayed = CaptureDeclaration.from_mapping(original).to_dict()
+    assert json.dumps(replayed, sort_keys=True, separators=(",", ":")) == json.dumps(
+        original, sort_keys=True, separators=(",", ":")
+    )
+    tampered = dict(original)
+    tampered["retained_query_parameters"] = []
+    with pytest.raises(ValueError, match="sha256"):
+        CaptureDeclaration.from_mapping(tampered)
+
+
+def test_v3_declaration_rejects_credential_shaped_retainable_name():
+    with pytest.raises(ValueError, match="cannot be retained"):
+        CaptureDeclaration(
+            "public_web",
+            ("text/html",),
+            retained_query_parameters_by_host={"example.test": ("session_key",)},
+        )
+
+
+def test_v3_declaration_tampering_fails_its_own_hash():
+    serialized = CaptureDeclaration(
+        "public_web",
+        ("text/html",),
+        retained_query_parameters_by_host={"journals.plos.org": ("id",)},
+    ).to_dict()
+    serialized["retained_query_parameters_by_host"] = {
+        "journals.plos.org": ["id", "article"]
+    }
+    with pytest.raises(ValueError, match="sha256"):
+        CaptureDeclaration.from_mapping(serialized)
 
 
 @pytest.mark.parametrize(

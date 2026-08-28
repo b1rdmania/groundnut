@@ -1,0 +1,22 @@
+[
+  {
+    "name": "ecfr-browser-check",
+    "html": "<title>Just a moment...</title><main>Checking your browser before accessing eCFR. Cloudflare</main>",
+    "expected": "hollow"
+  },
+  {
+    "name": "federal-register-human-check",
+    "html": "<main>Federal Register Access Denied. Verify you are human to continue.</main>",
+    "expected": "hollow"
+  },
+  {
+    "name": "massachusetts-empty-search-form",
+    "html": "<main>Corporations Division Business Entity Search. Search by entity name or identification number.</main>",
+    "expected": "complete"
+  },
+  {
+    "name": "nsf-empty-search-form",
+    "html": "<main>NSF Award Search. Please enter search criteria to search awards.</main>",
+    "expected": "complete"
+  }
+]

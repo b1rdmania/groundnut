@@ -49,12 +49,44 @@ def test_claim_rejects_blank_verification_question():
 
 
 def test_exact_and_format_normalised_excerpt_anchor():
-    assert anchor_excerpt("Revenue was $14.2M.", "Revenue was $14.2M.").anchor == "found"
+    exact = anchor_excerpt("Revenue was $14.2M.", "Revenue was $14.2M.")
+    assert (exact.anchor, exact.method, exact.normalisation_reasons) == (
+        "found",
+        "byte_exact",
+        (),
+    )
     outcome = anchor_excerpt(
         "REVENUE  WAS  $14.2M — audited", "Revenue was $14.2M - audited"
     )
     assert outcome.anchor == "found"
-    assert outcome.method == "exact"
+    assert outcome.method == "normalised"
+    assert set(outcome.normalisation_reasons) == {"case", "whitespace", "dashes"}
+
+
+@pytest.mark.parametrize(
+    ("excerpt", "source", "reason"),
+    [
+        ("Alpha BETA", "Alpha beta", "case"),
+        ("Alpha   beta", "Alpha beta", "whitespace"),
+        ("She said “yes”", 'She said "yes"', "quotes"),
+        ("Pages 4–8", "Pages 4-8", "dashes"),
+        ("Pages 4—8", "Pages 4-8", "dashes"),
+        ("Alpha: beta", "Alpha beta", "punctuation"),
+    ],
+)
+def test_normalised_matches_name_the_raw_byte_difference(excerpt, source, reason):
+    outcome = anchor_excerpt(excerpt, source)
+    assert outcome.method == "normalised"
+    assert outcome.normalisation_reasons == (reason,)
+
+
+def test_repeated_byte_exact_excerpt_is_found_without_uniqueness_claim():
+    outcome = anchor_excerpt("same bytes", "same bytes and same bytes")
+    assert (outcome.anchor, outcome.method, outcome.score) == (
+        "found",
+        "byte_exact",
+        1.0,
+    )
 
 
 def test_fuzzy_numeric_guard_refuses_wrong_amount():
@@ -177,7 +209,7 @@ def test_metrics_keep_coverage_accessibility_and_anchoring_separate():
     ]
 
     metrics = verification_metrics(rows)
-    assert metrics["schema"] == "groundnut-verification-metrics/v3"
+    assert metrics["schema"] == "groundnut-verification-metrics/v4"
     assert metrics["rates"]["citation_coverage"] == {
         "schema": "groundnut-metric-envelope/v1",
         "name": "citation_coverage",
@@ -214,3 +246,40 @@ def test_metrics_keep_fuzzy_anchors_as_their_own_population():
     assert metrics["anchor_outcome_counts"]["fuzzy_found"] == 1
     fuzzy = metrics["rates"]["fuzzy_anchor_share"]
     assert (fuzzy["numerator"], fuzzy["denominator"], fuzzy["value"]) == (1, 1, 1.0)
+
+
+def test_serialized_outcomes_and_metrics_distinguish_all_anchor_methods():
+    reference = SourceReference("s1", "https://example.test/a")
+    source = "Exact bytes. Mixed Case."
+    fuzzy_source = (
+        "The company reported consolidated revenue of "
+        "$14.2 million for the financial year ending 31 December 2025."
+    )
+    rows = [
+        verify_claim(
+            Claim("exact", "Claim", source=reference, excerpt="Exact bytes."),
+            resolved(reference, source),
+        ),
+        verify_claim(
+            Claim("normalised", "Claim", source=reference, excerpt="mixed case."),
+            resolved(reference, source),
+        ),
+        verify_claim(
+            Claim(
+                "fuzzy",
+                "Claim",
+                source=reference,
+                excerpt=(
+                    "The company reported consolidate revenue of $14.2 million for "
+                    "the financial year ending 31 December 2025."
+                ),
+            ),
+            resolved(reference, fuzzy_source),
+        ),
+    ]
+    assert [row.method for row in rows] == ["byte_exact", "normalised", "fuzzy"]
+    assert rows[1].to_dict()["normalisation_reasons"] == ["case"]
+    metrics = verification_metrics(rows)
+    assert metrics["counts"]["byte_exact_anchored_excerpts"] == 1
+    assert metrics["counts"]["normalised_anchored_excerpts"] == 1
+    assert metrics["counts"]["fuzzy_anchored_excerpts"] == 1
