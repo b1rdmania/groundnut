@@ -1,6 +1,7 @@
 import json
 import io
 import urllib.error
+from pathlib import Path
 
 from groundnut.sources import (
     EvidenceWindow,
@@ -14,6 +15,11 @@ from groundnut.sources import (
 )
 from groundnut.provenance import sha256_text
 from groundnut.verification import Claim, verify_claim
+
+
+HOLLOW_CAPTURE_FIXTURES = (
+    Path(__file__).parent / "fixtures" / "hollow_capture_cases.json"
+)
 
 
 def test_file_resolver_returns_hashed_source(tmp_path):
@@ -147,7 +153,49 @@ def test_sparse_html_shell_is_not_declared_complete():
 
     assert result.ok is True
     assert result.source.text == "Enable JavaScript"
-    assert result.source.evidence_window.truncation == "sparse"
+    assert result.source.evidence_window.truncation == "hollow"
+
+
+def test_known_interstitial_shapes_are_hollow_and_unusable():
+    fixtures = json.loads(HOLLOW_CAPTURE_FIXTURES.read_text())
+    for index, fixture in enumerate(fixtures):
+        body = fixture["html"].encode()
+        reference = SourceReference(fixture["name"], f"https://example.test/{index}")
+        result = HttpResolver(opener=lambda request, timeout, body=body: _Response(body)).resolve(reference)
+        assert result.source.evidence_window.truncation == fixture["expected"]
+        if fixture["expected"] != "hollow":
+            continue
+        checked = verify_claim(
+            Claim("challenge", "Claim", source=reference, excerpt=result.source.text),
+            result,
+        )
+        assert checked.outcome == "evidence_window_incomplete"
+        assert checked.anchor == "not_found"
+
+
+def test_normal_short_record_and_long_article_with_block_word_remain_complete():
+    short = b"<article>Grant AWD_ID 1234 was awarded on 2 May 2026.</article>"
+    long = (
+        "<article>" + "Primary record detail. " * 300 +
+        "The article discusses Cloudflare and cookie policy in context.</article>"
+    ).encode()
+    for body in (short, long):
+        result = HttpResolver(opener=lambda request, timeout, body=body: _Response(body)).resolve(
+            SourceReference("record", "https://example.test/record")
+        )
+        assert result.source.evidence_window.truncation == "complete"
+
+
+def test_hollow_snapshot_round_trip_preserves_classification(tmp_path):
+    reference = SourceReference("challenge", "https://example.test/challenge")
+    result = HttpResolver(
+        opener=lambda request, timeout: _Response(b"<main>Verify you are human to continue.</main>")
+    ).resolve(reference)
+    store = SnapshotStore(tmp_path)
+    store.archive(result.source)
+    replay = store.load(reference)
+    assert replay.ok
+    assert replay.source.evidence_window.truncation == "hollow"
 
 
 def test_existing_complete_empty_snapshot_migrates_on_read(tmp_path):

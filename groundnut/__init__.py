@@ -66,7 +66,14 @@ from .sources import (
     SourceReference,
     SourceResolution,
 )
-from .capture import CaptureDeclaration, ReadTimeCaptureProducer, capture_receipt
+from .capture import (
+    CaptureDeclaration,
+    ReadTimeCaptureProducer,
+    SnapshotResolution,
+    capture_receipt,
+    resolve_snapshot,
+    validate_capture_receipt,
+)
 from .arena import (
     ArenaPolicy,
     ArenaReport,
@@ -258,6 +265,7 @@ __all__ = [
     "RunManifest",
     "RuntimeComponent",
     "SnapshotStore",
+    "SnapshotResolution",
     "SnapshotFirstResolver",
     "SourceAcquisition",
     "SourceAnchor",
@@ -298,6 +306,8 @@ __all__ = [
     "component_input_sha256",
     "check_claims",
     "capture_receipt",
+    "resolve_snapshot",
+    "validate_capture_receipt",
     "build_present_irrelevant_candidates",
     "build_pilot_probe",
     "import_legalbenchrag",

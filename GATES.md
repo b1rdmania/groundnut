@@ -100,6 +100,19 @@ This result admits only the documented syntax contract. It does not establish
 representative accuracy on arbitrary reports or malformed markup. Those larger
 claims remain unmeasured.
 
+## 2b. Mechanical excerpt-anchoring metrics
+
+Verification metrics v4 keeps the stable anchor outcomes (`found`, `ambiguous`,
+`not_found`) while separating the method populations:
+
+- `byte_exact`: the raw excerpt occurs verbatim in the stored evidence window;
+- `normalised`: the excerpt occurs only after named case, whitespace, quote,
+  dash or punctuation normalisation;
+- `fuzzy`: approximate anchoring, still subject to the numeric-token guard.
+
+These metrics measure mechanical presence only. They do not enter or replace
+the semantic-support admission gate above, and none is a truth verdict.
+
 ## 3. Domain qualification gates
 
 A generic support detector does not prove that Groundnut extracts the right

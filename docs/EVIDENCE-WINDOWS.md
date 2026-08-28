@@ -3,7 +3,7 @@
 **Frozen:** 25 August 2026  
 **Snapshot schema:** `groundnut-source-snapshot/v2`
 
-Groundnut verifies excerpts only against the normalized text it captured. A
+Groundnut verifies excerpts only against the text it captured. A
 failed search is an `excerpt_not_found` result only when that searchable window
 is known complete. When capture was truncated, or a legacy/host producer cannot
 establish completeness, the honest result is `evidence_window_incomplete`.
@@ -28,14 +28,23 @@ Every successful v2 snapshot carries `evidence_window`:
 
 `original_*` describes the acquired representation before text extraction and
 is nullable when the producer cannot know it. `captured_*` and `text_sha256`
-describe the exact normalized text searched by verification. Extraction can
+describe the exact stored text searched by verification. Extraction can
 legitimately make captured text shorter than the original without implying
 truncation; `truncation` is an explicit producer statement with values
-`complete`, `truncated`, `unknown`, `empty`, or `sparse`. `empty` means text
+`complete`, `truncated`, `unknown`, `empty`, `sparse`, or `hollow`. `empty` means text
 normalization yielded no searchable characters. `sparse` is the built-in HTML
 producer's fail-closed classification for less than 1,024 visible characters
 from a response of at least 4,096 bytes. Neither state permits Groundnut to
 conclude that a missing excerpt was searched-and-absent.
+
+`hollow` is a high-confidence unusable observation: a bounded CAPTCHA/human
+check, access-denied page, JavaScript-required shell, Cloudflare/browser check,
+rate-limit response, subscription/sign-in wall, or cookie-only wall. Detection
+is performed once during built-in HTML extraction and is bounded by visible
+text length so a genuine long article mentioning Cloudflare or cookies remains
+`complete`. A hollow window is indeterminate, is never a successful evidence
+observation, and cannot be upgraded to claim support even when challenge-page
+text matches an excerpt.
 
 The object is invalid unless captured lengths and `text_sha256` match the
 snapshot text. Known lengths must be non-negative. A producer may declare
@@ -66,3 +75,12 @@ an excerpt found inside that snapshot remains `excerpt_found`.
 
 Failure snapshots remain `groundnut-source-failure-snapshot/v1`; they contain
 no searchable evidence window.
+
+## Mechanical anchor methods
+
+`byte_exact` proves that the supplied excerpt is a verbatim substring of the
+stored evidence window. `normalised` proves presence only after named mechanical
+changes (`case`, `whitespace`, `quotes`, `dashes`, and/or `punctuation`). `fuzzy`
+remains a separate approximate population with the numeric guard. None of these
+methods proves semantic support or truth. Semantic-support admission remains
+the separate project tracked in issue #18.

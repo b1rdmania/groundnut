@@ -7,6 +7,31 @@ moved out of the original CUAD compatibility path.
 The migration is additive: compatibility behaviour remains stable while the IC
 loop adopts the canonical checking and ledger contracts deliberately.
 
+## 0.1.0a15 snapshot-qualification migration
+
+Issue #40 replaces the mechanically misleading quotation method `exact` with
+`byte_exact` for raw substring presence and `normalised` for presence after
+named transformations. Verification metrics v4 publishes byte-exact,
+normalised and fuzzy populations separately; the top-level `found`,
+`ambiguous`, and `not_found` outcomes remain stable. Neither presence method
+establishes semantic support or truth; issue #18 remains the separate admission
+project.
+
+Capture declaration v3 replaces the global retain list with exact-host query
+policies and makes policy application visible in v3 receipts without query
+values or credential-shaped names. V2 declarations and receipts continue to
+replay without changing their bytes or hashes. Consumers should replace custom
+URI joins with `resolve_snapshot()`, which is replay-only and returns typed
+failures for missing, corrupt, HTTP-failed, empty, incomplete, and hollow
+observations.
+
+After a Groundnut release is pinned and the sealed Phase 1/2 qualification
+passes (215 indexed citations; 205 byte-exact excerpts; nine locator-only; one
+reference-only; zero unusable), the IC pipeline may remove its temporary hollow
+capture scanner, direct substring checks, evidence-resolution adapter, and
+consumer-specific snapshot joins. Those pipeline changes are intentionally not
+part of this Groundnut change.
+
 ## Landed in Groundnut
 
 - Versioned domain packs with category and document-type taxonomies.
@@ -32,8 +57,8 @@ loop adopts the canonical checking and ledger contracts deliberately.
   questions, kept independent from support and authority.
 - Hash-bound calculation formulas, unique named inputs, and checked
   source-claim references, without upgrading declared arithmetic to support.
-- Denominator-safe mechanical metric envelopes with exact and fuzzy anchor
-  populations kept separate.
+- Denominator-safe mechanical metric envelopes with byte-exact, normalised and
+  fuzzy anchor populations kept separate.
 - Explicit segmenter identity bound into artifact extraction and canonical run
   manifests.
 - Generic render-bound evidence parity with explicit excluded regions,

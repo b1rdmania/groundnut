@@ -44,7 +44,9 @@ quotation presence, semantic support, evidence authority, and truth separate.
 - Snapshots disclose the exact searched evidence window, its extraction method,
   and whether capture was complete, truncated, empty, sparse, or historically
   unknown.
-- Exact and fuzzy quotation anchoring preserve honest ambiguity and failure states.
+- Byte-exact, named-normalisation and fuzzy quotation anchoring preserve honest
+  ambiguity and failure states. These are mechanical presence checks, not
+  semantic-support or truth judgments.
 - A missing excerpt is reported as `evidence_window_incomplete` instead of
   `excerpt_not_found` when the stored window could have hidden it.
 - `groundnut-equivalence` compares the evidence content of a live run with its
