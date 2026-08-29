@@ -107,6 +107,14 @@ def _declaration(*media_types, retained=()):
     )
 
 
+def _rehash_receipt(receipt):
+    payload = {key: value for key, value in receipt.items() if key != "sha256"}
+    receipt["sha256"] = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return receipt
+
+
 def _pdf_text() -> tuple[bytes, str]:
     writer = PdfWriter()
     page = writer.add_blank_page(width=300, height=300)
@@ -421,6 +429,108 @@ def test_v3_receipt_exposes_query_policy_without_values_or_sensitive_names(tmp_p
     validate_capture_receipt(receipt)
     receipt["query_policy_application"]["keys_retained"] = []
     with pytest.raises(ValueError, match="receipt sha256"):
+        validate_capture_receipt(receipt)
+
+
+def test_v2_receipt_replay_preserves_absence_of_query_policy_metadata(tmp_path):
+    class Connector:
+        def resolve(self, reference):
+            return SourceResolution(source=_resolved(reference))
+
+    receipt = ReadTimeCaptureProducer(
+        SnapshotStore(tmp_path),
+        Connector(),
+        _declaration("text/html", retained=("id",)),
+    ).capture(SourceReference("article", "https://example.test/article?id=42"))
+    serialized = json.dumps(receipt, sort_keys=True, separators=(",", ":"))
+
+    assert "query_policy_application" not in receipt
+    assert validate_capture_receipt(receipt) == receipt
+    assert json.dumps(receipt, sort_keys=True, separators=(",", ":")) == serialized
+
+
+def test_v3_receipt_with_hash_consistent_missing_query_policy_fails(tmp_path):
+    class Connector:
+        def resolve(self, reference):
+            return SourceResolution(source=_resolved(reference))
+
+    declaration = CaptureDeclaration(
+        "public_web",
+        ("text/html",),
+        retained_query_parameters_by_host={"example.test": ("id",)},
+    )
+    receipt = ReadTimeCaptureProducer(
+        SnapshotStore(tmp_path), Connector(), declaration
+    ).capture(SourceReference("article", "https://example.test/article?id=42"))
+    receipt.pop("query_policy_application")
+    _rehash_receipt(receipt)
+
+    with pytest.raises(ValueError, match="requires query_policy_application"):
+        validate_capture_receipt(receipt)
+
+
+def test_v2_receipt_with_hash_consistent_query_policy_metadata_fails(tmp_path):
+    class Connector:
+        def resolve(self, reference):
+            return SourceResolution(source=_resolved(reference))
+
+    receipt = ReadTimeCaptureProducer(
+        SnapshotStore(tmp_path), Connector(), _declaration("text/html")
+    ).capture(SourceReference("article", "https://example.test/article"))
+    receipt["query_policy_application"] = {
+        "schema": "groundnut-query-policy-application/v1",
+        "host": "example.test",
+        "keys_present": [],
+        "keys_retained": [],
+        "non_sensitive_keys_dropped": [],
+        "credential_shaped_keys_dropped_count": 0,
+    }
+    _rehash_receipt(receipt)
+
+    with pytest.raises(ValueError, match="v2 capture receipt must not contain"):
+        validate_capture_receipt(receipt)
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda policy: policy.update({"query_values": {"id": "42"}}),
+        lambda policy: policy.__setitem__("schema", "groundnut-query-policy-application/v2"),
+        lambda policy: policy.__setitem__("host", "other.test"),
+        lambda policy: policy.__setitem__("keys_present", "id"),
+        lambda policy: policy.__setitem__("keys_present", ["id", "id"]),
+        lambda policy: policy.__setitem__("keys_retained", ["missing"]),
+        lambda policy: policy.__setitem__("non_sensitive_keys_dropped", ["missing"]),
+        lambda policy: policy.__setitem__("non_sensitive_keys_dropped", ["id"]),
+        lambda policy: policy.__setitem__("credential_shaped_keys_dropped_count", -1),
+        lambda policy: policy.__setitem__("credential_shaped_keys_dropped_count", True),
+    ],
+)
+def test_v3_receipt_with_hash_consistent_malformed_query_policy_fails(
+    tmp_path, mutate
+):
+    class Connector:
+        def resolve(self, reference):
+            return SourceResolution(source=_resolved(reference))
+
+    declaration = CaptureDeclaration(
+        "public_web",
+        ("text/html",),
+        retained_query_parameters_by_host={"example.test": ("id",)},
+    )
+    receipt = ReadTimeCaptureProducer(
+        SnapshotStore(tmp_path), Connector(), declaration
+    ).capture(
+        SourceReference(
+            "article",
+            f"https://example.test/article?id=42&view=full&access_token={AUTH_SENTINEL}",
+        )
+    )
+
+    mutate(receipt["query_policy_application"])
+    _rehash_receipt(receipt)
+
+    with pytest.raises(ValueError):
         validate_capture_receipt(receipt)
 
 
