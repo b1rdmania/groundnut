@@ -474,8 +474,76 @@ def validate_capture_receipt(value: Mapping[str, Any]) -> dict[str, Any]:
     payload = {key: item for key, item in value.items() if key != "sha256"}
     if value["sha256"] != _canonical_sha256(payload):
         raise ValueError("capture receipt sha256 does not match its content")
-    CaptureDeclaration.from_mapping(value.get("declaration", {}))
+    declaration = CaptureDeclaration.from_mapping(value.get("declaration", {}))
+    if declaration.schema.endswith("/v3"):
+        _validate_query_policy_application(
+            value.get("query_policy_application"), value.get("acquisition", {})
+        )
+    elif "query_policy_application" in value:
+        raise ValueError("v2 capture receipt must not contain query_policy_application")
     return dict(value)
+
+
+def _validate_query_policy_application(value: Any, acquisition: Any) -> None:
+    if not isinstance(value, Mapping):
+        raise ValueError("v3 capture receipt requires query_policy_application")
+    expected_fields = {
+        "schema",
+        "host",
+        "keys_present",
+        "keys_retained",
+        "non_sensitive_keys_dropped",
+        "credential_shaped_keys_dropped_count",
+    }
+    if set(value) != expected_fields:
+        raise ValueError("query_policy_application has unknown or missing fields")
+    if value["schema"] != "groundnut-query-policy-application/v1":
+        raise ValueError("unsupported query_policy_application schema")
+    host = value["host"]
+    if not isinstance(host, str) or not host:
+        raise ValueError("query_policy_application host must be a non-empty string")
+    if host != _capture_receipt_result_host(acquisition):
+        raise ValueError("query_policy_application host does not match acquisition")
+    present = _query_policy_string_array(value["keys_present"], "keys_present")
+    retained = _query_policy_string_array(value["keys_retained"], "keys_retained")
+    dropped = _query_policy_string_array(
+        value["non_sensitive_keys_dropped"], "non_sensitive_keys_dropped"
+    )
+    retained_set = set(retained)
+    dropped_set = set(dropped)
+    if not retained_set.issubset(present) or not dropped_set.issubset(present):
+        raise ValueError("query_policy_application key arrays are inconsistent")
+    if retained_set & dropped_set:
+        raise ValueError("query_policy_application retained and dropped keys overlap")
+    count = value["credential_shaped_keys_dropped_count"]
+    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+        raise ValueError(
+            "query_policy_application credential_shaped_keys_dropped_count "
+            "must be a non-negative integer"
+        )
+
+
+def _capture_receipt_result_host(acquisition: Any) -> str:
+    if not isinstance(acquisition, Mapping):
+        raise ValueError("capture receipt acquisition must be an object")
+    result = acquisition.get("result")
+    if not isinstance(result, Mapping):
+        raise ValueError("capture receipt acquisition result must be an object")
+    uri = result.get("uri")
+    if not isinstance(uri, str):
+        raise ValueError("capture receipt acquisition result uri must be a string")
+    host = urlsplit(uri).hostname
+    if not host:
+        raise ValueError("capture receipt acquisition result uri must include a host")
+    return host
+
+
+def _query_policy_string_array(value: Any, field: str) -> set[str]:
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ValueError(f"query_policy_application {field} must be a string array")
+    if len(value) != len(set(value)):
+        raise ValueError(f"query_policy_application {field} must contain unique strings")
+    return set(value)
 
 
 def execute_request(
