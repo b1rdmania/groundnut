@@ -131,6 +131,28 @@ def test_snapshot_preferred_archives_failure_taxonomy_for_replay(tmp_path):
     assert live.calls == 1
 
 
+def test_snapshot_preferred_retries_archived_pdf_worker_timeout(tmp_path):
+    store = SnapshotStore(tmp_path)
+    store.archive_failure(
+        REFERENCE,
+        SourceResolution(
+            source=None,
+            failure="pdf_unsupported",
+            detail="pdf_worker_timeout",
+        ),
+    )
+    live = FakeResolver(resolved("recovered PDF text"))
+
+    result = SnapshotFirstResolver(
+        store, live, mode="snapshot_preferred"
+    ).acquire(REFERENCE)
+
+    assert result.strategy == "live_archived"
+    assert result.resolution.source.text == "recovered PDF text"
+    assert store.load(REFERENCE).source.text == "recovered PDF text"
+    assert live.calls == 1
+
+
 def test_replay_preserves_truncated_window_and_verification_classification(tmp_path):
     captured = "Permit issued before the capture boundary."
     source = ResolvedSource(

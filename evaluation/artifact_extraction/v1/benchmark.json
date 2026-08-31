@@ -2,7 +2,7 @@
   "schema": "groundnut-artifact-extraction-benchmark/v1",
   "frozen_at": "2026-08-25T16:00:00Z",
   "profile": "profile.json",
-  "profile_file_sha256": "bfa791c2dede0db983cfc69cc060b3dfbafd5784dd28c57deb92e3452e7bb049",
+  "profile_file_sha256": "10edca50e7b30abb2ce3511404db4d04f928ecb3b2afac81545138e4b3f2dfc1",
   "thresholds": {
     "precision": 1.0,
     "recall": 1.0,
@@ -17,10 +17,10 @@
       "artifact": "fixtures/memo.json",
       "artifact_sha256": "5cee70e45cbda2d8adca334b94a0a596b92d7609ce0c5a7ecf93c249942be7a1",
       "expected": [
-        {"text": "Northstar Materials reported revenue of $4.2 million in 2025.", "source_uri": "https://example.test/filing", "excerpt": "Revenue for 2025 was $4.2 million.", "locator": null, "question": "What revenue did the filing report for 2025?", "declared_analysis": false, "provenance_class": "external_evidence", "category": "cited_quote"},
-        {"text": "The Ohio operating licence was active on 30 June 2026.", "source_uri": "https://example.test/registry", "excerpt": null, "locator": "table: licence status at 30 June 2026", "question": null, "declared_analysis": false, "provenance_class": "external_evidence", "category": "cited_locator"},
-        {"text": "Modelled gross margin is 72%.", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": true, "provenance_class": "analyst_calculation", "category": "declared_analysis"},
-        {"text": "Management reports six active pilots.", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "company_assertion", "category": "typed_unsourced"}
+        {"text": "Northstar Materials reported revenue of $4.2 million in 2025.", "source_uri": "https://example.test/filing", "excerpt": "Revenue for 2025 was $4.2 million.", "locator": null, "question": "What revenue did the filing report for 2025?", "declared_analysis": false, "provenance_class": "external_evidence", "location": "claims[0]", "category": "cited_quote"},
+        {"text": "The Ohio operating licence was active on 30 June 2026.", "source_uri": "https://example.test/registry", "excerpt": null, "locator": "table: licence status at 30 June 2026", "question": null, "declared_analysis": false, "provenance_class": "external_evidence", "location": "claims[1]", "category": "cited_locator"},
+        {"text": "Modelled gross margin is 72%.", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": true, "provenance_class": "analyst_calculation", "location": "claims[2]", "category": "declared_analysis"},
+        {"text": "Management reports six active pilots.", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "company_assertion", "location": "claims[3]", "category": "typed_unsourced"}
       ]
     },
     {
@@ -29,15 +29,15 @@
       "artifact": "fixtures/report.html",
       "artifact_sha256": "3a6cc0c85657a06994d4cd4df9361f94e6b51cfd8986bf6bf6ff753fc2dc0b07",
       "expected": [
-        {"text": "Northstar Materials reported revenue of $4.2 million in 2025 according to the annual filing.", "source_uri": "https://example.test/filing", "excerpt": "Revenue for 2025 was $4.2 million.", "locator": null, "question": "What revenue did the filing report for 2025?", "declared_analysis": false, "provenance_class": "unclassified", "category": "cited_quote"},
-        {"text": "Management expects ARR to reach $8 million next year.", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "category": "uncited_numeric"},
-        {"text": "The Ohio registry entry lists the operating licence as active.", "source_uri": "https://example.test/registry", "excerpt": null, "locator": "table: licence status at 30 June 2026", "question": null, "declared_analysis": false, "provenance_class": "unclassified", "category": "cited_locator"},
-        {"text": "Modelled gross margin is 72%.", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": true, "provenance_class": "analyst_inference", "category": "declared_analysis"},
-        {"text": "Management reports six active pilots.", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "company_assertion", "category": "typed_unsourced"},
-        {"text": "Monthly burn", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "category": "table_label"},
-        {"text": "$120,000", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "category": "table_numeric"},
-        {"text": "Headcount", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "category": "table_label"},
-        {"text": "14", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "category": "table_numeric"}
+        {"text": "Northstar Materials reported revenue of $4.2 million in 2025 according to the annual filing.", "source_uri": "https://example.test/filing", "excerpt": "Revenue for 2025 was $4.2 million.", "locator": null, "question": "What revenue did the filing report for 2025?", "declared_analysis": false, "provenance_class": "unclassified", "location": "line 8", "category": "cited_quote"},
+        {"text": "Management expects ARR to reach $8 million next year.", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "location": "line 8", "category": "uncited_numeric"},
+        {"text": "The Ohio registry entry lists the operating licence as active.", "source_uri": "https://example.test/registry", "excerpt": null, "locator": "table: licence status at 30 June 2026", "question": null, "declared_analysis": false, "provenance_class": "unclassified", "location": "line 10", "category": "cited_locator"},
+        {"text": "Modelled gross margin is 72%.", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": true, "provenance_class": "analyst_inference", "location": "line 12", "category": "declared_analysis"},
+        {"text": "Management reports six active pilots.", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "company_assertion", "location": "line 14", "category": "typed_unsourced"},
+        {"text": "Monthly burn", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "location": "line 22", "category": "table_label"},
+        {"text": "$120,000", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "location": "line 23", "category": "table_numeric"},
+        {"text": "Headcount", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "location": "line 26", "category": "table_label"},
+        {"text": "14", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "location": "line 27", "category": "table_numeric"}
       ]
     },
     {
@@ -46,13 +46,13 @@
       "artifact": "fixtures/report.md",
       "artifact_sha256": "e837597327a68e38a4dd1fcca255d1d2c1fe61dc941ffcf7063827a1b775adc2",
       "expected": [
-        {"text": "Northstar Materials reported revenue of $4.2 million in 2025 according to the annual filing.", "source_uri": "https://example.test/filing", "excerpt": "Revenue for 2025 was $4.2 million.", "locator": null, "question": "What revenue did the filing report for 2025?", "declared_analysis": false, "provenance_class": "unclassified", "category": "cited_quote"},
-        {"text": "Management expects ARR to reach $8 million next year.", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "category": "uncited_numeric"},
-        {"text": "Monthly burn", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "category": "table_label"},
-        {"text": "$120,000", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "category": "table_numeric"},
-        {"text": "Headcount", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "category": "table_label"},
-        {"text": "14", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "category": "table_numeric"},
-        {"text": "Modelled gross margin is 72%.", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": true, "provenance_class": "analyst_inference", "category": "declared_analysis"}
+        {"text": "Northstar Materials reported revenue of $4.2 million in 2025 according to the annual filing.", "source_uri": "https://example.test/filing", "excerpt": "Revenue for 2025 was $4.2 million.", "locator": null, "question": "What revenue did the filing report for 2025?", "declared_analysis": false, "provenance_class": "unclassified", "location": "line 7", "category": "cited_quote"},
+        {"text": "Management expects ARR to reach $8 million next year.", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "location": "line 7", "category": "uncited_numeric"},
+        {"text": "Monthly burn", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "location": "line 11", "category": "table_label"},
+        {"text": "$120,000", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "location": "line 11", "category": "table_numeric"},
+        {"text": "Headcount", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "location": "line 12", "category": "table_label"},
+        {"text": "14", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": false, "provenance_class": "unclassified", "location": "line 12", "category": "table_numeric"},
+        {"text": "Modelled gross margin is 72%.", "source_uri": null, "excerpt": null, "locator": null, "question": null, "declared_analysis": true, "provenance_class": "analyst_inference", "location": "line 14", "category": "declared_analysis"}
       ]
     }
   ]

@@ -6,7 +6,7 @@ buckets:
 
 | bucket | meaning |
 |---|---|
-| `excerpt_found` | the cited excerpt was found verbatim in the source snapshot |
+| `excerpt_found` | the cited excerpt was found byte-exactly or through a named mechanical normalisation in the source snapshot |
 | `citation_unconfirmed` | evidence is declared but the excerpt was `excerpt_not_found`, the `evidence_window_incomplete`, the quote was ambiguous, no excerpt was supplied, the source was unavailable, or a preserved bare locator was `unresolvable_source` |
 | `own_reasoning` | no citation, or declared analysis; split into `declared`, `numeric` (carries a number, %, currency, or multiplier), `narrative` |
 

@@ -57,9 +57,9 @@ quotation presence, semantic support, evidence authority, and truth separate.
 - Snapshots disclose the exact searched evidence window, its extraction method,
   and whether capture was complete, truncated, empty, sparse, hollow, or
   historically unknown.
-- Byte-exact, named-normalisation and fuzzy quotation anchoring preserve honest
-  ambiguity and failure states. These are mechanical presence checks, not
-  semantic-support or truth judgments.
+- Byte-exact and named-normalisation quotation anchoring are the only methods
+  that establish mechanical presence. Fuzzy similarity is diagnostic-only and
+  preserves ambiguity; none is a semantic-support or truth judgment.
 - Bare locators for confidential or physical sources remain in the claim
   population as explicitly unresolvable evidence instead of becoming uncited
   own reasoning.
@@ -77,19 +77,19 @@ quotation presence, semantic support, evidence authority, and truth separate.
   anomalies are counted in the ledger.
 - Annotation conflicts are exposed without hard-coding a consuming product's
   writing policy into the engine.
-- Segmenter v3 Markdown, rendered HTML and structured memo extraction pass the frozen
+- Segmenter v5 Markdown, nesting-aware rendered HTML and structured memo extraction pass the frozen
   20-claim supported-syntax admission pack with `1.000` precision, recall,
   field accuracy and location coverage. This is conformance evidence, not a
-  representative arbitrary-document accuracy claim. Segmenter v4 adds bare
-  locator preservation under deterministic regression tests; it has not
-  inherited v3's frozen admission result.
+  representative arbitrary-document accuracy claim. Expected structured-row,
+  Markdown-line and normalized-HTML locations are part of the frozen gold.
 - The last preserved RxClarity population measurement was produced on `a3`:
   567 units, 105 citation-bearing (18.5%), 462 own reasoning, and 125 undeclared
   numerics. It is historical context, not an `a4` or later measurement.
 
 Groundnut does not currently decide that a paraphrase is semantically supported
 or contradicted. The learned semantic-support gate is **NOT MEASURED** and only
-the mechanical byte-exact/normalised/fuzzy anchoring baseline is admitted. A
+the mechanical byte-exact/normalised anchoring baseline is admitted. Approximate
+similarity remains an ambiguity diagnostic. A
 high own-reasoning share is a finding about a report, not a pipeline failure,
 and the pipeline must not edit the report merely to improve that number.
 

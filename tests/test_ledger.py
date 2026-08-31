@@ -85,7 +85,7 @@ def test_ledger_puts_every_prose_unit_in_exactly_one_bucket(tmp_path):
     by_detail = ledger.counts["by_detail"]
     assert ledger.counts["units"] == 7
     assert by_detail == {
-        "excerpt_found:found": 1,
+        "excerpt_found:found_byte_exact": 1,
         "citation_unconfirmed:excerpt_not_found": 1,
         "own_reasoning:numeric": 1,
         "own_reasoning:narrative": 4,
@@ -99,6 +99,8 @@ def test_ledger_puts_every_prose_unit_in_exactly_one_bucket(tmp_path):
     assert {row.bucket for row in ledger.rows} <= set(BUCKETS)
     cited = [row for row in ledger.rows if row.bucket != "own_reasoning"]
     assert all(row.support_status == "insufficient" for row in cited)
+    found = [row for row in cited if row.bucket == "excerpt_found"]
+    assert found[0].anchor_method == "byte_exact"
     assert ledger.segmenter.sha256 == LedgerSegmenter().sha256
     assert ledger.to_dict()["sha256"] == ledger.sha256
 
@@ -118,6 +120,16 @@ def test_ledger_discloses_incomplete_evidence_window(tmp_path):
     rendered = render_ledger_markdown(ledger)
     assert "evidence_window_incomplete" in rendered
     assert "window=truncated:" in rendered
+
+
+def test_hollow_evidence_window_is_reported_without_crashing_ledger(tmp_path):
+    artifact, execution = _run(tmp_path, truncation="hollow")
+
+    ledger = build_claim_ledger(execution, artifact.read_text())
+
+    assert any(
+        row.evidence_window_truncation == "hollow" for row in ledger.rows
+    )
 
 
 def test_legacy_run_without_window_metadata_cannot_claim_excerpt_absence(tmp_path):
@@ -200,7 +212,7 @@ def test_ledger_cli_writes_json_and_markdown(tmp_path):
     )
     assert code == 0
     payload = json.loads(out.read_text())
-    assert payload["schema"] == "groundnut-claim-ledger/v4"
+    assert payload["schema"] == "groundnut-claim-ledger/v5"
     text = md.read_text()
     assert "Report's own reasoning" in text
     assert "$184,000" in text

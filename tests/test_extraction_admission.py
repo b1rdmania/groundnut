@@ -1,9 +1,10 @@
 import json
 from pathlib import Path
+import shutil
 
 import pytest
 
-from groundnut.extraction_admission import evaluate, render_markdown
+from groundnut.extraction_admission import evaluate, main, render_markdown
 
 
 ROOT = Path(__file__).parent.parent
@@ -53,3 +54,42 @@ def test_benchmark_refuses_changed_fixture_bytes(tmp_path):
 
     with pytest.raises(ValueError, match="frozen hash"):
         evaluate(copied / "benchmark.json")
+
+
+def test_below_bar_pack_is_rejected_and_cli_returns_one(tmp_path):
+    copied = tmp_path / "pack"
+    shutil.copytree(BENCHMARK.parent, copied)
+    benchmark_path = copied / "benchmark.json"
+    benchmark = json.loads(benchmark_path.read_text())
+    benchmark["cases"][0]["expected"][0]["text"] = "A deliberately missed claim."
+    benchmark_path.write_text(json.dumps(benchmark))
+
+    result = evaluate(benchmark_path)
+    out = tmp_path / "result.json"
+
+    assert result["status"] == "rejected"
+    assert main(["--benchmark", str(benchmark_path), "--out", str(out)]) == 1
+    assert json.loads(out.read_text())["status"] == "rejected"
+
+
+def test_wrong_expected_location_rejects_the_pack(tmp_path):
+    copied = tmp_path / "pack"
+    shutil.copytree(BENCHMARK.parent, copied)
+    benchmark_path = copied / "benchmark.json"
+    benchmark = json.loads(benchmark_path.read_text())
+    benchmark["cases"][0]["expected"][0]["location"] = "claims[999]"
+    benchmark_path.write_text(json.dumps(benchmark))
+
+    result = evaluate(benchmark_path)
+
+    assert result["status"] == "rejected"
+    assert result["aggregate"]["field_accuracy"] < 1.0
+
+
+def test_malformed_pack_cli_returns_two(tmp_path):
+    malformed = tmp_path / "malformed.json"
+    malformed.write_text("{}")
+
+    assert main(
+        ["--benchmark", str(malformed), "--out", str(tmp_path / "out.json")]
+    ) == 2

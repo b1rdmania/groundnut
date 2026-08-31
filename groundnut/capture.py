@@ -444,6 +444,13 @@ class ReadTimeCaptureProducer:
 
     def capture(self, reference: SourceReference) -> dict[str, Any]:
         canonical = canonical_reference(reference, self.declaration)
+        public_identity = _public_raw_identity(reference)
+        self.snapshots.claim_canonical_identity(
+            canonical,
+            public_raw_identity_sha256=hashlib.sha256(
+                public_identity.encode()
+            ).hexdigest(),
+        )
         resolver = SnapshotFirstResolver(
             self.snapshots,
             _DeclaredResolver(
@@ -612,3 +619,27 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     print(json.dumps({"status": "captured", "receipts": len(result["receipts"]), "sha256": result["sha256"]}, sort_keys=True))
     return 0
+
+
+def _public_raw_identity(reference: SourceReference) -> str:
+    """Compare raw identities without retaining credential-shaped query data."""
+
+    parsed = urlsplit(reference.uri)
+    public_query = [
+        (key, value)
+        for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+        if not _SENSITIVE_QUERY_KEY.search(key)
+    ]
+    return urlunsplit(
+        (
+            parsed.scheme.lower(),
+            parsed.netloc.lower(),
+            parsed.path,
+            urlencode(sorted(public_query)),
+            "",
+        )
+    )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

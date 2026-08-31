@@ -1,5 +1,6 @@
 import hashlib
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -21,6 +22,7 @@ from groundnut.support_cases import (
     contexts_sha256,
 )
 from groundnut.support_gate_cli import main as gate_main
+from groundnut.support_eval import SupportGold, score_support
 from groundnut.support_runner import run_support_probe
 
 
@@ -211,6 +213,53 @@ def test_admission_fails_material_kind_regression_even_with_aggregate_gain():
     assert report.candidate_value > report.baseline_value
     assert report.passed is False
     assert any("verbatim_supported" in failure for failure in report.failures)
+
+
+@pytest.mark.parametrize("role", ["baseline", "candidate"])
+def test_admission_rejects_incomplete_runs(role):
+    plan, baseline, perfect, _ = setup_runs()
+    chosen = baseline if role == "baseline" else perfect
+    value = json.loads(json.dumps(chosen.to_dict()))
+    value["assessments"].pop()
+    value["complete"] = False
+    gold = [
+        SupportGold(
+            case_id=str(row["case_id"]),
+            expected_status=str(row["expected_status"]),
+            kind=str(row["kind"]),
+        )
+        for row in value["gold"]
+    ]
+    predictions = [
+        SimpleNamespace(
+            claim_id=row["support"]["claim_id"],
+            status=row["support"]["status"],
+        )
+        for row in value["assessments"]
+    ]
+    value["score"] = score_support(gold, predictions)
+    rehash(value)
+    incomplete = RecordedProbeRun.from_mapping(value)
+    baseline_record = (
+        incomplete
+        if role == "baseline"
+        else RecordedProbeRun.from_mapping(baseline.to_dict())
+    )
+    candidate_record = (
+        incomplete
+        if role == "candidate"
+        else RecordedProbeRun.from_mapping(perfect.to_dict())
+    )
+
+    report = evaluate_support_admission(
+        plan,
+        baseline_record,
+        candidate_record,
+        probe=current_probe_for(plan),
+    )
+
+    assert report.passed is False
+    assert f"{role} run is incomplete" in report.failures
 
 
 def test_recorded_run_rejects_a_rehashed_but_fabricated_score():

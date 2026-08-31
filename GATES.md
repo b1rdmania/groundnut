@@ -90,8 +90,8 @@ missing measurement is not a failure, but it is also not evidence of quality.
 
 Current status: **ADMITTED** for the frozen supported-syntax pack.
 
-Segmenter version 3 scores `1.000` precision, recall, field accuracy and
-location coverage over 20 sanitized claims spanning Markdown, rendered HTML
+Segmenter version 5 scores `1.000` precision, recall, field accuracy and
+labelled-location accuracy over 20 sanitized claims spanning Markdown, rendered HTML
 and structured memo JSON. Fixture and profile bytes are frozen and checked by
 the evaluator. The public receipt is
 `results/artifact-extraction-admission-v1.json`.
@@ -108,7 +108,8 @@ Verification metrics v4 keeps the stable anchor outcomes (`found`, `ambiguous`,
 - `byte_exact`: the raw excerpt occurs verbatim in the stored evidence window;
 - `normalised`: the excerpt occurs only after named case, whitespace, quote,
   dash or punctuation normalisation;
-- `fuzzy`: approximate anchoring, still subject to the numeric-token guard.
+- `fuzzy`: approximate similarity used only to distinguish ambiguous excerpts
+  from clear absence; it never produces a `found` outcome.
 
 These metrics measure mechanical presence only. They do not enter or replace
 the semantic-support admission gate above, and none is a truth verdict.

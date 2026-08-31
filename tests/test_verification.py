@@ -102,6 +102,37 @@ def test_fuzzy_numeric_guard_refuses_wrong_amount():
     assert outcome.anchor != "found"
 
 
+def test_realistic_source_never_promotes_approximate_text_to_found():
+    excerpt = (
+        "The audited results show adjusted operating profit of 4.2 million "
+        "for the financial year ended December 2025."
+    )
+    drifted = excerpt.replace("profit", "profits")
+    source = ("boilerplate disclosure " * 500) + excerpt + (
+        " additional disclosure" * 500
+    )
+
+    outcome = anchor_excerpt(drifted, source)
+
+    assert outcome.method == "fuzzy"
+    assert outcome.anchor == "ambiguous"
+    assert outcome.score >= 0.95
+
+
+def test_numeric_substrings_cannot_be_promoted_by_approximate_matching():
+    prefix = (
+        "The audited consolidated results show that adjusted operating profit "
+        "for the continuing business was "
+    )
+    suffix = " million for the financial year ended December 2025."
+
+    outcome = anchor_excerpt(prefix + "4.2" + suffix, prefix + "14.2" + suffix)
+
+    assert outcome.method == "fuzzy"
+    assert outcome.anchor == "ambiguous"
+    assert outcome.score >= 0.95
+
+
 def test_anchor_presence_never_becomes_support():
     reference = SourceReference("filing", "https://example.test/filing")
     claim = Claim(
@@ -230,7 +261,7 @@ def test_metrics_keep_coverage_accessibility_and_anchoring_separate():
     ]
 
     metrics = verification_metrics(rows)
-    assert metrics["schema"] == "groundnut-verification-metrics/v5"
+    assert metrics["schema"] == "groundnut-verification-metrics/v6"
     assert metrics["rates"]["citation_coverage"] == {
         "schema": "groundnut-metric-envelope/v1",
         "name": "citation_coverage",
@@ -267,7 +298,7 @@ def test_metrics_count_bare_locator_as_declared_but_unresolvable_evidence():
     assert metrics["anchor_outcome_counts"]["unresolvable_source"] == 1
 
 
-def test_metrics_keep_fuzzy_anchors_as_their_own_population():
+def test_fuzzy_similarity_is_diagnostic_and_never_claims_presence():
     reference = SourceReference("s1", "https://example.test/a")
     source = (
         "The company reported consolidated revenue of $14.2 million for the "
@@ -282,11 +313,10 @@ def test_metrics_keep_fuzzy_anchors_as_their_own_population():
     ]
     metrics = verification_metrics(rows)
     assert rows[0].method == "fuzzy"
-    assert rows[0].anchor == "found"
-    assert metrics["counts"]["fuzzy_anchored_excerpts"] == 1
-    assert metrics["anchor_outcome_counts"]["fuzzy_found"] == 1
-    fuzzy = metrics["rates"]["fuzzy_anchor_share"]
-    assert (fuzzy["numerator"], fuzzy["denominator"], fuzzy["value"]) == (1, 1, 1.0)
+    assert rows[0].anchor == "ambiguous"
+    assert rows[0].score >= 0.95
+    assert metrics["anchor_outcome_counts"]["fuzzy_ambiguous"] == 1
+    assert "fuzzy_anchor_share" not in metrics["rates"]
 
 
 def test_serialized_outcomes_and_metrics_distinguish_all_anchor_methods():
@@ -323,4 +353,4 @@ def test_serialized_outcomes_and_metrics_distinguish_all_anchor_methods():
     metrics = verification_metrics(rows)
     assert metrics["counts"]["byte_exact_anchored_excerpts"] == 1
     assert metrics["counts"]["normalised_anchored_excerpts"] == 1
-    assert metrics["counts"]["fuzzy_anchored_excerpts"] == 1
+    assert metrics["anchor_outcome_counts"]["fuzzy_ambiguous"] == 1

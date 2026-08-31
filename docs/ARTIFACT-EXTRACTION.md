@@ -1,19 +1,18 @@
 # Artifact extraction admission
 
 Groundnut's canonical artifact extractor accepts Markdown, rendered HTML and
-structured memo JSON. The frozen admission below measures segmenter version 3,
+structured memo JSON. The frozen admission below measures segmenter version 5,
 which emits every eligible prose sentence
 and table cell, including uncited statements. Citations, excerpts, locators,
 questions, declared analysis and canonical provenance classes remain attached
 when the artifact supplies them; the extractor does not invent missing
 evidence.
 
-Segmenter version 4 preserves a bare locator even when the source has no URL.
-That migration has deterministic Markdown and HTML regression coverage, but it
-has not inherited version 3's frozen admission result and is not presented as a
-new representative accuracy measurement.
+Segmenter version 5 preserves a bare locator even when the source has no URL,
+uses nesting-aware HTML exclusions and provenance, and binds expected claim
+locations into the frozen admission result.
 
-## Measured version 3 contract
+## Measured version 5 contract
 
 The frozen public conformance pack is
 [`evaluation/artifact_extraction/v1/benchmark.json`](../evaluation/artifact_extraction/v1/benchmark.json).
@@ -23,9 +22,10 @@ unsourced claims, uncited numerics, table labels and table numerics.
 
 The checked-in admission receipt is
 [`results/artifact-extraction-admission-v1.json`](../results/artifact-extraction-admission-v1.json).
-On this pack, precision, recall, field accuracy and location coverage are all
-`1.000`. The fixture and profile bytes are hash-frozen before evaluation, and
-the evaluator rejects changed inputs.
+On this pack, precision, recall, field accuracy and location accuracy are all
+`1.000`. Expected locations are labelled alongside the other claim fields;
+the fixture and profile bytes are hash-frozen before evaluation, and the
+evaluator rejects changed inputs.
 
 This is a supported-syntax conformance result. It is deliberately small and
 does not establish representative extraction accuracy for arbitrary documents,
@@ -40,7 +40,8 @@ labelled cases before the quality claim expands.
   excluded by the Markdown population contract.
 - Rendered HTML emits eligible normalized sentences and table cells. Generic
   script, style, title, navigation, header, footer, heading and table-header
-  chrome is excluded.
+  chrome is excluded. Profile exclusions and provenance annotations inherit
+  through nested containers without leaking into following siblings.
 - Host-specific bibliography or renderer chrome must use the profile's named
   ignored classes or attributes. Host-specific provenance and declared-analysis
   vocabulary is configuration, not Groundnut engine logic.

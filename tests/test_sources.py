@@ -490,6 +490,38 @@ def test_http_resolver_decodes_bounded_gzip_content():
     assert result.source.text == "bounded source"
 
 
+def test_http_resolver_honours_declared_charset():
+    body = "Registry owner’s filing — complete.".encode("windows-1252")
+    resolver = _http_resolver(
+        opener=lambda request, timeout: _Response(
+            body,
+            media_type="text/plain",
+            headers={"Content-Type": "text/plain; charset=windows-1252"},
+        )
+    )
+
+    result = resolver.resolve(SourceReference("charset", "https://example.test/text"))
+
+    assert result.ok
+    assert result.source.text == "Registry owner’s filing — complete."
+    assert result.source.evidence_window.truncation == "complete"
+    assert "charset=cp1252" in result.source.evidence_window.extraction_method
+
+
+def test_http_resolver_marks_lossy_decode_incomplete():
+    resolver = _http_resolver(
+        opener=lambda request, timeout: _Response(
+            b"Evidence \xff text", media_type="text/plain"
+        )
+    )
+
+    result = resolver.resolve(SourceReference("lossy", "https://example.test/text"))
+
+    assert result.ok
+    assert "\ufffd" in result.source.text
+    assert result.source.evidence_window.truncation == "unknown"
+
+
 @pytest.mark.parametrize("body", [b"not gzip", _gzip(b"first") + _gzip(b"second")])
 def test_http_resolver_rejects_invalid_or_concatenated_gzip(body):
     resolver = _http_resolver(
@@ -727,6 +759,19 @@ def test_http_resolver_extracts_pdf_text_layer():
     assert result.source.evidence_window.original_characters is None
 
 
+def test_large_pdf_worker_input_completes_without_stdin_deadlock():
+    result = source_module._isolated_pdf_to_text_and_pages(
+        b"not-a-pdf" + b"x" * (5 * 1024 * 1024),
+        max_pages=1,
+        max_characters=100,
+        timeout_seconds=5,
+        cpu_seconds=2,
+        memory_bytes=256 * 1024 * 1024,
+    )
+
+    assert result[3] != "pdf_worker_timeout"
+
+
 def test_http_pdf_extraction_is_not_run_in_resolver_process(monkeypatch):
     body = _pdf_bytes("Isolated evidence.")
 
@@ -752,10 +797,10 @@ def test_isolated_pdf_worker_is_killed_at_memory_limit(monkeypatch):
         returncode = None
         killed = False
 
-        def communicate(self, input=None, timeout=None):
+        def wait(self, timeout=None):
             if self.killed:
                 self.returncode = -9
-                return (None, None)
+                return self.returncode
             raise source_module.subprocess.TimeoutExpired("pdf-worker", timeout)
 
         def kill(self):
