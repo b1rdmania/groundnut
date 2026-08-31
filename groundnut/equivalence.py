@@ -9,10 +9,20 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 
-RECEIPT_SCHEMA = "groundnut-live-replay-equivalence/v1"
-PROJECTION_SCHEMA = "groundnut-live-replay-evidence-projection/v1"
+RECEIPT_SCHEMA = "groundnut-live-replay-equivalence/v2"
+PROJECTION_SCHEMA = "groundnut-live-replay-evidence-projection/v2"
 
-COMPARED_FIELDS = (
+V1_COMPARED_FIELDS = (
+    "/execution/run/artifact",
+    "/execution/run/acquisitions/*/snapshot_sha256",
+    "/execution/run/acquisitions/*/result/{ok,source_id,uri,source_sha256,evidence_window,failure,detail}",
+    "/execution/run/evidence",
+    "/execution/run/arena",
+    "/execution/manifest/{engine,domain,sources,policies,components}",
+    "/execution/manifest/artifacts/*[kind!=canonical_run]",
+)
+
+V2_COMPARED_FIELDS = (
     "/execution/run/artifact",
     "/execution/run/acquisitions/*/snapshot_sha256",
     "/execution/run/acquisitions/*/result/{ok,source_id,uri,final_uri,source_sha256,evidence_window,failure,detail}",
@@ -21,6 +31,7 @@ COMPARED_FIELDS = (
     "/execution/manifest/{engine,domain,sources,policies,components}",
     "/execution/manifest/artifacts/*[kind!=canonical_run]",
 )
+COMPARED_FIELDS = V2_COMPARED_FIELDS
 
 EXCLUDED_FIELDS = (
     {
@@ -130,9 +141,14 @@ def compare_documents(
 def validate_receipt(value: Mapping[str, Any]) -> Mapping[str, Any]:
     """Fail closed when a comparison receipt drops fields or contradicts itself."""
 
-    if value.get("schema") != RECEIPT_SCHEMA:
+    schema = value.get("schema")
+    compared_fields = {
+        "groundnut-live-replay-equivalence/v1": V1_COMPARED_FIELDS,
+        RECEIPT_SCHEMA: V2_COMPARED_FIELDS,
+    }.get(schema)
+    if compared_fields is None:
         raise ValueError("unsupported live/replay equivalence receipt schema")
-    if value.get("compared_fields") != list(COMPARED_FIELDS):
+    if value.get("compared_fields") != list(compared_fields):
         raise ValueError("equivalence receipt compared-field set is incomplete")
     if value.get("excluded_fields") != list(EXCLUDED_FIELDS):
         raise ValueError("equivalence receipt excluded-field set is incomplete")
@@ -247,8 +263,15 @@ def _projection(execution: Mapping[str, Any], label: str) -> dict[str, Any]:
     identities = set()
     for index, acquisition in enumerate(acquisitions):
         row = _as_mapping(acquisition, f"{label} acquisition {index}")
-        if row.get("schema") != "groundnut-source-acquisition/v2":
-            raise ValueError(f"{label} acquisition {index} is not v2")
+        acquisition_schema = row.get("schema")
+        if acquisition_schema not in {
+            "groundnut-source-acquisition/v2",
+            "groundnut-source-acquisition/v3",
+        }:
+            raise ValueError(
+                f"{label} acquisition {index} has unsupported schema: "
+                f"{acquisition_schema}"
+            )
         result = _mapping(row, "result", f"{label} acquisition {index}")
         source_id = _required_text(result.get("source_id"), "source_id")
         uri = _required_text(result.get("uri"), "uri")
@@ -266,7 +289,10 @@ def _projection(execution: Mapping[str, Any], label: str) -> dict[str, Any]:
         evidence_window = result.get("evidence_window")
         if result["ok"]:
             _require_sha256(source_sha256, "source_sha256")
-            _required_text(final_uri, "final_uri")
+            if acquisition_schema == "groundnut-source-acquisition/v3":
+                _required_text(final_uri, "v3 acquisition final_uri")
+            elif final_uri is not None:
+                _required_text(final_uri, "v2 acquisition final_uri")
             window = _as_mapping(
                 evidence_window, f"{label} acquisition evidence_window"
             )

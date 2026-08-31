@@ -143,10 +143,12 @@ when no archive exists, then archive a successful response. A present but
 invalid snapshot fails closed rather than being hidden by fresh network bytes.
 Explicit refresh preserves the previous snapshot when the live attempt fails.
 
-`groundnut-source-acquisition/v2` records whether the result was replayed,
+`groundnut-source-acquisition/v3` records whether the result was replayed,
 fetched and archived, missing, invalid, or a failed live attempt, together with
-the snapshot and normalized source hashes. This receipt is suitable for a run
-manifest and separates deterministic replay from marked integration work.
+the snapshot and normalized source hashes. Successful v3 acquisitions require
+`final_uri`. Equivalence readers retain v2 compatibility, where historical
+successful records may honestly omit that field. This receipt is suitable for
+a run manifest and separates deterministic replay from marked integration work.
 
 Successful `groundnut-source-snapshot/v3` artifacts bind an explicit evidence
 window and the validated final-response URI. The final URI retains scheme,
@@ -155,12 +157,16 @@ snapshot-level digest makes changes to that provenance detectable. V1 and v2
 snapshots remain replayable without rewriting; their honest final-URI fallback
 is the requested snapshot URI, and v1 completeness remains `unknown`.
 
-`groundnut-live-replay-equivalence/v1` compares the artifact, source/snapshot/
-window identities, evidence assessments, arena result, and material manifest
-identities. Acquisition mode, strategy and live-attempt state are declared
-exclusions; hashes derived from those complete-run fields are excluded with
-them. A second replay must be byte-identical. The receipt reports hash-only
-differences so a comparison does not leak private report or source text.
+`groundnut-live-replay-equivalence/v2` uses
+`groundnut-live-replay-evidence-projection/v2` to compare the artifact,
+source/snapshot/window/final-response identities, evidence assessments, arena
+result, and material manifest identities. The projection reader also accepts
+historical v2 acquisitions without `final_uri`; receipt validation retains the
+v1 comparison-field contract. Acquisition mode, strategy and live-attempt
+state are declared exclusions; hashes derived from those complete-run fields
+are excluded with them. A second replay must be byte-identical. The receipt
+reports hash-only differences so a comparison does not leak private report or
+source text.
 
 ## Artifact ingestion
 

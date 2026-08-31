@@ -616,6 +616,11 @@ def _sanitize_final_http_uri(uri: str) -> str:
     validated = _validate_public_http_uri(uri, _offline_validation_addresses)
     parsed = urllib.parse.urlsplit(uri)
     hostname = parsed.hostname or ""  # validation above requires it
+    normalized_hostname = hostname.casefold()
+    if normalized_hostname == "localhost" or normalized_hostname.endswith(
+        ".localhost"
+    ):
+        raise _SourcePolicyBlocked("localhost_not_allowed")
     try:
         ipaddress.ip_address(hostname)
     except ValueError:
@@ -637,6 +642,20 @@ def _sanitize_final_http_uri(uri: str) -> str:
     return urllib.parse.urlunsplit(
         (validated.scheme, netloc, parsed.path or "/", "", "")
     )
+
+
+def _persistable_final_uri(requested_uri: str, final_uri: str) -> str:
+    """Validate a final identity according to the requested source class."""
+
+    try:
+        requested = urllib.parse.urlsplit(requested_uri)
+    except (TypeError, ValueError) as exc:
+        raise _SourcePolicyBlocked("invalid_requested_uri") from exc
+    if requested.scheme.casefold() in {"http", "https"}:
+        return _sanitize_final_http_uri(final_uri)
+    if not isinstance(final_uri, str) or final_uri != requested_uri:
+        raise _SourcePolicyBlocked("local_final_uri_mismatch")
+    return final_uri
 
 
 def _snapshot_contract_sha256(payload: Mapping[str, Any]) -> str:
@@ -1094,7 +1113,9 @@ class SnapshotStore:
             "schema": "groundnut-source-snapshot/v3",
             "source_id": source.reference.source_id,
             "uri": source.reference.uri,
-            "final_uri": _sanitize_final_http_uri(source.final_uri),
+            "final_uri": _persistable_final_uri(
+                source.reference.uri, source.final_uri
+            ),
             "fetched_at": source.fetched_at,
             "status": source.status,
             "media_type": source.media_type,
@@ -1197,7 +1218,9 @@ class SnapshotStore:
                     detail="snapshot_final_uri_invalid:required_string",
                 )
             try:
-                sanitized_final_uri = _sanitize_final_http_uri(recorded_final_uri)
+                sanitized_final_uri = _persistable_final_uri(
+                    reference.uri, recorded_final_uri
+                )
             except _SourcePolicyBlocked as exc:
                 return SourceResolution(
                     source=None,
@@ -1250,7 +1273,7 @@ class SourceAcquisition:
     def to_dict(self) -> dict:
         source = self.resolution.source
         return {
-            "schema": "groundnut-source-acquisition/v2",
+            "schema": "groundnut-source-acquisition/v3",
             "mode": self.mode,
             "strategy": self.strategy,
             "snapshot_sha256": self.snapshot_sha256,

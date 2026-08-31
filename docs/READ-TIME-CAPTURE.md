@@ -65,6 +65,9 @@ scheme, lower-case host, explicit port and path, and removes every redirect
 query and fragment so credentials, tokens and credential-shaped query values
 cannot enter the snapshot. V1 and v2 snapshots load without rewriting and use
 their requested snapshot URI as the honest final-URI fallback.
+Non-HTTP identities are not passed through the HTTP validator: their v3
+`final_uri` must equal the requested local or opaque identity exactly, and the
+snapshot key remains the hash of that requested identity.
 
 Every v3 receipt records the query keys present, retained and non-sensitively
 dropped, plus a count of credential-shaped dropped keys. Values are never

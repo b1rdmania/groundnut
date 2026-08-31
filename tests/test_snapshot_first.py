@@ -62,7 +62,7 @@ def test_snapshot_preferred_archives_once_then_replays_without_live(tmp_path):
     assert first.snapshot_sha256 == second.snapshot_sha256
     assert second.resolution.source.text == "frozen source text"
     assert live.calls == 1
-    assert second.to_dict()["schema"] == "groundnut-source-acquisition/v2"
+    assert second.to_dict()["schema"] == "groundnut-source-acquisition/v3"
     assert second.to_dict()["result"]["evidence_window"]["sha256"]
     assert second.to_dict()["result"]["final_uri"] == REFERENCE.uri
 

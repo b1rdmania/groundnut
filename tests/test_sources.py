@@ -52,6 +52,22 @@ def test_file_resolver_returns_hashed_source(tmp_path):
     assert result.source.evidence_window.original_bytes == 13
 
 
+def test_file_resolver_snapshot_round_trip_keeps_local_identity_key(tmp_path):
+    path = tmp_path / "local source.txt"
+    path.write_text("Local evidence text")
+    reference = SourceReference("local", str(path))
+    resolved = FileResolver().resolve(reference)
+    store = SnapshotStore(tmp_path / "snapshots")
+
+    snapshot = store.archive(resolved.source)
+    replay = store.load(reference)
+
+    assert snapshot == store.path_for(reference.uri)
+    assert replay.ok
+    assert replay.source.text == "Local evidence text"
+    assert replay.source.final_uri == reference.uri
+
+
 def test_missing_file_is_honest_failure(tmp_path):
     result = FileResolver().resolve(
         SourceReference("missing", str(tmp_path / "absent.txt"))
@@ -910,6 +926,11 @@ def test_v2_snapshot_replays_with_requested_uri_final_uri_without_rewrite(tmp_pa
         ("not a uri", "snapshot_final_uri_invalid:invalid_uri"),
         ("file:///tmp/source", "snapshot_final_uri_invalid:scheme_not_allowed"),
         ("https://-bad.example/path", "snapshot_final_uri_invalid:invalid_hostname"),
+        ("https://localhost/path", "snapshot_final_uri_invalid:localhost_not_allowed"),
+        (
+            "https://foo.localhost/path",
+            "snapshot_final_uri_invalid:localhost_not_allowed",
+        ),
         (
             "http://127.0.0.1/private",
             "snapshot_final_uri_invalid:non_public_address:127.0.0.1",
