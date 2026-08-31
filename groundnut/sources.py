@@ -237,6 +237,7 @@ class ResolvedSource:
     status: int | None = None
     media_type: str | None = None
     evidence_window: EvidenceWindow | None = None
+    final_uri: str | None = None
 
     def __post_init__(self) -> None:
         window = self.evidence_window or EvidenceWindow.from_text(
@@ -251,6 +252,8 @@ class ResolvedSource:
         ):
             raise ValueError("resolved source evidence window does not match its text")
         object.__setattr__(self, "evidence_window", window)
+        if self.final_uri is None:
+            object.__setattr__(self, "final_uri", self.reference.uri)
 
     @property
     def record(self) -> SourceRecord:
@@ -588,6 +591,59 @@ def _validate_public_http_uri(
     )
 
 
+def _offline_validation_addresses(hostname: str, port: int) -> tuple[str, ...]:
+    """Supply deterministic addresses for syntax-only replay validation.
+
+    Literal addresses validate as themselves so private-address snapshots still
+    fail closed. Hostnames use a fixed public documentation address; replay must
+    never perform DNS or make a network request.
+    """
+
+    try:
+        return (ipaddress.ip_address(hostname).compressed,)
+    except ValueError:
+        return ("93.184.216.34",)
+
+
+def _sanitize_final_http_uri(uri: str) -> str:
+    """Return a non-secret final-response identity for persistence.
+
+    Query data and fragments are omitted because redirect query values are not
+    needed by replay consumers and can contain credentials or tokens. Scheme,
+    host, explicit port, and path remain sufficient for wrong-page detection.
+    """
+
+    validated = _validate_public_http_uri(uri, _offline_validation_addresses)
+    parsed = urllib.parse.urlsplit(uri)
+    hostname = parsed.hostname or ""  # validation above requires it
+    try:
+        ipaddress.ip_address(hostname)
+    except ValueError:
+        labels = hostname.split(".")
+        if (
+            len(hostname) > 253
+            or any(
+                not 1 <= len(label) <= 63
+                or not re.fullmatch(
+                    r"[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?", label
+                )
+                for label in labels
+            )
+        ):
+            raise _SourcePolicyBlocked("invalid_hostname")
+    host = f"[{hostname.lower()}]" if ":" in hostname else hostname.lower()
+    explicit_port = parsed.port
+    netloc = f"{host}:{explicit_port}" if explicit_port is not None else host
+    return urllib.parse.urlunsplit(
+        (validated.scheme, netloc, parsed.path or "/", "", "")
+    )
+
+
+def _snapshot_contract_sha256(payload: Mapping[str, Any]) -> str:
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def _default_tls_context() -> ssl.SSLContext:
     try:
         import certifi
@@ -873,6 +929,7 @@ class HttpResolver:
                     else reference.uri
                 )
                 self._validate_uri(final_uri)
+                persisted_final_uri = _sanitize_final_http_uri(final_uri)
                 status = getattr(response, "status", None)
                 if isinstance(status, int) and status >= 300:
                     failure = (
@@ -1004,6 +1061,7 @@ class HttpResolver:
                 status=status,
                 media_type=media_type,
                 evidence_window=window,
+                final_uri=persisted_final_uri,
             )
         )
 
@@ -1033,9 +1091,10 @@ class SnapshotStore:
         self.directory.mkdir(parents=True, exist_ok=True)
         path = self.path_for(source.reference.uri)
         payload = {
-            "schema": "groundnut-source-snapshot/v2",
+            "schema": "groundnut-source-snapshot/v3",
             "source_id": source.reference.source_id,
             "uri": source.reference.uri,
+            "final_uri": _sanitize_final_http_uri(source.final_uri),
             "fetched_at": source.fetched_at,
             "status": source.status,
             "media_type": source.media_type,
@@ -1043,6 +1102,7 @@ class SnapshotStore:
             "text": source.text,
             "evidence_window": source.evidence_window.to_dict(),
         }
+        payload["snapshot_sha256"] = _snapshot_contract_sha256(payload)
         path.write_text(json.dumps(payload, sort_keys=True))
         return path
 
@@ -1098,6 +1158,7 @@ class SnapshotStore:
         if schema not in {
             "groundnut-source-snapshot/v1",
             "groundnut-source-snapshot/v2",
+            "groundnut-source-snapshot/v3",
         }:
             return SourceResolution(
                 source=None, failure="source_changed", detail="snapshot_schema_unknown"
@@ -1110,7 +1171,10 @@ class SnapshotStore:
         try:
             window = (
                 EvidenceWindow.from_mapping(value.get("evidence_window", {}), text=text)
-                if schema == "groundnut-source-snapshot/v2"
+                if schema in {
+                    "groundnut-source-snapshot/v2",
+                    "groundnut-source-snapshot/v3",
+                }
                 else EvidenceWindow.from_text(
                     text,
                     truncation="unknown",
@@ -1123,6 +1187,38 @@ class SnapshotStore:
                 failure="source_changed",
                 detail="snapshot_evidence_window_invalid",
             )
+        final_uri = reference.uri
+        if schema == "groundnut-source-snapshot/v3":
+            recorded_final_uri = value.get("final_uri")
+            if not isinstance(recorded_final_uri, str):
+                return SourceResolution(
+                    source=None,
+                    failure="source_changed",
+                    detail="snapshot_final_uri_invalid:required_string",
+                )
+            try:
+                sanitized_final_uri = _sanitize_final_http_uri(recorded_final_uri)
+            except _SourcePolicyBlocked as exc:
+                return SourceResolution(
+                    source=None,
+                    failure="source_changed",
+                    detail=f"snapshot_final_uri_invalid:{exc}",
+                )
+            if recorded_final_uri != sanitized_final_uri:
+                return SourceResolution(
+                    source=None,
+                    failure="source_changed",
+                    detail="snapshot_final_uri_invalid:not_sanitized",
+                )
+            contract = dict(value)
+            recorded_contract_sha256 = contract.pop("snapshot_sha256", None)
+            if recorded_contract_sha256 != _snapshot_contract_sha256(contract):
+                return SourceResolution(
+                    source=None,
+                    failure="source_changed",
+                    detail="snapshot_contract_hash_mismatch",
+                )
+            final_uri = recorded_final_uri
         return SourceResolution(
             source=ResolvedSource(
                 reference=reference,
@@ -1131,6 +1227,7 @@ class SnapshotStore:
                 status=value.get("status"),
                 media_type=value.get("media_type"),
                 evidence_window=window,
+                final_uri=final_uri,
             )
         )
 
@@ -1162,6 +1259,7 @@ class SourceAcquisition:
                 "ok": self.resolution.ok,
                 "source_id": self.reference.source_id,
                 "uri": self.reference.uri,
+                "final_uri": source.final_uri if source else None,
                 "source_sha256": source.record.sha256 if source else None,
                 "evidence_window": source.evidence_window.to_dict() if source else None,
                 "failure": self.resolution.failure,

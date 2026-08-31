@@ -58,6 +58,14 @@ declared retainable. User
 information is rejected. Public path segments are retained verbatim: path-word
 blocklists produce false positives and silently change the cited resource.
 
+Successful v3 source snapshots also expose `final_uri`, the validated response
+destination observed after redirects. It is provenance, not the snapshot key:
+storage remains keyed only by the requested canonical URI. Groundnut persists
+scheme, lower-case host, explicit port and path, and removes every redirect
+query and fragment so credentials, tokens and credential-shaped query values
+cannot enter the snapshot. V1 and v2 snapshots load without rewriting and use
+their requested snapshot URI as the honest final-URI fallback.
+
 Every v3 receipt records the query keys present, retained and non-sensitively
 dropped, plus a count of credential-shaped dropped keys. Values are never
 copied into that policy record and credential-shaped names are redacted. A

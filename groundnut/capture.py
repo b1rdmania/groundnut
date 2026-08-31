@@ -22,6 +22,7 @@ from .sources import (
     SourceReference,
     SourceResolution,
     SourceResolver,
+    _sanitize_final_http_uri,
 )
 
 
@@ -287,6 +288,7 @@ class SnapshotResolution:
                     "text": self.source.text,
                     "status": self.source.status,
                     "media_type": self.source.media_type,
+                    "final_uri": self.source.final_uri,
                     "evidence_window": self.source.evidence_window.to_dict(),
                 }
                 if self.source
@@ -387,6 +389,14 @@ class _DeclaredResolver:
                 ),
             )
         source = resolution.source
+        try:
+            final_uri = _sanitize_final_http_uri(source.final_uri)
+        except ValueError as error:
+            return SourceResolution(
+                source=None,
+                failure="source_policy_blocked",
+                detail=_bounded_detail("invalid_final_response_uri", str(error)),
+            )
         return SourceResolution(
             source=ResolvedSource(
                 reference=reference,
@@ -395,6 +405,7 @@ class _DeclaredResolver:
                 status=source.status,
                 media_type=source.media_type,
                 evidence_window=source.evidence_window,
+                final_uri=final_uri,
             )
         )
 

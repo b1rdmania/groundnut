@@ -15,7 +15,7 @@ PROJECTION_SCHEMA = "groundnut-live-replay-evidence-projection/v1"
 COMPARED_FIELDS = (
     "/execution/run/artifact",
     "/execution/run/acquisitions/*/snapshot_sha256",
-    "/execution/run/acquisitions/*/result/{ok,source_id,uri,source_sha256,evidence_window,failure,detail}",
+    "/execution/run/acquisitions/*/result/{ok,source_id,uri,final_uri,source_sha256,evidence_window,failure,detail}",
     "/execution/run/evidence",
     "/execution/run/arena",
     "/execution/manifest/{engine,domain,sources,policies,components}",
@@ -262,9 +262,11 @@ def _projection(execution: Mapping[str, Any], label: str) -> dict[str, Any]:
         if snapshot_sha256 is not None:
             _require_sha256(snapshot_sha256, "snapshot_sha256")
         source_sha256 = result.get("source_sha256")
+        final_uri = result.get("final_uri")
         evidence_window = result.get("evidence_window")
         if result["ok"]:
             _require_sha256(source_sha256, "source_sha256")
+            _required_text(final_uri, "final_uri")
             window = _as_mapping(
                 evidence_window, f"{label} acquisition evidence_window"
             )
@@ -273,7 +275,11 @@ def _projection(execution: Mapping[str, Any], label: str) -> dict[str, Any]:
             _validate_hash(window, f"{label} evidence window")
             if result.get("failure") is not None:
                 raise ValueError(f"{label} successful acquisition carries failure")
-        elif source_sha256 is not None or evidence_window is not None:
+        elif (
+            source_sha256 is not None
+            or final_uri is not None
+            or evidence_window is not None
+        ):
             raise ValueError(f"{label} failed acquisition carries source evidence")
         elif not isinstance(result.get("failure"), str):
             raise ValueError(f"{label} failed acquisition has no failure state")
@@ -286,6 +292,7 @@ def _projection(execution: Mapping[str, Any], label: str) -> dict[str, Any]:
                         "ok",
                         "source_id",
                         "uri",
+                        "final_uri",
                         "source_sha256",
                         "evidence_window",
                         "failure",

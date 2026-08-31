@@ -64,6 +64,7 @@ def test_snapshot_preferred_archives_once_then_replays_without_live(tmp_path):
     assert live.calls == 1
     assert second.to_dict()["schema"] == "groundnut-source-acquisition/v2"
     assert second.to_dict()["result"]["evidence_window"]["sha256"]
+    assert second.to_dict()["result"]["final_uri"] == REFERENCE.uri
 
 
 def test_snapshot_joins_on_uri_when_host_source_id_differs(tmp_path):

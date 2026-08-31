@@ -148,11 +148,12 @@ fetched and archived, missing, invalid, or a failed live attempt, together with
 the snapshot and normalized source hashes. This receipt is suitable for a run
 manifest and separates deterministic replay from marked integration work.
 
-Successful `groundnut-source-snapshot/v2` artifacts bind an explicit evidence
-window: original and captured lengths where knowable, truncation state,
-extraction method, and the hash of the exact normalized text searched. V1
-snapshots remain replayable but their completeness is `unknown`; Groundnut does
-not reinterpret a historical missing field as a complete capture.
+Successful `groundnut-source-snapshot/v3` artifacts bind an explicit evidence
+window and the validated final-response URI. The final URI retains scheme,
+host, explicit port, and path while dropping query data and fragments. A
+snapshot-level digest makes changes to that provenance detectable. V1 and v2
+snapshots remain replayable without rewriting; their honest final-URI fallback
+is the requested snapshot URI, and v1 completeness remains `unknown`.
 
 `groundnut-live-replay-equivalence/v1` compares the artifact, source/snapshot/
 window identities, evidence assessments, arena result, and material manifest

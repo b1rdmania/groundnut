@@ -1,7 +1,8 @@
 # Evidence-window contract
 
-**Frozen:** 25 August 2026  
-**Snapshot schema:** `groundnut-source-snapshot/v2`
+**Frozen:** 31 August 2026
+
+**Snapshot schema:** `groundnut-source-snapshot/v3`
 
 Groundnut verifies excerpts only against the text it captured. A
 failed search is an `excerpt_not_found` result only when that searchable window
@@ -10,7 +11,7 @@ establish completeness, the honest result is `evidence_window_incomplete`.
 
 ## Window object
 
-Every successful v2 snapshot carries `evidence_window`:
+Every successful v2 or v3 snapshot carries `evidence_window`:
 
 ```json
 {
@@ -66,7 +67,7 @@ read without rewriting the frozen snapshot.
 
 ## Replay compatibility
 
-V2 snapshots preserve the exact window object. Loading a successful v1
+V2 and v3 snapshots preserve the exact window object. Loading a successful v1
 snapshot constructs a hash-bound window over its stored text with
 `truncation: unknown` and `extraction_method: legacy-snapshot/v1`. This retains
 replay access without inventing a historical completeness claim. Consequently,
