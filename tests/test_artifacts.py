@@ -345,6 +345,38 @@ def test_typed_html_provenance_is_preserved_without_becoming_support(tmp_path):
     assert claims[2].declared_analysis is False
 
 
+def test_nested_ignored_html_container_does_not_leak_siblings(tmp_path):
+    path = tmp_path / "nested-exclusion.html"
+    path.write_text(
+        '<div data-groundnut-evidence-exclude="true">'
+        '<div class="brand">Brand</div>'
+        '<div class="meta">Generated 2026 by the pipeline.</div>'
+        '</div><p>Actual claim.</p>'
+    )
+
+    claims = extract_artifact(path).claims
+
+    assert [claim.text for claim in claims] == ["Actual claim."]
+
+
+def test_block_provenance_applies_to_every_sentence_and_not_next_sibling(tmp_path):
+    path = tmp_path / "block-provenance.html"
+    path.write_text(
+        '<div class="groundnut-analyst-inference">'
+        'First inference. Second inference.'
+        '</div><p>External sibling.</p>'
+    )
+
+    claims = extract_artifact(path).claims
+
+    assert [claim.text for claim in claims] == [
+        "First inference.", "Second inference.", "External sibling."
+    ]
+    assert [claim.provenance_class for claim in claims] == [
+        "analyst_inference", "analyst_inference", "unclassified"
+    ]
+
+
 def test_conflicting_provenance_fails_closed(tmp_path):
     path = tmp_path / "conflict.html"
     path.write_text(

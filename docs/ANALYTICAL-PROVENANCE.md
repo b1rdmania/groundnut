@@ -78,10 +78,10 @@ Every report rate emitted by mechanical verification uses
 - the population described by that denominator;
 - the derived value.
 
-Verification reports keep exact and fuzzy anchoring separate. A fuzzy-found
-excerpt is not collapsed into generic validation work: its count is emitted as
-`fuzzy_anchored_excerpts`, its outcome as `fuzzy_found`, and its share of
-anchored excerpts as a complete metric envelope.
+Verification reports keep established presence and approximate diagnostics
+separate. Byte-exact and named-normalised matches have their own anchored
+counts and shares. Approximate matches are emitted only as `fuzzy_ambiguous`
+or `fuzzy_not_found`; there is no fuzzy-found population.
 
 Citation coverage is also emitted by provenance class. A report with extensive
 analyst reasoning can therefore be described without pretending that every

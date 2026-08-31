@@ -236,7 +236,6 @@ class VerifiedClaim:
 _TRANS = str.maketrans(
     {"‘": "'", "’": "'", "‛": "'", "“": '"', "”": '"', "–": "-", "—": "-"}
 )
-_NUMERIC = re.compile(r"[$£€]?\d[\d,.]*%?")
 
 
 def normalise(value: str) -> str:
@@ -309,10 +308,6 @@ def _normalisation_reasons(excerpt: str, source_text: str, start: int) -> tuple[
     return tuple(reasons or ("punctuation",))
 
 
-def numeric_tokens(normalised: str) -> tuple[str, ...]:
-    return tuple(_NUMERIC.findall(normalised))
-
-
 def anchor_excerpt(excerpt: str, source_text: str) -> MatchOutcome:
     if excerpt and excerpt in source_text:
         return MatchOutcome("found", "byte_exact", 1.0)
@@ -329,10 +324,6 @@ def anchor_excerpt(excerpt: str, source_text: str) -> MatchOutcome:
             _normalisation_reasons(excerpt, source_text, normalised_at),
         )
     score = best_window_similarity(needle, haystack)
-    if score >= 0.95:
-        if all(token in haystack for token in numeric_tokens(needle)):
-            return MatchOutcome("found", "fuzzy", score)
-        return MatchOutcome("ambiguous", "fuzzy", score)
     if score >= 0.80:
         return MatchOutcome("ambiguous", "fuzzy", score)
     return MatchOutcome("not_found", "fuzzy", score)
@@ -351,7 +342,7 @@ def _dice(left: str, right: str) -> float:
 
 
 def best_window_similarity(needle: str, haystack: str) -> float:
-    window = min(len(haystack), int(len(needle) * 1.2 + 0.999999))
+    window = min(len(haystack), len(needle))
     if len(haystack) <= window:
         return _dice(needle, haystack)
     coarse = max(1, len(needle) // 4)
@@ -363,7 +354,7 @@ def best_window_similarity(needle: str, haystack: str) -> float:
             best, best_at = score, index
     start = max(0, best_at - coarse)
     end = min(len(haystack) - window, best_at + coarse)
-    for index in range(start, end + 1, 7):
+    for index in range(start, end + 1):
         best = max(best, _dice(needle, haystack[index : index + window]))
     return best
 
@@ -480,7 +471,6 @@ def verification_metrics(rows: list[VerifiedClaim]) -> dict[str, Any]:
     anchored = [row for row in excerpts if row.anchor == "found"]
     byte_exact_anchored = [row for row in anchored if row.method == "byte_exact"]
     normalised_anchored = [row for row in anchored if row.method == "normalised"]
-    fuzzy_anchored = [row for row in anchored if row.method == "fuzzy"]
     calculations = [
         row for row in rows if row.claim.provenance_class == "analyst_calculation"
     ]
@@ -490,7 +480,6 @@ def verification_metrics(rows: list[VerifiedClaim]) -> dict[str, Any]:
     anchor_outcomes = {
         "byte_exact_found": len(byte_exact_anchored),
         "normalised_found": len(normalised_anchored),
-        "fuzzy_found": len(fuzzy_anchored),
         "fuzzy_ambiguous": sum(
             row.method == "fuzzy" and row.anchor == "ambiguous" for row in excerpts
         ),
@@ -555,13 +544,6 @@ def verification_metrics(rows: list[VerifiedClaim]) -> dict[str, Any]:
             "anchored excerpts",
         ),
         MetricEnvelope(
-            "fuzzy_anchor_share",
-            "anchoring_method",
-            len(fuzzy_anchored),
-            len(anchored),
-            "anchored excerpts",
-        ),
-        MetricEnvelope(
             "calculation_lineage_coverage",
             "provenance_completeness",
             len(calculations_with_lineage),
@@ -593,10 +575,6 @@ def verification_metrics(rows: list[VerifiedClaim]) -> dict[str, Any]:
             "typed_provenance": sum(
                 row.method == "provenance" for row in population
             ),
-            "fuzzy_anchored_excerpts": sum(
-                row.method == "fuzzy" and row.anchor == "found"
-                for row in population
-            ),
             "citation_coverage": MetricEnvelope(
                 "citation_coverage",
                 "coverage_by_provenance",
@@ -606,7 +584,7 @@ def verification_metrics(rows: list[VerifiedClaim]) -> dict[str, Any]:
             ).to_dict(),
         }
     return {
-        "schema": "groundnut-verification-metrics/v5",
+        "schema": "groundnut-verification-metrics/v6",
         "counts": {
             "detected_claims": len(rows),
             "cited_claims": len(cited),
@@ -619,7 +597,6 @@ def verification_metrics(rows: list[VerifiedClaim]) -> dict[str, Any]:
             "anchored_excerpts": len(anchored),
             "byte_exact_anchored_excerpts": len(byte_exact_anchored),
             "normalised_anchored_excerpts": len(normalised_anchored),
-            "fuzzy_anchored_excerpts": len(fuzzy_anchored),
             "analyst_calculations": len(calculations),
             "calculations_with_lineage": len(calculations_with_lineage),
         },

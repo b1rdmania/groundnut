@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
-from html import unescape
+from html import escape, unescape
+from html.parser import HTMLParser
 import json
 from pathlib import Path
 import re
@@ -94,7 +95,7 @@ class SegmenterIdentity:
 
 DEFAULT_SEGMENTER = SegmenterIdentity(
     key="groundnut.artifact-block-segmenter",
-    version="4",
+    version="5",
     strategies=(
         ("structured_json", "one claim per configured claims-array row"),
         (
@@ -103,7 +104,7 @@ DEFAULT_SEGMENTER = SegmenterIdentity(
         ),
         (
             "rendered_html",
-            "one claim per eligible normalized sentence or table cell; cited sentences repeat once per HTTP citation; bare locators remain attached",
+            "one claim per eligible normalized sentence or table cell with nesting-aware exclusion and provenance; cited sentences repeat once per HTTP citation; bare locators remain attached",
         ),
     ),
 )
@@ -468,39 +469,7 @@ def _markdown_claims(raw: str, profile: ArtifactProfile) -> list[Claim]:
 
 
 def _html_claims(raw: str, profile: ArtifactProfile) -> list[Claim]:
-    _validate_html_provenance_markers(raw, profile)
-    prepared = raw
-    for attribute_name in profile.ignored_container_attributes:
-        prepared = re.sub(
-            rf"<([a-z][a-z0-9]*)\b[^>]*\b{re.escape(attribute_name)}(?:\s*=\s*[\"'][^\"']*[\"'])?[^>]*>[\s\S]*?</\1>",
-            " ",
-            prepared,
-            flags=re.I,
-        )
-    for class_name in profile.ignored_container_classes:
-        prepared = re.sub(
-            rf"<([a-z][a-z0-9]*)\b[^>]*class=[\"'][^\"']*\b{re.escape(class_name)}\b[^\"']*[\"'][^>]*>[\s\S]*?</\1>",
-            " ",
-            prepared,
-            flags=re.I,
-        )
-    for class_name, provenance_class in profile.provenance_class_markers:
-        prepared = re.sub(
-            rf"<([a-z][a-z0-9]*)\b[^>]*class=[\"'][^\"']*\b{re.escape(class_name)}\b[^\"']*[\"'][^>]*>([\s\S]*?)</\1>",
-            lambda match: (
-                f" {match.group(2)} "
-                f"__GROUNDNUT_PROVENANCE_{provenance_class.upper()}__ "
-            ),
-            prepared,
-            flags=re.I,
-        )
-    for class_name in profile.declared_analysis_classes:
-        prepared = re.sub(
-            rf"<([a-z][a-z0-9]*)\b[^>]*class=[\"'][^\"']*\b{re.escape(class_name)}\b[^\"']*[\"'][^>]*>[\s\S]*?</\1>",
-            " __GROUNDNUT_DECLARED_ANALYSIS__ ",
-            prepared,
-            flags=re.I,
-        )
+    prepared = _prepare_html_containers(raw, profile)
     prepared = re.sub(
         r"<(?:script|style|title|nav|header|footer)\b[\s\S]*?</(?:script|style|title|nav|header|footer)>",
         " ",
@@ -581,6 +550,138 @@ def _html_claims(raw: str, profile: ArtifactProfile) -> list[Claim]:
                     )
                 )
     return claims
+
+
+@dataclass(frozen=True)
+class _HTMLFrame:
+    tag: str
+    ignored: bool
+    provenance_class: str | None
+    declared_analysis: bool
+    suppress_content: bool = False
+
+
+class _HTMLContainerPreprocessor(HTMLParser):
+    """Flatten profile containers with nesting-aware inherited annotations."""
+
+    _VOID_TAGS = {
+        "area", "base", "br", "col", "embed", "hr", "img", "input",
+        "link", "meta", "param", "source", "track", "wbr",
+    }
+
+    def __init__(self, profile: ArtifactProfile) -> None:
+        super().__init__(convert_charrefs=True)
+        self.profile = profile
+        self.frames: list[_HTMLFrame] = []
+        self.output: list[str] = []
+        self.provenance_by_marker = dict(profile.provenance_class_markers)
+
+    @property
+    def current(self) -> _HTMLFrame:
+        return self.frames[-1] if self.frames else _HTMLFrame("", False, None, False)
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        frame = self._frame(tag, attrs)
+        if not frame.ignored:
+            self.output.append(self.get_starttag_text())
+            if frame.suppress_content and not self.current.suppress_content:
+                self.output.append(" __GROUNDNUT_DECLARED_ANALYSIS__ ")
+        if tag.casefold() not in self._VOID_TAGS:
+            self.frames.append(frame)
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        frame = self._frame(tag, attrs)
+        if not frame.ignored:
+            self.output.append(self.get_starttag_text())
+
+    def handle_endtag(self, tag: str) -> None:
+        if not self.frames:
+            self.output.append(f"</{tag}>")
+            return
+        frame = self.frames.pop()
+        if frame.tag != tag.casefold():
+            raise ValueError(f"malformed HTML container nesting: expected </{frame.tag}>")
+        if not frame.ignored:
+            self.output.append(f"</{tag}>")
+
+    def handle_data(self, data: str) -> None:
+        if self.current.ignored or self.current.suppress_content:
+            return
+        markers: list[str] = []
+        if self.current.provenance_class:
+            markers.append(
+                f"__GROUNDNUT_PROVENANCE_{self.current.provenance_class.upper()}__"
+            )
+        if self.current.declared_analysis:
+            markers.append("__GROUNDNUT_DECLARED_ANALYSIS__")
+        marker = "".join(markers)
+        encoded = escape(data, quote=False)
+        if marker and data.strip():
+            encoded = f" {marker} " + re.sub(
+                r"(?P<boundary>[.!?][*_\"')\]]*\s+)(?P<lead>[A-Z\"'(\[*_])",
+                lambda match: (
+                    match.group("boundary") + match.group("lead") + marker
+                ),
+                encoded,
+            )
+        self.output.append(encoded)
+
+    def handle_comment(self, data: str) -> None:
+        if not self.current.ignored and not self.current.suppress_content:
+            self.output.append(f"<!--{data}-->")
+
+    def handle_decl(self, decl: str) -> None:
+        if not self.current.ignored:
+            self.output.append(f"<!{decl}>")
+
+    def _frame(
+        self, tag: str, attrs: list[tuple[str, str | None]]
+    ) -> _HTMLFrame:
+        parent = self.current
+        attributes = {name.casefold(): value for name, value in attrs}
+        classes = set((attributes.get("class") or "").split())
+        ignored = parent.ignored or bool(
+            classes.intersection(self.profile.ignored_container_classes)
+            or set(attributes).intersection(self.profile.ignored_container_attributes)
+        )
+        own_provenance = {
+            provenance
+            for marker, provenance in self.provenance_by_marker.items()
+            if marker in classes
+        }
+        if len(own_provenance) > 1:
+            raise ValueError(
+                f"claim block declares conflicting provenance classes: {sorted(own_provenance)}"
+            )
+        provenance = next(iter(own_provenance), parent.provenance_class)
+        if (
+            parent.provenance_class
+            and own_provenance
+            and provenance != parent.provenance_class
+        ):
+            raise ValueError("nested claim blocks declare conflicting provenance classes")
+        declared = parent.declared_analysis or bool(
+            classes.intersection(self.profile.declared_analysis_classes)
+        )
+        if declared and provenance and provenance not in ANALYST_PROVENANCE_CLASSES:
+            raise ValueError(
+                "claim block conflicts with legacy declared-analysis provenance"
+            )
+        suppress_content = parent.suppress_content or bool(
+            classes.intersection(self.profile.declared_analysis_classes)
+        )
+        return _HTMLFrame(
+            tag.casefold(), ignored, provenance, declared, suppress_content
+        )
+
+
+def _prepare_html_containers(raw: str, profile: ArtifactProfile) -> str:
+    parser = _HTMLContainerPreprocessor(profile)
+    parser.feed(raw)
+    parser.close()
+    if parser.frames:
+        raise ValueError(f"unclosed HTML container: <{parser.frames[-1].tag}>")
+    return "".join(parser.output)
 
 
 def _text_sentences(line: str) -> list[str]:
@@ -779,33 +880,6 @@ def _provenance_class(value: str, profile: ArtifactProfile) -> str:
     if len(found) > 1:
         raise ValueError(f"claim block declares conflicting provenance classes: {sorted(found)}")
     return next(iter(found), "unclassified")
-
-
-def _validate_html_provenance_markers(raw: str, profile: ArtifactProfile) -> None:
-    """Reject contradictory provenance declarations before HTML is flattened."""
-
-    for tag in re.finditer(r"<[a-z][a-z0-9]*\b([^>]*)>", raw, re.I):
-        attributes = tag.group(1)
-        classes = _html_attribute(attributes, "class")
-        if classes is None:
-            continue
-        class_names = set(classes.split())
-        found = {
-            provenance
-            for marker, provenance in profile.provenance_class_markers
-            if marker in class_names
-        }
-        if len(found) > 1:
-            raise ValueError(
-                f"claim block declares conflicting provenance classes: {sorted(found)}"
-            )
-        declared = any(
-            class_name in class_names for class_name in profile.declared_analysis_classes
-        )
-        if declared and found and not found <= ANALYST_PROVENANCE_CLASSES:
-            raise ValueError(
-                "claim block conflicts with legacy declared-analysis provenance"
-            )
 
 
 def _reference(uri: str) -> SourceReference:

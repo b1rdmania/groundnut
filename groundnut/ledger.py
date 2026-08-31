@@ -7,7 +7,8 @@ source, or is it the report's own reasoning?
 
 Buckets:
 
-- ``excerpt_found``  — the cited excerpt was found verbatim in the snapshot.
+- ``excerpt_found``  — the cited excerpt was found byte-exactly or through a
+  named mechanical normalisation in the snapshot.
 - ``citation_unconfirmed``   — a citation exists but the excerpt was not found,
   was ambiguous, had no excerpt to anchor, or the source was unavailable.
 - ``own_reasoning``   — no citation, or the claim is declared analysis.
@@ -37,8 +38,9 @@ from typing import Any, Mapping, Sequence
 
 from .artifacts import ArtifactProfile, DEFAULT_ARTIFACT_PROFILE, _LINK  # noqa: F401
 from .markdown_population import MarkdownPopulation, scan_markdown
+from .sources import EvidenceWindow
 
-LEDGER_SCHEMA = "groundnut-claim-ledger/v4"
+LEDGER_SCHEMA = "groundnut-claim-ledger/v5"
 BUCKETS = ("excerpt_found", "citation_unconfirmed", "own_reasoning")
 DRIFT_REASONS = (
     "excerpt_not_found",
@@ -49,6 +51,7 @@ DRIFT_REASONS = (
     "unresolvable_source",
 )
 OWN_KINDS = ("declared", "numeric", "narrative")
+FOUND_KINDS = ("found_byte_exact", "found_normalised")
 
 _NUMERIC = re.compile(r"(?<![\w/])(?:[£$€]\s?\d|\d+(?:\.\d+)?\s?(?:%|x\b|×|m\b|bn\b|k\b)|\b\d{1,3}(?:,\d{3})+\b|\b\d+(?:\.\d+)?\b)")
 _SENTENCE_END = re.compile(r"(?P<end>[.!?][*_\"')\]]*)\s+(?=[A-Z\"'(\[*_])")
@@ -115,6 +118,7 @@ class LedgerRow:
     claim_id: str | None = None
     source_uri: str | None = None
     support_status: str | None = None
+    anchor_method: str | None = None
     anchor_score: float | None = None
     evidence_window_sha256: str | None = None
     evidence_window_truncation: str | None = None
@@ -132,6 +136,8 @@ class LedgerRow:
             raise ValueError(f"unknown drift reason: {self.detail}")
         if self.bucket == "own_reasoning" and self.detail not in OWN_KINDS:
             raise ValueError(f"unknown own-reasoning kind: {self.detail}")
+        if self.bucket == "excerpt_found" and self.detail not in FOUND_KINDS:
+            raise ValueError(f"unknown excerpt-found kind: {self.detail}")
         if self.bucket in {"excerpt_found", "citation_unconfirmed"}:
             if not self.claim_id:
                 raise ValueError("cited ledger rows need a claim id")
@@ -147,7 +153,7 @@ class LedgerRow:
         if self.evidence_window_sha256 is not None and (
             not re.fullmatch(r"[0-9a-f]{64}", self.evidence_window_sha256)
             or self.evidence_window_truncation
-            not in {"complete", "truncated", "unknown", "empty", "sparse"}
+            not in EvidenceWindow.TRUNCATION_STATES
         ):
             raise ValueError("invalid ledger evidence-window identity")
 
@@ -161,6 +167,7 @@ class LedgerRow:
             "claim_id": self.claim_id,
             "source_uri": self.source_uri,
             "support_status": self.support_status,
+            "anchor_method": self.anchor_method,
             "anchor_score": self.anchor_score,
             "evidence_window_sha256": self.evidence_window_sha256,
             "evidence_window_truncation": self.evidence_window_truncation,
@@ -210,7 +217,8 @@ class ClaimLedger:
             "counts": self.counts,
             "rows": [row.to_dict() for row in self.rows],
             "disclosure": (
-                "excerpt_found means the quotation was found in the snapshot; "
+                "excerpt_found means the quotation was found byte-exactly or "
+                "through a named mechanical normalisation in the snapshot; "
                 "it is not a truth or support claim. support_status is insufficient "
                 "for every claim until a support detector is admitted. "
                 "evidence_window_incomplete means the stored text was truncated or "
@@ -338,7 +346,7 @@ def render_ledger_markdown(ledger: ClaimLedger, *, title: str = "Claim ledger") 
     lines.append("| Bucket | Units | Share |")
     lines.append("|---|---:|---:|")
     labels = {
-        "excerpt_found": "Cited excerpt found in source",
+        "excerpt_found": "Cited excerpt mechanically found in source",
         "citation_unconfirmed": "Citation present, excerpt not confirmed",
         "own_reasoning": "Report's own reasoning, no source",
     }
@@ -351,7 +359,7 @@ def render_ledger_markdown(ledger: ClaimLedger, *, title: str = "Claim ledger") 
     for key, n in counts["by_detail"].items():
         lines.append(f"| `{key}` | {n} |")
     lines.append("")
-    lines.append("Excerpt found means the quoted words are in the snapshot. It is not a statement that the claim is true or that the source supports it.")
+    lines.append("Excerpt found means the quoted words are byte-exact or match through a named mechanical normalisation. It is not a statement that the claim is true or that the source supports it.")
     lines.append("")
     for bucket in BUCKETS:
         lines.append(f"## {labels[bucket]}")
@@ -459,6 +467,7 @@ def _cited_row(
     anchor = verification.get("anchor")
     outcome = verification.get("outcome")
     support_status = support.get("status")
+    anchor_method = verification.get("method")
     source = claim.get("source") or {}
     uri = source.get("uri") if isinstance(source, Mapping) else None
     score = verification.get("score")
@@ -470,7 +479,9 @@ def _cited_row(
     elif outcome == "evidence_window_incomplete":
         bucket, detail = "citation_unconfirmed", "evidence_window_incomplete"
     elif anchor == "found":
-        bucket, detail = "excerpt_found", "found"
+        if anchor_method not in {"byte_exact", "normalised"}:
+            raise ValueError(f"found anchor uses non-admissible method: {anchor_method}")
+        bucket, detail = "excerpt_found", f"found_{anchor_method}"
     elif anchor == "ambiguous":
         bucket, detail = "citation_unconfirmed", "quote_ambiguous"
     elif anchor == "not_found":
@@ -498,6 +509,7 @@ def _cited_row(
         claim_id=str(claim.get("claim_id")),
         source_uri=str(uri) if uri else None,
         support_status=str(support_status) if support_status else None,
+        anchor_method=str(anchor_method) if anchor_method else None,
         anchor_score=score,
         evidence_window_sha256=(
             str(window["sha256"]) if window.get("sha256") else None

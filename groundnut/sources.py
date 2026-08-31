@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from html.parser import HTMLParser
+import codecs
 import http.client
 import ipaddress
 import io
@@ -396,13 +397,17 @@ def _isolated_pdf_to_text_and_pages(
     package_root = Path(__file__).resolve().parent.parent
     max_output_bytes = max(4096, max_characters * 6 + 4096)
     with tempfile.TemporaryDirectory(prefix="groundnut-pdf-") as directory:
+        input_path = Path(directory) / "input.pdf"
         output = Path(directory) / "result.json"
+        input_path.write_bytes(data)
         command = [
             sys.executable,
             "-m",
             "groundnut.pdf_worker",
             "--out",
             str(output),
+            "--input",
+            str(input_path),
             "--max-input-bytes",
             str(len(data)),
             "--max-pages",
@@ -419,36 +424,31 @@ def _isolated_pdf_to_text_and_pages(
         try:
             process = subprocess.Popen(
                 command,
-                stdin=subprocess.PIPE,
+                stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 cwd=directory,
                 env={"PYTHONHASHSEED": "0", "PYTHONPATH": str(package_root)},
             )
             deadline = time.monotonic() + timeout_seconds
-            pending_input: bytes | None = data
             while True:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     process.kill()
-                    process.communicate()
+                    process.wait()
                     return None, None, False, "pdf_worker_timeout"
                 try:
-                    process.communicate(
-                        input=pending_input, timeout=min(0.1, remaining)
-                    )
+                    process.wait(timeout=min(0.1, remaining))
                     break
                 except subprocess.TimeoutExpired:
-                    # communicate() retains the buffered input after a timeout.
-                    pending_input = None
                     resident = _resident_memory_bytes(process.pid)
                     if resident is None:
                         process.kill()
-                        process.communicate()
+                        process.wait()
                         return None, None, False, "pdf_worker_memory_unobservable"
                     if resident > memory_bytes:
                         process.kill()
-                        process.communicate()
+                        process.wait()
                         return None, None, False, "pdf_worker_memory_limit"
         except OSError:
             return None, None, False, "pdf_worker_failed"
@@ -945,7 +945,11 @@ class HttpResolver:
                             failure="source_media_unsupported",
                             detail=media_type,
                         )
-                    raw = body.decode("utf-8", errors="replace")
+                    raw, charset, decode_lossy = _decode_http_text(
+                        body,
+                        response=response,
+                        media_type=media_type,
+                    )
                     text = (
                         html_to_text(raw)
                         if media_type in {"text/html", "application/xhtml+xml"}
@@ -958,11 +962,17 @@ class HttpResolver:
                         text,
                         original_bytes=len(body),
                         original_characters=len(raw),
-                        truncation="truncated" if character_truncated else "complete",
+                        truncation=(
+                            "truncated"
+                            if character_truncated
+                            else "unknown"
+                            if decode_lossy
+                            else "complete"
+                        ),
                         extraction_method=(
-                            "html.parser-visible-text/v1"
+                            f"html.parser-visible-text/v2:charset={charset}"
                             if media_type in {"text/html", "application/xhtml+xml"}
-                            else "http-text:utf-8-errors-replace/v1"
+                            else f"http-text/v2:charset={charset}"
                         ),
                     )
         except _SourcePolicyBlocked as exc:
@@ -1025,6 +1035,55 @@ class SnapshotStore:
 
     def path_for(self, uri: str) -> Path:
         return self.directory / f"{self.key(uri)}.json"
+
+    def identity_claim_path_for(self, uri: str) -> Path:
+        return self.directory / f"{self.key(uri)}.identity.json"
+
+    def claim_canonical_identity(
+        self, reference: SourceReference, *, public_raw_identity_sha256: str
+    ) -> Path:
+        """Bind a canonical key to one non-secret raw identity across sessions."""
+
+        if not re.fullmatch(r"[0-9a-f]{64}", public_raw_identity_sha256):
+            raise ValueError("public raw identity requires lowercase SHA-256")
+        path = self.identity_claim_path_for(reference.uri)
+        payload = {
+            "schema": "groundnut-snapshot-identity-claim/v1",
+            "canonical_uri": reference.uri,
+            "public_raw_identity_sha256": public_raw_identity_sha256,
+        }
+        payload["sha256"] = hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        self.directory.mkdir(parents=True, exist_ok=True)
+        try:
+            with path.open("x") as claim_file:
+                claim_file.write(json.dumps(payload, sort_keys=True))
+            return path
+        except FileExistsError:
+            pass
+        try:
+            recorded = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError("snapshot identity claim is unreadable") from exc
+        if not isinstance(recorded, Mapping) or set(recorded) != set(payload):
+            raise ValueError("snapshot identity claim is invalid")
+        recorded_payload = {
+            key: value for key, value in recorded.items() if key != "sha256"
+        }
+        recorded_sha256 = hashlib.sha256(
+            json.dumps(
+                recorded_payload, sort_keys=True, separators=(",", ":")
+            ).encode()
+        ).hexdigest()
+        if recorded.get("sha256") != recorded_sha256:
+            raise ValueError("snapshot identity claim hash mismatch")
+        if recorded != payload:
+            raise ValueError(
+                "distinct public source URIs collapse to one canonical snapshot; "
+                "declare every record-bearing query parameter"
+            )
+        return path
 
     def contains(self, reference: SourceReference) -> bool:
         return self.path_for(reference.uri).is_file()
@@ -1201,18 +1260,24 @@ class SnapshotFirstResolver:
         exists = self.snapshots.contains(reference)
         if self.mode != "refresh" and exists:
             resolution = self.snapshots.load(reference)
-            return SourceAcquisition(
-                reference=reference,
-                resolution=resolution,
-                mode=self.mode,
-                strategy=(
-                    "snapshot"
-                    if resolution.failure != "source_changed"
-                    else "snapshot_invalid"
-                ),
-                snapshot_sha256=_file_sha256(self.snapshots.path_for(reference.uri)),
-                live_attempted=False,
+            retryable_timeout = (
+                self.mode == "snapshot_preferred"
+                and resolution.failure == "pdf_unsupported"
+                and resolution.detail == "pdf_worker_timeout"
             )
+            if not retryable_timeout:
+                return SourceAcquisition(
+                    reference=reference,
+                    resolution=resolution,
+                    mode=self.mode,
+                    strategy=(
+                        "snapshot"
+                        if resolution.failure != "source_changed"
+                        else "snapshot_invalid"
+                    ),
+                    snapshot_sha256=_file_sha256(self.snapshots.path_for(reference.uri)),
+                    live_attempted=False,
+                )
         if self.mode == "replay_only":
             return SourceAcquisition(
                 reference=reference,
@@ -1262,6 +1327,46 @@ class SnapshotFirstResolver:
 
 def _file_sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+_META_CHARSET = re.compile(
+    br"<meta\b[^>]*\bcharset\s*=\s*['\"]?\s*([A-Za-z0-9._-]+)", re.I
+)
+_META_HTTP_EQUIV_CHARSET = re.compile(
+    br"<meta\b[^>]*\bcontent\s*=\s*['\"][^'\"]*charset\s*=\s*([A-Za-z0-9._-]+)",
+    re.I,
+)
+
+
+def _decode_http_text(
+    body: bytes, *, response: Any, media_type: str
+) -> tuple[str, str, bool]:
+    """Decode an HTTP text body and expose whether replacement lost evidence."""
+
+    charset = None
+    get_content_charset = getattr(response.headers, "get_content_charset", None)
+    if callable(get_content_charset):
+        charset = get_content_charset()
+    if not charset:
+        content_type = _header(response, "Content-Type") or ""
+        match = re.search(
+            r"(?:^|;)\s*charset\s*=\s*['\"]?([^;'\"\s]+)",
+            content_type,
+            re.I,
+        )
+        charset = match.group(1) if match else None
+    if not charset and media_type in {"text/html", "application/xhtml+xml"}:
+        prefix = body[:8192]
+        match = _META_CHARSET.search(prefix) or _META_HTTP_EQUIV_CHARSET.search(
+            prefix
+        )
+        charset = match.group(1).decode("ascii") if match else None
+    try:
+        canonical_charset = codecs.lookup(charset or "utf-8").name
+    except LookupError:
+        canonical_charset = "utf-8"
+    decoded = body.decode(canonical_charset, errors="replace")
+    return decoded, canonical_charset, "\ufffd" in decoded
 
 
 def _optional_int(value: Any) -> int | None:

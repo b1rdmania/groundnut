@@ -76,8 +76,8 @@ part of this Groundnut change.
   questions, kept independent from support and authority.
 - Hash-bound calculation formulas, unique named inputs, and checked
   source-claim references, without upgrading declared arithmetic to support.
-- Denominator-safe mechanical metric envelopes with byte-exact, normalised and
-  fuzzy anchor populations kept separate.
+- Denominator-safe mechanical metric envelopes with byte-exact and normalised
+  found populations kept separate from fuzzy ambiguity diagnostics.
 - Explicit segmenter identity bound into artifact extraction and canonical run
   manifests.
 - Generic render-bound evidence parity with explicit excluded regions,

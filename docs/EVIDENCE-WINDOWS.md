@@ -81,6 +81,7 @@ no searchable evidence window.
 `byte_exact` proves that the supplied excerpt is a verbatim substring of the
 stored evidence window. `normalised` proves presence only after named mechanical
 changes (`case`, `whitespace`, `quotes`, `dashes`, and/or `punctuation`). `fuzzy`
-remains a separate approximate population with the numeric guard. None of these
-methods proves semantic support or truth. Semantic-support admission remains
-the separate project tracked in issue #18.
+is a diagnostic similarity method and can produce only `ambiguous` or
+`not_found`, never `found`. None of these methods proves semantic support or
+truth. Semantic-support admission remains the separate project tracked in
+issue #18.
