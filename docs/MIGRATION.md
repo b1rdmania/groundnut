@@ -7,6 +7,21 @@ moved out of the original CUAD compatibility path.
 The migration is additive: compatibility behaviour remains stable while the IC
 loop adopts the canonical checking and ledger contracts deliberately.
 
+## 0.2.0a2 evidence-boundary hardening
+
+This build gives the post-KISS-review behavior a distinct package identity.
+Fuzzy similarity is diagnostic-only; only byte-exact and named mechanical
+normalisation establish excerpt presence. Claim ledger v5 and verification
+metrics v6 expose that distinction. Snapshot and acquisition v3 preserve a
+sanitized final-response URI and bind canonical source identities across
+sessions while retaining historical snapshot replay.
+
+The release also repairs realistic PDF-worker input handling, nested HTML
+containers, declared character sets, hollow evidence windows, artifact-location
+admission, support-baseline integrity, strict receipt JSON, canonical URI drift,
+and the deprecated 6to4 address-policy gap. Consumers remain pinned until they
+pass their own replay and integration suites against this release.
+
 ## 0.2.0a1 acquisition and locator hardening
 
 The 0.2 alpha boundary builds on 0.1.0a15 rather than replacing its
