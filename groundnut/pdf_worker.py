@@ -43,6 +43,7 @@ def _apply_limits(*, cpu_seconds: int, memory_bytes: int, output_bytes: int) -> 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", required=True)
+    parser.add_argument("--input", type=Path)
     parser.add_argument("--max-input-bytes", required=True, type=_positive)
     parser.add_argument("--max-pages", required=True, type=_positive)
     parser.add_argument("--max-characters", required=True, type=_positive)
@@ -56,7 +57,11 @@ def main(argv: list[str] | None = None) -> int:
         memory_bytes=args.memory_bytes,
         output_bytes=args.max_output_bytes,
     )
-    data = sys.stdin.buffer.read(args.max_input_bytes + 1)
+    if args.input is None:
+        data = sys.stdin.buffer.read(args.max_input_bytes + 1)
+    else:
+        with args.input.open("rb") as source:
+            data = source.read(args.max_input_bytes + 1)
     if len(data) > args.max_input_bytes:
         payload = {
             "schema": SCHEMA,

@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from html.parser import HTMLParser
+import codecs
 import http.client
 import ipaddress
 import io
@@ -237,6 +238,7 @@ class ResolvedSource:
     status: int | None = None
     media_type: str | None = None
     evidence_window: EvidenceWindow | None = None
+    final_uri: str | None = None
 
     def __post_init__(self) -> None:
         window = self.evidence_window or EvidenceWindow.from_text(
@@ -251,6 +253,8 @@ class ResolvedSource:
         ):
             raise ValueError("resolved source evidence window does not match its text")
         object.__setattr__(self, "evidence_window", window)
+        if self.final_uri is None:
+            object.__setattr__(self, "final_uri", self.reference.uri)
 
     @property
     def record(self) -> SourceRecord:
@@ -396,13 +400,17 @@ def _isolated_pdf_to_text_and_pages(
     package_root = Path(__file__).resolve().parent.parent
     max_output_bytes = max(4096, max_characters * 6 + 4096)
     with tempfile.TemporaryDirectory(prefix="groundnut-pdf-") as directory:
+        input_path = Path(directory) / "input.pdf"
         output = Path(directory) / "result.json"
+        input_path.write_bytes(data)
         command = [
             sys.executable,
             "-m",
             "groundnut.pdf_worker",
             "--out",
             str(output),
+            "--input",
+            str(input_path),
             "--max-input-bytes",
             str(len(data)),
             "--max-pages",
@@ -419,36 +427,31 @@ def _isolated_pdf_to_text_and_pages(
         try:
             process = subprocess.Popen(
                 command,
-                stdin=subprocess.PIPE,
+                stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 cwd=directory,
                 env={"PYTHONHASHSEED": "0", "PYTHONPATH": str(package_root)},
             )
             deadline = time.monotonic() + timeout_seconds
-            pending_input: bytes | None = data
             while True:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     process.kill()
-                    process.communicate()
+                    process.wait()
                     return None, None, False, "pdf_worker_timeout"
                 try:
-                    process.communicate(
-                        input=pending_input, timeout=min(0.1, remaining)
-                    )
+                    process.wait(timeout=min(0.1, remaining))
                     break
                 except subprocess.TimeoutExpired:
-                    # communicate() retains the buffered input after a timeout.
-                    pending_input = None
                     resident = _resident_memory_bytes(process.pid)
                     if resident is None:
                         process.kill()
-                        process.communicate()
+                        process.wait()
                         return None, None, False, "pdf_worker_memory_unobservable"
                     if resident > memory_bytes:
                         process.kill()
-                        process.communicate()
+                        process.wait()
                         return None, None, False, "pdf_worker_memory_limit"
         except OSError:
             return None, None, False, "pdf_worker_failed"
@@ -573,6 +576,10 @@ def _validate_public_http_uri(
             or address.is_multicast
             or address.is_unspecified
             or address.is_reserved
+            or (
+                isinstance(address, ipaddress.IPv6Address)
+                and address.sixtofour is not None
+            )
         ):
             raise _SourcePolicyBlocked(f"non_public_address:{address.compressed}")
         canonical_addresses.append(address.compressed)
@@ -586,6 +593,78 @@ def _validate_public_http_uri(
         addresses=tuple(canonical_addresses),
         request_target=request_target,
     )
+
+
+def _offline_validation_addresses(hostname: str, port: int) -> tuple[str, ...]:
+    """Supply deterministic addresses for syntax-only replay validation.
+
+    Literal addresses validate as themselves so private-address snapshots still
+    fail closed. Hostnames use a fixed public documentation address; replay must
+    never perform DNS or make a network request.
+    """
+
+    try:
+        return (ipaddress.ip_address(hostname).compressed,)
+    except ValueError:
+        return ("93.184.216.34",)
+
+
+def _sanitize_final_http_uri(uri: str) -> str:
+    """Return a non-secret final-response identity for persistence.
+
+    Query data and fragments are omitted because redirect query values are not
+    needed by replay consumers and can contain credentials or tokens. Scheme,
+    host, explicit port, and path remain sufficient for wrong-page detection.
+    """
+
+    validated = _validate_public_http_uri(uri, _offline_validation_addresses)
+    parsed = urllib.parse.urlsplit(uri)
+    hostname = parsed.hostname or ""  # validation above requires it
+    normalized_hostname = hostname.casefold()
+    if normalized_hostname == "localhost" or normalized_hostname.endswith(
+        ".localhost"
+    ):
+        raise _SourcePolicyBlocked("localhost_not_allowed")
+    try:
+        ipaddress.ip_address(hostname)
+    except ValueError:
+        labels = hostname.split(".")
+        if (
+            len(hostname) > 253
+            or any(
+                not 1 <= len(label) <= 63
+                or not re.fullmatch(
+                    r"[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?", label
+                )
+                for label in labels
+            )
+        ):
+            raise _SourcePolicyBlocked("invalid_hostname")
+    host = f"[{hostname.lower()}]" if ":" in hostname else hostname.lower()
+    explicit_port = parsed.port
+    netloc = f"{host}:{explicit_port}" if explicit_port is not None else host
+    return urllib.parse.urlunsplit(
+        (validated.scheme, netloc, parsed.path or "/", "", "")
+    )
+
+
+def _persistable_final_uri(requested_uri: str, final_uri: str) -> str:
+    """Validate a final identity according to the requested source class."""
+
+    try:
+        requested = urllib.parse.urlsplit(requested_uri)
+    except (TypeError, ValueError) as exc:
+        raise _SourcePolicyBlocked("invalid_requested_uri") from exc
+    if requested.scheme.casefold() in {"http", "https"}:
+        return _sanitize_final_http_uri(final_uri)
+    if not isinstance(final_uri, str) or final_uri != requested_uri:
+        raise _SourcePolicyBlocked("local_final_uri_mismatch")
+    return final_uri
+
+
+def _snapshot_contract_sha256(payload: Mapping[str, Any]) -> str:
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _default_tls_context() -> ssl.SSLContext:
@@ -873,6 +952,7 @@ class HttpResolver:
                     else reference.uri
                 )
                 self._validate_uri(final_uri)
+                persisted_final_uri = _sanitize_final_http_uri(final_uri)
                 status = getattr(response, "status", None)
                 if isinstance(status, int) and status >= 300:
                     failure = (
@@ -945,7 +1025,11 @@ class HttpResolver:
                             failure="source_media_unsupported",
                             detail=media_type,
                         )
-                    raw = body.decode("utf-8", errors="replace")
+                    raw, charset, decode_lossy = _decode_http_text(
+                        body,
+                        response=response,
+                        media_type=media_type,
+                    )
                     text = (
                         html_to_text(raw)
                         if media_type in {"text/html", "application/xhtml+xml"}
@@ -958,11 +1042,17 @@ class HttpResolver:
                         text,
                         original_bytes=len(body),
                         original_characters=len(raw),
-                        truncation="truncated" if character_truncated else "complete",
+                        truncation=(
+                            "truncated"
+                            if character_truncated
+                            else "unknown"
+                            if decode_lossy
+                            else "complete"
+                        ),
                         extraction_method=(
-                            "html.parser-visible-text/v1"
+                            f"html.parser-visible-text/v2:charset={charset}"
                             if media_type in {"text/html", "application/xhtml+xml"}
-                            else "http-text:utf-8-errors-replace/v1"
+                            else f"http-text/v2:charset={charset}"
                         ),
                     )
         except _SourcePolicyBlocked as exc:
@@ -1004,6 +1094,7 @@ class HttpResolver:
                 status=status,
                 media_type=media_type,
                 evidence_window=window,
+                final_uri=persisted_final_uri,
             )
         )
 
@@ -1026,6 +1117,55 @@ class SnapshotStore:
     def path_for(self, uri: str) -> Path:
         return self.directory / f"{self.key(uri)}.json"
 
+    def identity_claim_path_for(self, uri: str) -> Path:
+        return self.directory / f"{self.key(uri)}.identity.json"
+
+    def claim_canonical_identity(
+        self, reference: SourceReference, *, public_raw_identity_sha256: str
+    ) -> Path:
+        """Bind a canonical key to one non-secret raw identity across sessions."""
+
+        if not re.fullmatch(r"[0-9a-f]{64}", public_raw_identity_sha256):
+            raise ValueError("public raw identity requires lowercase SHA-256")
+        path = self.identity_claim_path_for(reference.uri)
+        payload = {
+            "schema": "groundnut-snapshot-identity-claim/v1",
+            "canonical_uri": reference.uri,
+            "public_raw_identity_sha256": public_raw_identity_sha256,
+        }
+        payload["sha256"] = hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        self.directory.mkdir(parents=True, exist_ok=True)
+        try:
+            with path.open("x") as claim_file:
+                claim_file.write(json.dumps(payload, sort_keys=True))
+            return path
+        except FileExistsError:
+            pass
+        try:
+            recorded = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError("snapshot identity claim is unreadable") from exc
+        if not isinstance(recorded, Mapping) or set(recorded) != set(payload):
+            raise ValueError("snapshot identity claim is invalid")
+        recorded_payload = {
+            key: value for key, value in recorded.items() if key != "sha256"
+        }
+        recorded_sha256 = hashlib.sha256(
+            json.dumps(
+                recorded_payload, sort_keys=True, separators=(",", ":")
+            ).encode()
+        ).hexdigest()
+        if recorded.get("sha256") != recorded_sha256:
+            raise ValueError("snapshot identity claim hash mismatch")
+        if recorded != payload:
+            raise ValueError(
+                "distinct public source URIs collapse to one canonical snapshot; "
+                "declare every record-bearing query parameter"
+            )
+        return path
+
     def contains(self, reference: SourceReference) -> bool:
         return self.path_for(reference.uri).is_file()
 
@@ -1033,9 +1173,12 @@ class SnapshotStore:
         self.directory.mkdir(parents=True, exist_ok=True)
         path = self.path_for(source.reference.uri)
         payload = {
-            "schema": "groundnut-source-snapshot/v2",
+            "schema": "groundnut-source-snapshot/v3",
             "source_id": source.reference.source_id,
             "uri": source.reference.uri,
+            "final_uri": _persistable_final_uri(
+                source.reference.uri, source.final_uri
+            ),
             "fetched_at": source.fetched_at,
             "status": source.status,
             "media_type": source.media_type,
@@ -1043,6 +1186,7 @@ class SnapshotStore:
             "text": source.text,
             "evidence_window": source.evidence_window.to_dict(),
         }
+        payload["snapshot_sha256"] = _snapshot_contract_sha256(payload)
         path.write_text(json.dumps(payload, sort_keys=True))
         return path
 
@@ -1098,6 +1242,7 @@ class SnapshotStore:
         if schema not in {
             "groundnut-source-snapshot/v1",
             "groundnut-source-snapshot/v2",
+            "groundnut-source-snapshot/v3",
         }:
             return SourceResolution(
                 source=None, failure="source_changed", detail="snapshot_schema_unknown"
@@ -1110,7 +1255,10 @@ class SnapshotStore:
         try:
             window = (
                 EvidenceWindow.from_mapping(value.get("evidence_window", {}), text=text)
-                if schema == "groundnut-source-snapshot/v2"
+                if schema in {
+                    "groundnut-source-snapshot/v2",
+                    "groundnut-source-snapshot/v3",
+                }
                 else EvidenceWindow.from_text(
                     text,
                     truncation="unknown",
@@ -1123,6 +1271,40 @@ class SnapshotStore:
                 failure="source_changed",
                 detail="snapshot_evidence_window_invalid",
             )
+        final_uri = reference.uri
+        if schema == "groundnut-source-snapshot/v3":
+            recorded_final_uri = value.get("final_uri")
+            if not isinstance(recorded_final_uri, str):
+                return SourceResolution(
+                    source=None,
+                    failure="source_changed",
+                    detail="snapshot_final_uri_invalid:required_string",
+                )
+            try:
+                sanitized_final_uri = _persistable_final_uri(
+                    reference.uri, recorded_final_uri
+                )
+            except _SourcePolicyBlocked as exc:
+                return SourceResolution(
+                    source=None,
+                    failure="source_changed",
+                    detail=f"snapshot_final_uri_invalid:{exc}",
+                )
+            if recorded_final_uri != sanitized_final_uri:
+                return SourceResolution(
+                    source=None,
+                    failure="source_changed",
+                    detail="snapshot_final_uri_invalid:not_sanitized",
+                )
+            contract = dict(value)
+            recorded_contract_sha256 = contract.pop("snapshot_sha256", None)
+            if recorded_contract_sha256 != _snapshot_contract_sha256(contract):
+                return SourceResolution(
+                    source=None,
+                    failure="source_changed",
+                    detail="snapshot_contract_hash_mismatch",
+                )
+            final_uri = recorded_final_uri
         return SourceResolution(
             source=ResolvedSource(
                 reference=reference,
@@ -1131,6 +1313,7 @@ class SnapshotStore:
                 status=value.get("status"),
                 media_type=value.get("media_type"),
                 evidence_window=window,
+                final_uri=final_uri,
             )
         )
 
@@ -1153,7 +1336,7 @@ class SourceAcquisition:
     def to_dict(self) -> dict:
         source = self.resolution.source
         return {
-            "schema": "groundnut-source-acquisition/v2",
+            "schema": "groundnut-source-acquisition/v3",
             "mode": self.mode,
             "strategy": self.strategy,
             "snapshot_sha256": self.snapshot_sha256,
@@ -1162,6 +1345,7 @@ class SourceAcquisition:
                 "ok": self.resolution.ok,
                 "source_id": self.reference.source_id,
                 "uri": self.reference.uri,
+                "final_uri": source.final_uri if source else None,
                 "source_sha256": source.record.sha256 if source else None,
                 "evidence_window": source.evidence_window.to_dict() if source else None,
                 "failure": self.resolution.failure,
@@ -1201,18 +1385,24 @@ class SnapshotFirstResolver:
         exists = self.snapshots.contains(reference)
         if self.mode != "refresh" and exists:
             resolution = self.snapshots.load(reference)
-            return SourceAcquisition(
-                reference=reference,
-                resolution=resolution,
-                mode=self.mode,
-                strategy=(
-                    "snapshot"
-                    if resolution.failure != "source_changed"
-                    else "snapshot_invalid"
-                ),
-                snapshot_sha256=_file_sha256(self.snapshots.path_for(reference.uri)),
-                live_attempted=False,
+            retryable_timeout = (
+                self.mode == "snapshot_preferred"
+                and resolution.failure == "pdf_unsupported"
+                and resolution.detail == "pdf_worker_timeout"
             )
+            if not retryable_timeout:
+                return SourceAcquisition(
+                    reference=reference,
+                    resolution=resolution,
+                    mode=self.mode,
+                    strategy=(
+                        "snapshot"
+                        if resolution.failure != "source_changed"
+                        else "snapshot_invalid"
+                    ),
+                    snapshot_sha256=_file_sha256(self.snapshots.path_for(reference.uri)),
+                    live_attempted=False,
+                )
         if self.mode == "replay_only":
             return SourceAcquisition(
                 reference=reference,
@@ -1262,6 +1452,46 @@ class SnapshotFirstResolver:
 
 def _file_sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+_META_CHARSET = re.compile(
+    br"<meta\b[^>]*\bcharset\s*=\s*['\"]?\s*([A-Za-z0-9._-]+)", re.I
+)
+_META_HTTP_EQUIV_CHARSET = re.compile(
+    br"<meta\b[^>]*\bcontent\s*=\s*['\"][^'\"]*charset\s*=\s*([A-Za-z0-9._-]+)",
+    re.I,
+)
+
+
+def _decode_http_text(
+    body: bytes, *, response: Any, media_type: str
+) -> tuple[str, str, bool]:
+    """Decode an HTTP text body and expose whether replacement lost evidence."""
+
+    charset = None
+    get_content_charset = getattr(response.headers, "get_content_charset", None)
+    if callable(get_content_charset):
+        charset = get_content_charset()
+    if not charset:
+        content_type = _header(response, "Content-Type") or ""
+        match = re.search(
+            r"(?:^|;)\s*charset\s*=\s*['\"]?([^;'\"\s]+)",
+            content_type,
+            re.I,
+        )
+        charset = match.group(1) if match else None
+    if not charset and media_type in {"text/html", "application/xhtml+xml"}:
+        prefix = body[:8192]
+        match = _META_CHARSET.search(prefix) or _META_HTTP_EQUIV_CHARSET.search(
+            prefix
+        )
+        charset = match.group(1).decode("ascii") if match else None
+    try:
+        canonical_charset = codecs.lookup(charset or "utf-8").name
+    except LookupError:
+        canonical_charset = "utf-8"
+    decoded = body.decode(canonical_charset, errors="replace")
+    return decoded, canonical_charset, "\ufffd" in decoded
 
 
 def _optional_int(value: Any) -> int | None:

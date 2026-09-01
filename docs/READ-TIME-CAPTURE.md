@@ -33,6 +33,14 @@ The default transport connects to the validated address while retaining the
 original hostname for the Host header and TLS verification. PDF extraction runs
 in a separate worker with wall-clock, CPU, resident-memory and output ceilings.
 Policy rejection and size rejection remain distinct acquisition failures.
+The parent passes PDF bytes through a private temporary file, avoiding partial
+pipe writes under load. A prior `pdf_worker_timeout` failure remains replayable
+in `replay_only` mode but is retried by a later `snapshot_preferred` capture.
+
+Text responses honor a declared HTTP charset, then an HTML meta charset, and
+finally UTF-8. The chosen charset is recorded in the extraction method. Any
+replacement-character decode is marked `unknown` rather than `complete` so a
+mis-decoded window cannot establish definite quote absence.
 
 These controls are **security work in progress**, not a comprehensive security
 review. They have not yet passed independent adversarial review. Custom injected
@@ -53,10 +61,30 @@ may use the original URI to fetch, but canonical identity retains only parameter
 names declared by policy. V2 retains its global `retained_query_parameters`
 contract for byte-identical replay. V3 uses exact lower-case host entries in
 `retained_query_parameters_by_host`; an undeclared host retains no query key.
+Both declaration versions share one URI normalization rule: lower-case scheme
+and host, preserve explicit port and path, retain declared blank query values,
+sort retained pairs, and drop fragments.
 Wildcards are not accepted. Credential-shaped parameter names cannot be
 declared retainable. User
 information is rejected. Public path segments are retained verbatim: path-word
 blocklists produce false positives and silently change the cited resource.
+
+Successful v3 source snapshots also expose `final_uri`, the validated response
+destination observed after redirects. It is provenance, not the snapshot key:
+storage remains keyed only by the requested canonical URI. Groundnut persists
+scheme, lower-case host, explicit port and path, and removes every redirect
+query and fragment so credentials, tokens and credential-shaped query values
+cannot enter the snapshot. V1 and v2 snapshots load without rewriting and use
+their requested snapshot URI as the honest final-URI fallback.
+Non-HTTP identities are not passed through the HTTP validator: their v3
+`final_uri` must equal the requested local or opaque identity exactly, and the
+snapshot key remains the hash of that requested identity.
+
+A hash-bound snapshot identity claim makes a producer fail closed when two
+distinct public raw URIs—even across capture sessions—collapse to the same
+canonical snapshot. Credential-shaped query values are excluded from that
+comparison so token rotation does not create a false collision. Record-bearing
+query parameters must be declared retainable.
 
 Every v3 receipt records the query keys present, retained and non-sensitively
 dropped, plus a count of credential-shaped dropped keys. Values are never

@@ -52,6 +52,22 @@ def test_file_resolver_returns_hashed_source(tmp_path):
     assert result.source.evidence_window.original_bytes == 13
 
 
+def test_file_resolver_snapshot_round_trip_keeps_local_identity_key(tmp_path):
+    path = tmp_path / "local source.txt"
+    path.write_text("Local evidence text")
+    reference = SourceReference("local", str(path))
+    resolved = FileResolver().resolve(reference)
+    store = SnapshotStore(tmp_path / "snapshots")
+
+    snapshot = store.archive(resolved.source)
+    replay = store.load(reference)
+
+    assert snapshot == store.path_for(reference.uri)
+    assert replay.ok
+    assert replay.source.text == "Local evidence text"
+    assert replay.source.final_uri == reference.uri
+
+
 def test_missing_file_is_honest_failure(tmp_path):
     result = FileResolver().resolve(
         SourceReference("missing", str(tmp_path / "absent.txt"))
@@ -76,10 +92,13 @@ def test_snapshot_round_trip_and_tamper_detection(tmp_path):
     loaded = store.load(reference)
     assert loaded.ok is True
     assert loaded.source.text == source.text
+    assert loaded.source.final_uri == reference.uri
     assert loaded.source.evidence_window == source.evidence_window
 
     payload = json.loads(path.read_text())
-    assert payload["schema"] == "groundnut-source-snapshot/v2"
+    assert payload["schema"] == "groundnut-source-snapshot/v3"
+    assert payload["final_uri"] == reference.uri
+    assert len(payload["snapshot_sha256"]) == 64
     assert payload["evidence_window"]["captured_characters"] == len(source.text)
     payload["text"] = "rewritten"
     path.write_text(json.dumps(payload))
@@ -96,7 +115,10 @@ def test_failure_snapshot_round_trip_preserves_observation(tmp_path):
     store = SnapshotStore(tmp_path / "snapshots")
     path = store.archive_failure(reference, resolution)
 
-    assert json.loads(path.read_text())["schema"] == "groundnut-source-failure-snapshot/v1"
+    payload = json.loads(path.read_text())
+    assert payload["schema"] == "groundnut-source-failure-snapshot/v1"
+    assert "final_uri" not in payload
+    assert "snapshot_sha256" not in payload
     assert store.load(reference) == resolution
 
 
@@ -148,11 +170,84 @@ def test_http_resolver_normalizes_html_without_live_network():
     assert result.ok is True
     assert result.source.text == "Source fact"
     assert result.source.status == 200
+    assert result.source.final_uri == "https://example.test/final"
     assert result.source.evidence_window.truncation == "complete"
     assert result.source.evidence_window.original_bytes == len(
         b"<p>Source <b>fact</b></p>"
     )
     assert result.source.evidence_window.captured_characters == len("Source fact")
+
+
+def test_http_resolver_records_no_redirect_final_uri():
+    requested = "https://example.test/article"
+    resolver = _http_resolver(
+        opener=lambda request, timeout: _Response(
+            b"Evidence", media_type="text/plain", final_uri=requested
+        )
+    )
+
+    result = resolver.resolve(SourceReference("no-redirect", requested))
+
+    assert result.ok
+    assert result.source.final_uri == requested
+
+
+def test_http_resolver_records_allowed_same_host_redirect_path():
+    resolver = _http_resolver(
+        opener=lambda request, timeout: _Response(
+            b"Evidence",
+            media_type="text/plain",
+            final_uri="https://example.test/articles/final",
+        )
+    )
+
+    result = resolver.resolve(
+        SourceReference("same-host", "https://example.test/articles/start")
+    )
+
+    assert result.ok
+    assert result.source.final_uri == "https://example.test/articles/final"
+
+
+def test_http_resolver_records_allowed_cross_host_redirect_destination():
+    resolver = _http_resolver(
+        opener=lambda request, timeout: _Response(
+            b"Evidence",
+            media_type="text/plain",
+            final_uri="https://records.example.test/public/page",
+        )
+    )
+
+    result = resolver.resolve(
+        SourceReference("cross-host", "https://example.test/start")
+    )
+
+    assert result.ok
+    assert result.source.final_uri == "https://records.example.test/public/page"
+
+
+def test_http_resolver_drops_secret_shaped_redirect_query_and_fragment(tmp_path):
+    secret = "do-not-persist"
+    resolver = _http_resolver(
+        opener=lambda request, timeout: _Response(
+            b"Evidence",
+            media_type="text/plain",
+            final_uri=(
+                "https://records.example.test/public/page"
+                f"?access_token={secret}&signature=also-secret#private"
+            ),
+        )
+    )
+
+    result = resolver.resolve(
+        SourceReference("secret-query", "https://example.test/start")
+    )
+
+    assert result.ok
+    assert result.source.final_uri == "https://records.example.test/public/page"
+    assert secret not in result.source.final_uri
+    snapshot = SnapshotStore(tmp_path).archive(result.source)
+    assert secret not in snapshot.read_text()
 
 
 def test_http_resolver_requires_explicit_opt_in_for_injected_transport():
@@ -204,6 +299,8 @@ def test_http_resolver_rejects_non_http_and_ambiguous_source_uris(uri):
         "fe80::1",
         "::",
         "ff02::1",
+        "2002:7f00:1::1",
+        "2002:a9fe:a9fe::1",
     ],
 )
 def test_http_resolver_rejects_non_public_ipv4_and_ipv6(address):
@@ -395,6 +492,38 @@ def test_http_resolver_decodes_bounded_gzip_content():
     assert result.source.text == "bounded source"
 
 
+def test_http_resolver_honours_declared_charset():
+    body = "Registry owner’s filing — complete.".encode("windows-1252")
+    resolver = _http_resolver(
+        opener=lambda request, timeout: _Response(
+            body,
+            media_type="text/plain",
+            headers={"Content-Type": "text/plain; charset=windows-1252"},
+        )
+    )
+
+    result = resolver.resolve(SourceReference("charset", "https://example.test/text"))
+
+    assert result.ok
+    assert result.source.text == "Registry owner’s filing — complete."
+    assert result.source.evidence_window.truncation == "complete"
+    assert "charset=cp1252" in result.source.evidence_window.extraction_method
+
+
+def test_http_resolver_marks_lossy_decode_incomplete():
+    resolver = _http_resolver(
+        opener=lambda request, timeout: _Response(
+            b"Evidence \xff text", media_type="text/plain"
+        )
+    )
+
+    result = resolver.resolve(SourceReference("lossy", "https://example.test/text"))
+
+    assert result.ok
+    assert "\ufffd" in result.source.text
+    assert result.source.evidence_window.truncation == "unknown"
+
+
 @pytest.mark.parametrize("body", [b"not gzip", _gzip(b"first") + _gzip(b"second")])
 def test_http_resolver_rejects_invalid_or_concatenated_gzip(body):
     resolver = _http_resolver(
@@ -570,6 +699,7 @@ def test_existing_complete_empty_snapshot_migrates_on_read(tmp_path):
 
     assert loaded.ok is True
     assert loaded.source.reference.source_id == "url:derived-by-report"
+    assert loaded.source.final_uri == reference.uri
     assert loaded.source.evidence_window.truncation == "empty"
 
 
@@ -631,6 +761,19 @@ def test_http_resolver_extracts_pdf_text_layer():
     assert result.source.evidence_window.original_characters is None
 
 
+def test_large_pdf_worker_input_completes_without_stdin_deadlock():
+    result = source_module._isolated_pdf_to_text_and_pages(
+        b"not-a-pdf" + b"x" * (5 * 1024 * 1024),
+        max_pages=1,
+        max_characters=100,
+        timeout_seconds=5,
+        cpu_seconds=2,
+        memory_bytes=256 * 1024 * 1024,
+    )
+
+    assert result[3] != "pdf_worker_timeout"
+
+
 def test_http_pdf_extraction_is_not_run_in_resolver_process(monkeypatch):
     body = _pdf_bytes("Isolated evidence.")
 
@@ -656,10 +799,10 @@ def test_isolated_pdf_worker_is_killed_at_memory_limit(monkeypatch):
         returncode = None
         killed = False
 
-        def communicate(self, input=None, timeout=None):
+        def wait(self, timeout=None):
             if self.killed:
                 self.returncode = -9
-                return (None, None)
+                return self.returncode
             raise source_module.subprocess.TimeoutExpired("pdf-worker", timeout)
 
         def kill(self):
@@ -735,7 +878,7 @@ def test_v1_snapshot_replays_with_unknown_completeness(tmp_path):
     reference = SourceReference("legacy", "https://example.test/legacy")
     text = "Legacy captured text"
     store = SnapshotStore(tmp_path / "snapshots")
-    store.directory.mkdir(parents=True)
+    store.directory.mkdir(parents=True, exist_ok=True)
     store.path_for(reference.uri).write_text(
         json.dumps(
             {
@@ -752,8 +895,11 @@ def test_v1_snapshot_replays_with_unknown_completeness(tmp_path):
         )
     )
 
+    before = store.path_for(reference.uri).read_bytes()
     loaded = store.load(reference)
     assert loaded.ok is True
+    assert loaded.source.final_uri == reference.uri
+    assert store.path_for(reference.uri).read_bytes() == before
     assert loaded.source.evidence_window.truncation == "unknown"
     assert loaded.source.evidence_window.extraction_method == "legacy-snapshot/v1"
     assert loaded.source.evidence_window.text_sha256 == sha256_text(text)
@@ -769,7 +915,7 @@ def test_v1_snapshot_replays_with_unknown_completeness(tmp_path):
     assert verification.outcome == "evidence_window_incomplete"
 
 
-def test_v2_snapshot_rejects_window_tampering(tmp_path):
+def test_v3_snapshot_rejects_window_tampering(tmp_path):
     reference = SourceReference("s1", "https://example.test/window")
     source = ResolvedSource(reference, "Captured", "2026-08-17T00:00:00Z")
     store = SnapshotStore(tmp_path)
@@ -781,3 +927,114 @@ def test_v2_snapshot_rejects_window_tampering(tmp_path):
     loaded = store.load(reference)
     assert loaded.failure == "source_changed"
     assert loaded.detail == "snapshot_evidence_window_invalid"
+
+
+def test_v2_snapshot_replays_with_requested_uri_final_uri_without_rewrite(tmp_path):
+    reference = SourceReference("legacy-v2", "https://example.test/v2")
+    text = "V2 captured text"
+    window = EvidenceWindow.from_text(
+        text,
+        truncation="complete",
+        extraction_method="fixture/v1",
+        original_bytes=len(text.encode()),
+        original_characters=len(text),
+    )
+    store = SnapshotStore(tmp_path)
+    store.directory.mkdir(parents=True, exist_ok=True)
+    path = store.path_for(reference.uri)
+    path.write_text(
+        json.dumps(
+            {
+                "schema": "groundnut-source-snapshot/v2",
+                "source_id": reference.source_id,
+                "uri": reference.uri,
+                "fetched_at": "2026-08-17T00:00:00Z",
+                "status": 200,
+                "media_type": "text/plain",
+                "sha256": sha256_text(text),
+                "text": text,
+                "evidence_window": window.to_dict(),
+            },
+            sort_keys=True,
+        )
+    )
+    before = path.read_bytes()
+
+    loaded = store.load(reference)
+
+    assert loaded.ok
+    assert loaded.source.final_uri == reference.uri
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    ("final_uri", "detail"),
+    [
+        ("not a uri", "snapshot_final_uri_invalid:invalid_uri"),
+        ("file:///tmp/source", "snapshot_final_uri_invalid:scheme_not_allowed"),
+        ("https://-bad.example/path", "snapshot_final_uri_invalid:invalid_hostname"),
+        ("https://localhost/path", "snapshot_final_uri_invalid:localhost_not_allowed"),
+        (
+            "https://foo.localhost/path",
+            "snapshot_final_uri_invalid:localhost_not_allowed",
+        ),
+        (
+            "http://127.0.0.1/private",
+            "snapshot_final_uri_invalid:non_public_address:127.0.0.1",
+        ),
+        (
+            "https://example.test/path?token=secret",
+            "snapshot_final_uri_invalid:not_sanitized",
+        ),
+    ],
+)
+def test_v3_snapshot_invalid_final_uri_fails_closed(tmp_path, final_uri, detail):
+    reference = SourceReference("v3-invalid", "https://example.test/requested")
+    store = SnapshotStore(tmp_path)
+    path = store.archive(
+        ResolvedSource(reference, "Captured", "2026-08-17T00:00:00Z")
+    )
+    payload = json.loads(path.read_text())
+    payload["final_uri"] = final_uri
+    path.write_text(json.dumps(payload, sort_keys=True))
+
+    loaded = store.load(reference)
+
+    assert loaded.failure == "source_changed"
+    assert loaded.detail == detail
+
+
+def test_v3_snapshot_detects_valid_final_uri_tampering(tmp_path):
+    reference = SourceReference("v3-tamper", "https://example.test/requested")
+    store = SnapshotStore(tmp_path)
+    path = store.archive(
+        ResolvedSource(
+            reference,
+            "Captured",
+            "2026-08-17T00:00:00Z",
+            final_uri="https://records.example.test/final",
+        )
+    )
+    payload = json.loads(path.read_text())
+    payload["final_uri"] = "https://other.example.test/final"
+    path.write_text(json.dumps(payload, sort_keys=True))
+
+    loaded = store.load(reference)
+
+    assert loaded.failure == "source_changed"
+    assert loaded.detail == "snapshot_contract_hash_mismatch"
+
+
+def test_snapshot_key_remains_requested_uri_when_final_uri_redirects(tmp_path):
+    requested = "https://example.test/requested"
+    final = "https://records.example.test/final"
+    reference = SourceReference("redirect", requested)
+    store = SnapshotStore(tmp_path)
+
+    path = store.archive(
+        ResolvedSource(reference, "Captured", "2026-08-17T00:00:00Z", final_uri=final)
+    )
+
+    assert path == store.path_for(requested)
+    assert path != store.path_for(final)
+    assert store.load(reference).source.final_uri == final

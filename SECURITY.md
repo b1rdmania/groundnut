@@ -9,7 +9,9 @@ comprehensive security review. Current live-acquisition controls restrict URI
 schemes and public destinations, revalidate redirects, and bound encoded,
 decoded and extracted content. The default transport binds connections to
 validated addresses, and PDF parsing runs in a separately resource-limited
-worker. These new controls have not yet received the independent security review
+worker. Public-address validation explicitly rejects deprecated 6to4 IPv6
+destinations as well as ordinary private, loopback, link-local and reserved
+addresses. These new controls have not yet received the independent security review
 required for a stronger posture claim. Privileged injected transports remain
 outside the default connection guarantee, and operating-system enforcement
 details remain part of the review surface. See the

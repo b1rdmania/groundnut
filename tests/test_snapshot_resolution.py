@@ -56,6 +56,7 @@ def test_raw_query_resolves_one_canonical_snapshot_and_keeps_both_identities(tmp
     assert result.source.reference.source_id == raw.source_id
     assert result.snapshot_path == str(store.path_for(canonical.uri))
     assert result.to_dict()["canonical_identity"]["uri"] == canonical.uri
+    assert result.to_dict()["source"]["final_uri"] == canonical.uri
 
 
 def test_approved_record_key_resolves_record_specific_snapshot(tmp_path):

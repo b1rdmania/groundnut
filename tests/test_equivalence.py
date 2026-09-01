@@ -9,7 +9,13 @@ from groundnut.authority import AuthorityPolicy
 from groundnut import canonical_cli
 from groundnut.canonical_cli import execute_request
 from groundnut.domain import Category, DomainPack
-from groundnut.equivalence import compare_documents, main, validate_receipt
+from groundnut.equivalence import (
+    V1_COMPARED_FIELDS,
+    _payload_sha256,
+    compare_documents,
+    main,
+    validate_receipt,
+)
 from groundnut.provenance import sha256_text
 from groundnut.run_manifest import EngineIdentity
 from groundnut.runner import execute_canonical_check
@@ -139,6 +145,42 @@ def _document(execution, request_sha256):
     ).encode()
 
 
+def _canonical_bytes(value):
+    return json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+
+
+def _rehash(value):
+    value.pop("sha256", None)
+    value["sha256"] = sha256_text(_canonical_bytes(value).decode())
+
+
+def _rewrite_acquisitions(document, *, schema, remove_final_uri):
+    value = json.loads(document)
+    execution = value["execution"]
+    run = execution["run"]
+    for acquisition in run["acquisitions"]:
+        acquisition["schema"] = schema
+        if remove_final_uri:
+            acquisition["result"].pop("final_uri", None)
+    _rehash(run)
+    run_bytes = _canonical_bytes(run)
+    for artifact in execution["manifest"]["artifacts"]:
+        if artifact.get("kind") == "canonical_run":
+            artifact["sha256"] = sha256_text(run_bytes.decode())
+            artifact["bytes"] = len(run_bytes)
+    _rehash(execution["manifest"])
+    _rehash(execution)
+    return (json.dumps(value, indent=2, sort_keys=True) + "\n").encode()
+
+
+def _as_historical_v2_acquisitions(document):
+    return _rewrite_acquisitions(
+        document,
+        schema="groundnut-source-acquisition/v2",
+        remove_final_uri=True,
+    )
+
+
 def _live_and_replays(tmp_path, *, replay_text=None):
     artifact = _artifact(tmp_path)
     store = SnapshotStore(tmp_path / "snapshots")
@@ -190,6 +232,31 @@ def test_live_replay_equivalence_and_replay_bytes_with_network_disabled(
     assert live_resolver.calls == 1
     assert disabled.calls == 0
     assert len(result["sha256"]) == 64
+
+
+def test_historical_v2_acquisitions_without_final_uri_remain_readable(tmp_path):
+    live, replay, replay_second, _, _ = _live_and_replays(tmp_path)
+
+    result = compare_documents(
+        _as_historical_v2_acquisitions(live),
+        _as_historical_v2_acquisitions(replay),
+        _as_historical_v2_acquisitions(replay_second),
+    )
+
+    assert result["status"] == "equivalent"
+    assert result["schema"] == "groundnut-live-replay-equivalence/v2"
+
+
+def test_v3_successful_acquisition_requires_final_uri(tmp_path):
+    live, replay, replay_second, _, _ = _live_and_replays(tmp_path)
+    missing_final_uri = _rewrite_acquisitions(
+        live,
+        schema="groundnut-source-acquisition/v3",
+        remove_final_uri=True,
+    )
+
+    with pytest.raises(ValueError, match="v3 acquisition final_uri"):
+        compare_documents(missing_final_uri, replay, replay_second)
 
 
 def test_evidence_drift_is_hash_only_and_never_hidden(tmp_path):
@@ -248,7 +315,7 @@ def test_equivalence_cli_writes_machine_receipt(tmp_path):
     payload = json.loads(out.read_text())
 
     assert code == 0
-    assert payload["schema"] == "groundnut-live-replay-equivalence/v1"
+    assert payload["schema"] == "groundnut-live-replay-equivalence/v2"
     assert payload["status"] == "equivalent"
 
 
@@ -269,6 +336,16 @@ def test_receipt_validator_rejects_a_missing_comparison_contract(tmp_path):
 
     with pytest.raises(ValueError, match="compared-field set"):
         validate_receipt(result)
+
+
+def test_historical_v1_equivalence_receipt_remains_readable(tmp_path):
+    live, replay, replay_second, _, _ = _live_and_replays(tmp_path)
+    result = compare_documents(live, replay, replay_second)
+    result["schema"] = "groundnut-live-replay-equivalence/v1"
+    result["compared_fields"] = list(V1_COMPARED_FIELDS)
+    result["sha256"] = _payload_sha256(result)
+
+    assert validate_receipt(result) is result
 
 
 def test_same_canonical_replay_request_is_byte_identical_without_network(

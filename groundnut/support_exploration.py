@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
-import json
 from typing import Any, Iterable, Mapping
 
 from .provenance import sha256_text
+from .receipt import sha256_json as _sha256_json
 from .support import SupportDetector
 from .support_agent_screen import AgentSuggestion, screen_agent_suggestions
 from .support_eval import SupportGold, score_support
@@ -159,9 +159,3 @@ def compare_agent_explorations(
         "results": results,
     }
     return {**payload, "sha256": _sha256_json(payload)}
-
-
-def _sha256_json(value: Any) -> str:
-    return hashlib.sha256(
-        json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
-    ).hexdigest()

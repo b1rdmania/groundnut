@@ -132,7 +132,9 @@ self-hash. It still does not turn support or authority into truth.
 run into `groundnut-run-manifest/v2`. The manifest carries the exact engine
 build, domain pack, artifact, support, authority and arena policies, detector
 configuration, normalized sources, and snapshot bytes. Publication-grade execution rejects a dirty
-engine. An all-unsourced or all-unavailable run remains manifestable with an
+engine. An installed source tree without repository attestation is treated as
+conservatively dirty rather than asserting an unmeasured clean state. An
+all-unsourced or all-unavailable run remains manifestable with an
 empty normalized-source list rather than disappearing.
 
 ## Snapshot-first acquisition
@@ -143,23 +145,30 @@ when no archive exists, then archive a successful response. A present but
 invalid snapshot fails closed rather than being hidden by fresh network bytes.
 Explicit refresh preserves the previous snapshot when the live attempt fails.
 
-`groundnut-source-acquisition/v2` records whether the result was replayed,
+`groundnut-source-acquisition/v3` records whether the result was replayed,
 fetched and archived, missing, invalid, or a failed live attempt, together with
-the snapshot and normalized source hashes. This receipt is suitable for a run
-manifest and separates deterministic replay from marked integration work.
+the snapshot and normalized source hashes. Successful v3 acquisitions require
+`final_uri`. Equivalence readers retain v2 compatibility, where historical
+successful records may honestly omit that field. This receipt is suitable for
+a run manifest and separates deterministic replay from marked integration work.
 
-Successful `groundnut-source-snapshot/v2` artifacts bind an explicit evidence
-window: original and captured lengths where knowable, truncation state,
-extraction method, and the hash of the exact normalized text searched. V1
-snapshots remain replayable but their completeness is `unknown`; Groundnut does
-not reinterpret a historical missing field as a complete capture.
+Successful `groundnut-source-snapshot/v3` artifacts bind an explicit evidence
+window and the validated final-response URI. The final URI retains scheme,
+host, explicit port, and path while dropping query data and fragments. A
+snapshot-level digest makes changes to that provenance detectable. V1 and v2
+snapshots remain replayable without rewriting; their honest final-URI fallback
+is the requested snapshot URI, and v1 completeness remains `unknown`.
 
-`groundnut-live-replay-equivalence/v1` compares the artifact, source/snapshot/
-window identities, evidence assessments, arena result, and material manifest
-identities. Acquisition mode, strategy and live-attempt state are declared
-exclusions; hashes derived from those complete-run fields are excluded with
-them. A second replay must be byte-identical. The receipt reports hash-only
-differences so a comparison does not leak private report or source text.
+`groundnut-live-replay-equivalence/v2` uses
+`groundnut-live-replay-evidence-projection/v2` to compare the artifact,
+source/snapshot/window/final-response identities, evidence assessments, arena
+result, and material manifest identities. The projection reader also accepts
+historical v2 acquisitions without `final_uri`; receipt validation retains the
+v1 comparison-field contract. Acquisition mode, strategy and live-attempt
+state are declared exclusions; hashes derived from those complete-run fields
+are excluded with them. A second replay must be byte-identical. The receipt
+reports hash-only differences so a comparison does not leak private report or
+source text.
 
 ## Artifact ingestion
 
@@ -212,6 +221,7 @@ to own rendering, presentation, audience, and publication authority.
 
 - an immutable engine revision
 - a path-bound shipped-source digest and explicit dirty state
+- a non-publishable fallback when repository cleanliness cannot be attested
 - exact playbook and evidence-manifest hashes
 - source and optional snapshot hashes
 - frozen support and arena policies
@@ -219,6 +229,10 @@ to own rendering, presentation, audience, and publication authority.
 - schema-tagged output artifact hashes
 Collection order is canonicalized, duplicate identities are rejected, and the
 manifest carries its own SHA-256.
+
+Receipt hashing uses one strict canonical-JSON boundary. It rejects NaN and
+infinite numbers instead of creating self-hashed bytes that conforming JSON
+readers cannot consume.
 
 The manifest contains no credentials and performs no storage or signing. A host
 can persist or sign the receipt, but Groundnut only produces deterministic

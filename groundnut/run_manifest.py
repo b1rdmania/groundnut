@@ -12,6 +12,7 @@ from typing import Any, Mapping
 
 from .domain import DomainPack
 from .provenance import SourceRecord
+from .receipt import canonical_json_bytes, sha256_json
 from .sources import EvidenceWindow
 
 
@@ -241,7 +242,7 @@ class RuntimeComponent:
             role=role,
             name=name,
             revision=revision,
-            configuration_sha256=_sha256_json(configuration),
+            configuration_sha256=sha256_json(configuration),
         )
 
     def to_dict(self) -> dict[str, str]:
@@ -271,7 +272,7 @@ class ArtifactDigest:
         schema = value.get("schema")
         if not isinstance(schema, str) or not schema.strip():
             raise ValueError("manifest artifact must declare a schema")
-        encoded = _canonical_json(value)
+        encoded = canonical_json_bytes(value)
         return cls(
             kind=kind,
             schema=schema,
@@ -343,19 +344,10 @@ class RunManifest:
 
     @property
     def sha256(self) -> str:
-        return _sha256_json(self.canonical_payload())
+        return sha256_json(self.canonical_payload())
 
     def to_dict(self) -> dict[str, Any]:
         return {**self.canonical_payload(), "sha256": self.sha256}
-
-
-def _canonical_json(value: Mapping[str, Any]) -> bytes:
-    return json.dumps(
-        value,
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
-    ).encode()
 
 
 def source_tree_sha256(source_root: str | Path) -> str:
@@ -395,10 +387,6 @@ def _git(repository: Path, *args: str) -> str:
         ).stdout.strip()
     except (OSError, subprocess.CalledProcessError) as exc:
         raise ValueError("engine repository identity is unavailable") from exc
-
-
-def _sha256_json(value: Mapping[str, Any]) -> str:
-    return hashlib.sha256(_canonical_json(value)).hexdigest()
 
 
 def _require_text(*values: str) -> None:

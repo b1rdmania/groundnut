@@ -20,6 +20,7 @@ FIELDS = (
     "question",
     "declared_analysis",
     "provenance_class",
+    "location",
 )
 
 

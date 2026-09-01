@@ -9,16 +9,14 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .artifacts import ArtifactExtraction, ArtifactProfile, DEFAULT_ARTIFACT_PROFILE, extract_artifact
+from .receipt import sha256_json
 
 
 RENDER_RECEIPT_SCHEMA = "groundnut-render-receipt/v1"
 
 
 def _canonical_sha256(value: Any) -> str:
-    encoded = json.dumps(
-        value, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode()
-    return hashlib.sha256(encoded).hexdigest()
+    return sha256_json(value)
 
 
 @dataclass(frozen=True)

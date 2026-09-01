@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import hashlib
-import json
+import math
 from pathlib import Path
 import re
 from typing import Any
 from typing import Mapping
+
+from .receipt import loads_strict, sha256_json
 
 
 PLAN_SCHEMA = "groundnut-support-probe-plan/v3"
@@ -86,9 +87,12 @@ class SupportProbePlan:
             raise ValueError("probe plan must bind one hash for every policy key")
         if any(not _SHA256.fullmatch(digest) for _, digest in self.policy_hashes):
             raise ValueError("probe plan policy hashes must be lowercase SHA-256")
-        if self.minimum_improvement <= 0:
+        if not math.isfinite(self.minimum_improvement) or self.minimum_improvement <= 0:
             raise ValueError("probe plan minimum improvement must be positive")
-        if not 0 <= self.lexical_overlap_min < self.lexical_overlap_max <= 1:
+        if not all(
+            math.isfinite(value)
+            for value in (self.lexical_overlap_min, self.lexical_overlap_max)
+        ) or not 0 <= self.lexical_overlap_min < self.lexical_overlap_max <= 1:
             raise ValueError("probe plan lexical-overlap bounds are invalid")
 
     def canonical_payload(self) -> dict[str, Any]:
@@ -116,9 +120,7 @@ class SupportProbePlan:
 
     @property
     def sha256(self) -> str:
-        return hashlib.sha256(
-            json.dumps(self.canonical_payload(), sort_keys=True, separators=(",", ":")).encode()
-        ).hexdigest()
+        return sha256_json(self.canonical_payload())
 
     def to_dict(self) -> dict[str, Any]:
         return {**self.canonical_payload(), "sha256": self.sha256}
@@ -168,7 +170,7 @@ class SupportProbePlan:
 
     @classmethod
     def from_json(cls, path: str | Path) -> "SupportProbePlan":
-        value = json.loads(Path(path).read_text())
+        value = loads_strict(Path(path).read_text())
         plan = cls.from_mapping(value)
         if value.get("sha256") is not None and value["sha256"] != plan.sha256:
             raise ValueError("support-probe plan self-hash mismatch")

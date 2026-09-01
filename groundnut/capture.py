@@ -13,6 +13,7 @@ from types import MappingProxyType
 from typing import Any, Mapping
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from .receipt import sha256_json
 from .sources import (
     HttpResolver,
     ResolvedSource,
@@ -22,6 +23,7 @@ from .sources import (
     SourceReference,
     SourceResolution,
     SourceResolver,
+    _sanitize_final_http_uri,
 )
 
 
@@ -40,8 +42,7 @@ _SENSITIVE_QUERY_KEY = re.compile(
 
 
 def _canonical_sha256(value: Mapping[str, Any]) -> str:
-    encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
-    return hashlib.sha256(encoded).hexdigest()
+    return sha256_json(value)
 
 
 @dataclass(frozen=True)
@@ -189,20 +190,34 @@ def canonical_reference(
     """Reject credentials in canonical source identity instead of redacting it."""
 
     parsed = urlsplit(reference.uri)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+    if parsed.scheme.casefold() not in {"http", "https"} or not parsed.netloc:
         raise ValueError("read-time HTTP capture requires an http(s) URI")
     if parsed.username is not None or parsed.password is not None:
         raise ValueError("source URI must not contain credentials")
+    host = (parsed.hostname or "").casefold()
+    normalized_host = f"[{host}]" if ":" in host else host
+    netloc = (
+        f"{normalized_host}:{parsed.port}"
+        if parsed.port is not None
+        else normalized_host
+    )
     if declaration.retained_query_parameters_by_host is None:
         retain = set(declaration.retained_query_parameters)
-        netloc = parsed.netloc
     else:
-        host = (parsed.hostname or "").lower()
         retain = set(declaration.retained_query_parameters_by_host.get(host, ()))
-        netloc = parsed.netloc.lower()
-    retained = [(key, value) for key, value in parse_qsl(parsed.query) if key in retain]
+    retained = [
+        (key, value)
+        for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+        if key in retain
+    ]
     canonical_uri = urlunsplit(
-        (parsed.scheme, netloc, parsed.path, urlencode(sorted(retained)), "")
+        (
+            parsed.scheme.casefold(),
+            netloc,
+            parsed.path,
+            urlencode(sorted(retained)),
+            "",
+        )
     )
     return SourceReference(reference.source_id, canonical_uri)
 
@@ -287,6 +302,7 @@ class SnapshotResolution:
                     "text": self.source.text,
                     "status": self.source.status,
                     "media_type": self.source.media_type,
+                    "final_uri": self.source.final_uri,
                     "evidence_window": self.source.evidence_window.to_dict(),
                 }
                 if self.source
@@ -387,6 +403,14 @@ class _DeclaredResolver:
                 ),
             )
         source = resolution.source
+        try:
+            final_uri = _sanitize_final_http_uri(source.final_uri)
+        except ValueError as error:
+            return SourceResolution(
+                source=None,
+                failure="source_policy_blocked",
+                detail=_bounded_detail("invalid_final_response_uri", str(error)),
+            )
         return SourceResolution(
             source=ResolvedSource(
                 reference=reference,
@@ -395,6 +419,7 @@ class _DeclaredResolver:
                 status=source.status,
                 media_type=source.media_type,
                 evidence_window=source.evidence_window,
+                final_uri=final_uri,
             )
         )
 
@@ -433,6 +458,13 @@ class ReadTimeCaptureProducer:
 
     def capture(self, reference: SourceReference) -> dict[str, Any]:
         canonical = canonical_reference(reference, self.declaration)
+        public_identity = _public_raw_identity(reference)
+        self.snapshots.claim_canonical_identity(
+            canonical,
+            public_raw_identity_sha256=hashlib.sha256(
+                public_identity.encode()
+            ).hexdigest(),
+        )
         resolver = SnapshotFirstResolver(
             self.snapshots,
             _DeclaredResolver(
@@ -601,3 +633,27 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     print(json.dumps({"status": "captured", "receipts": len(result["receipts"]), "sha256": result["sha256"]}, sort_keys=True))
     return 0
+
+
+def _public_raw_identity(reference: SourceReference) -> str:
+    """Compare raw identities without retaining credential-shaped query data."""
+
+    parsed = urlsplit(reference.uri)
+    public_query = [
+        (key, value)
+        for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+        if not _SENSITIVE_QUERY_KEY.search(key)
+    ]
+    return urlunsplit(
+        (
+            parsed.scheme.lower(),
+            parsed.netloc.lower(),
+            parsed.path,
+            urlencode(sorted(public_query)),
+            "",
+        )
+    )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

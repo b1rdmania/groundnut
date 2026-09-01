@@ -1,3 +1,6 @@
+import json
+import math
+
 import pytest
 
 from groundnut.probe_plan import SupportProbePlan
@@ -47,6 +50,24 @@ def test_plan_is_order_stable_and_freezes_sample_size():
 def test_plan_requires_a_positive_preregistered_difference():
     with pytest.raises(ValueError, match="minimum improvement"):
         SupportProbePlan(**{**plan().__dict__, "minimum_improvement": 0})
+
+
+@pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf])
+def test_plan_rejects_non_finite_numbers(value):
+    with pytest.raises(ValueError, match="minimum improvement"):
+        SupportProbePlan(**{**plan().__dict__, "minimum_improvement": value})
+    with pytest.raises(ValueError, match="lexical-overlap"):
+        SupportProbePlan(**{**plan().__dict__, "lexical_overlap_min": value})
+
+
+def test_plan_json_loader_rejects_non_standard_nan(tmp_path):
+    value = plan().to_dict()
+    value["minimum_improvement"] = math.nan
+    path = tmp_path / "plan.json"
+    path.write_text(json.dumps(value))
+
+    with pytest.raises(ValueError, match="non-finite JSON number"):
+        SupportProbePlan.from_json(path)
 
 
 def test_plan_keeps_baseline_and_candidate_policy_roles_distinct():

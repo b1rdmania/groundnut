@@ -2,6 +2,8 @@ import io
 import base64
 import hashlib
 import json
+import subprocess
+import sys
 from urllib.parse import quote, quote_plus
 
 import pytest
@@ -361,6 +363,39 @@ def test_query_parameters_are_default_deny_but_original_uri_is_used_for_fetch(tm
     assert_secrets_absent(store.path_for(canonical.uri).read_text(), json.dumps(receipt))
 
 
+def test_capture_rejects_distinct_public_urls_collapsing_to_one_snapshot(tmp_path):
+    class Connector:
+        def resolve(self, reference):
+            return SourceResolution(source=_resolved(reference))
+
+    store = SnapshotStore(tmp_path)
+    producer = ReadTimeCaptureProducer(store, Connector(), _declaration("text/html"))
+    producer.capture(SourceReference("a", "https://example.test/article?id=A"))
+
+    with pytest.raises(ValueError, match="record-bearing query parameter"):
+        ReadTimeCaptureProducer(
+            store, Connector(), _declaration("text/html")
+        ).capture(SourceReference("b", "https://example.test/article?id=B"))
+
+
+def test_capture_allows_secret_rotation_for_one_public_identity(tmp_path):
+    class Connector:
+        def resolve(self, reference):
+            return SourceResolution(source=_resolved(reference))
+
+    producer = ReadTimeCaptureProducer(
+        SnapshotStore(tmp_path), Connector(), _declaration("text/html")
+    )
+    first = producer.capture(
+        SourceReference("a", "https://example.test/article?access_token=one")
+    )
+    second = producer.capture(
+        SourceReference("b", "https://example.test/article?access_token=two")
+    )
+
+    assert first["acquisition"]["result"]["uri"] == second["acquisition"]["result"]["uri"]
+
+
 def test_query_parameter_retention_must_be_declared_and_noncredential_shaped():
     reference = SourceReference("article", "https://example.test/article?id=42&view=full")
     assert canonical_reference(reference, _declaration("text/html")).uri == (
@@ -394,6 +429,28 @@ def test_v3_query_retention_is_exact_host_specific_and_normalises_uri_host_case(
             ("text/html",),
             retained_query_parameters_by_host={"Journals.Plos.org": ("id",)},
         )
+
+
+def test_v2_and_v3_canonical_identity_share_host_and_blank_query_normalisation():
+    reference = SourceReference(
+        "article", "HTTPS://Example.COM/article?id=&view=full#part"
+    )
+    v2 = CaptureDeclaration(
+        "public_web", ("text/html",), retained_query_parameters=("id",)
+    )
+    v3 = CaptureDeclaration(
+        "public_web",
+        ("text/html",),
+        retained_query_parameters_by_host={"example.com": ("id",)},
+    )
+
+    assert canonical_reference(reference, v2).uri == (
+        "https://example.com/article?id="
+    )
+    assert canonical_reference(reference, v3).uri == (
+        "https://example.com/article?id="
+    )
+    assert query_policy_application(reference, v2)["keys_retained"] == ["id"]
 
 
 def test_v3_receipt_exposes_query_policy_without_values_or_sensitive_names(tmp_path):
@@ -604,3 +661,15 @@ def test_capture_request_requires_explicit_live_authority(tmp_path):
     }
     with pytest.raises(ValueError, match="--allow-live"):
         execute_request(request, base_directory=tmp_path, allow_live=False)
+
+
+def test_capture_module_entry_point_exposes_help():
+    completed = subprocess.run(
+        [sys.executable, "-m", "groundnut.capture", "--help"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0
+    assert "Capture declared source reads" in completed.stdout

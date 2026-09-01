@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from typing import Any, Iterable, Mapping
 
 from .relevance_exploration import RelevanceScorer
+from .receipt import sha256_json as _sha256_json
 
 
 RELEVANCE_ENVELOPE_SCHEMA = "groundnut-relevance-envelope/v1"
@@ -84,9 +84,3 @@ def _quantile(values: list[float], fraction: float) -> float:
 
 def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
-
-
-def _sha256_json(value: Any) -> str:
-    return hashlib.sha256(
-        json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
-    ).hexdigest()

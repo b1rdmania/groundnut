@@ -36,6 +36,41 @@ BAR_HIGH_PRECISION = 0.70
 BAR_PROBE_GAP = 0.05  # one-sided upper bound
 
 
+def evaluate_bars(
+    *, macro_f1_value, grounded, grounding_total, high_tp, high_fp, probe_gap
+):
+    """Evaluate the frozen bars, including non-vacuity requirements."""
+
+    grounding_value = grounded / grounding_total if grounding_total else 0.0
+    high_precision = high_tp / (high_tp + high_fp) if high_tp + high_fp else 0.0
+    return [
+        (
+            "macro-F1",
+            f"{macro_f1_value:.4f}",
+            f">= {BAR_F1}",
+            macro_f1_value >= BAR_F1,
+        ),
+        (
+            "quote-grounding",
+            f"{grounding_value:.4f} ({grounded}/{grounding_total})",
+            f">= {BAR_GROUNDING}",
+            grounding_total > 0 and grounding_value >= BAR_GROUNDING,
+        ),
+        (
+            "High-sev precision",
+            f"{high_precision:.4f} ({high_tp}/{high_tp + high_fp})",
+            f">= {BAR_HIGH_PRECISION}",
+            (high_tp + high_fp) > 0 and high_precision >= BAR_HIGH_PRECISION,
+        ),
+        (
+            "probe gap",
+            "not measured" if probe_gap is None else f"{probe_gap:+.4f}",
+            f"<= +{BAR_PROBE_GAP}",
+            probe_gap is not None and probe_gap <= BAR_PROBE_GAP,
+        ),
+    ]
+
+
 def main():
     args = [a for a in sys.argv[1:]]
     pred_root = REPO / "predictions"
@@ -89,11 +124,9 @@ def main():
 
     # 2. quote grounding
     g, n, misses = grounding(split_pred, contracts, doc_ids=set(gold))
-    gr = g / n if n else 0.0
 
     # 3. High-severity precision
     tp, fp = high_severity_precision(split_pred, gold, load_severity())
-    hp = tp / (tp + fp) if tp + fp else 0.0
 
     # 4. probe gap (dev-sample vs probe macro-F1, same doc cohort)
     gap = None
@@ -112,15 +145,14 @@ def main():
         with (PRIV / "holdout-calls.log").open("a") as fh:
             fh.write(f"{time.time()},{mf:.4f}\n")
 
-    results = [
-        ("macro-F1", f"{mf:.4f}", f">= {BAR_F1}", mf >= BAR_F1),
-        ("quote-grounding", f"{gr:.4f} ({g}/{n})", f">= {BAR_GROUNDING}",
-         n > 0 and gr >= BAR_GROUNDING),
-        ("High-sev precision", f"{hp:.4f} ({tp}/{tp + fp})", f">= {BAR_HIGH_PRECISION}",
-         (tp + fp) > 0 and hp >= BAR_HIGH_PRECISION),
-        ("probe gap", "not measured" if gap is None else f"{gap:+.4f}",
-         f"<= +{BAR_PROBE_GAP}", gap is not None and gap <= BAR_PROBE_GAP),
-    ]
+    results = evaluate_bars(
+        macro_f1_value=mf,
+        grounded=g,
+        grounding_total=n,
+        high_tp=tp,
+        high_fp=fp,
+        probe_gap=gap,
+    )
     print(f"EVAL GATE — {mode} ({len(gold)} docs) — predictions: {pred_root}")
     for name, val, bar, ok in results:
         print(f"  {'PASS' if ok else 'FAIL':4}  {name:20} {val:22} bar {bar}")

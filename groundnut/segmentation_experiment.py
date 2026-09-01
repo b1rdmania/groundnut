@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
-import json
 from time import perf_counter
 from typing import Any, Callable, Iterable, Mapping, Sequence
+
+from .receipt import sha256_json as _sha256_json
 
 
 SEGMENTATION_COMPARISON_SCHEMA = "groundnut-segmentation-comparison/v1"
@@ -291,9 +292,3 @@ def _merge_intervals(
 
 def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
-
-
-def _sha256_json(value: Any) -> str:
-    return hashlib.sha256(
-        json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
-    ).hexdigest()

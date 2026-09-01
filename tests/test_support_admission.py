@@ -1,5 +1,6 @@
 import hashlib
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -21,6 +22,7 @@ from groundnut.support_cases import (
     contexts_sha256,
 )
 from groundnut.support_gate_cli import main as gate_main
+from groundnut.support_eval import SupportGold, score_support
 from groundnut.support_runner import run_support_probe
 
 
@@ -213,6 +215,53 @@ def test_admission_fails_material_kind_regression_even_with_aggregate_gain():
     assert any("verbatim_supported" in failure for failure in report.failures)
 
 
+@pytest.mark.parametrize("role", ["baseline", "candidate"])
+def test_admission_rejects_incomplete_runs(role):
+    plan, baseline, perfect, _ = setup_runs()
+    chosen = baseline if role == "baseline" else perfect
+    value = json.loads(json.dumps(chosen.to_dict()))
+    value["assessments"].pop()
+    value["complete"] = False
+    gold = [
+        SupportGold(
+            case_id=str(row["case_id"]),
+            expected_status=str(row["expected_status"]),
+            kind=str(row["kind"]),
+        )
+        for row in value["gold"]
+    ]
+    predictions = [
+        SimpleNamespace(
+            claim_id=row["support"]["claim_id"],
+            status=row["support"]["status"],
+        )
+        for row in value["assessments"]
+    ]
+    value["score"] = score_support(gold, predictions)
+    rehash(value)
+    incomplete = RecordedProbeRun.from_mapping(value)
+    baseline_record = (
+        incomplete
+        if role == "baseline"
+        else RecordedProbeRun.from_mapping(baseline.to_dict())
+    )
+    candidate_record = (
+        incomplete
+        if role == "candidate"
+        else RecordedProbeRun.from_mapping(perfect.to_dict())
+    )
+
+    report = evaluate_support_admission(
+        plan,
+        baseline_record,
+        candidate_record,
+        probe=current_probe_for(plan),
+    )
+
+    assert report.passed is False
+    assert f"{role} run is incomplete" in report.failures
+
+
 def test_recorded_run_rejects_a_rehashed_but_fabricated_score():
     _, _, perfect, _ = setup_runs()
     value = json.loads(json.dumps(perfect.to_dict()))
@@ -233,7 +282,7 @@ def test_recorded_run_rejects_rehashed_detector_identity_tampering():
         RecordedProbeRun.from_mapping(value)
 
 
-def test_recorded_run_rejects_context_rows_not_shared_by_gold():
+def test_recorded_run_rejects_assessment_with_unknown_context():
     _, _, perfect, _ = setup_runs()
     value = json.loads(json.dumps(perfect.to_dict()))
     value["contexts"][0]["case_id"] = "unknown-case"
@@ -241,6 +290,50 @@ def test_recorded_run_rejects_context_rows_not_shared_by_gold():
 
     with pytest.raises(ValueError, match="assessment source hash differs"):
         RecordedProbeRun.from_mapping(value)
+
+
+def test_recorded_run_rejects_extra_context_not_shared_by_gold():
+    _, _, perfect, _ = setup_runs()
+    value = json.loads(json.dumps(perfect.to_dict()))
+    value["contexts"].append(
+        {"case_id": "extra-case", "sha256": "d" * 64, "characters": 10}
+    )
+    rehash(value)
+
+    with pytest.raises(ValueError, match="context and gold case ids differ"):
+        RecordedProbeRun.from_mapping(value)
+
+
+def test_admission_rejects_fabricated_weak_baseline():
+    plan, baseline, perfect, _ = setup_runs()
+    value = json.loads(json.dumps(baseline.to_dict()))
+    for row in value["assessments"]:
+        row["support"]["status"] = "insufficient"
+    gold = [
+        SupportGold(
+            case_id=str(row["case_id"]),
+            expected_status=str(row["expected_status"]),
+            kind=str(row["kind"]),
+        )
+        for row in value["gold"]
+    ]
+    predictions = [
+        SimpleNamespace(
+            claim_id=row["support"]["claim_id"],
+            status=row["support"]["status"],
+        )
+        for row in value["assessments"]
+    ]
+    value["score"] = score_support(gold, predictions)
+    rehash(value)
+
+    with pytest.raises(ValueError, match="exact-match control invariant"):
+        evaluate_support_admission(
+            plan,
+            RecordedProbeRun.from_mapping(value),
+            RecordedProbeRun.from_mapping(perfect.to_dict()),
+            probe=current_probe_for(plan),
+        )
 
 
 def test_admission_rejects_gold_rows_that_are_not_the_frozen_probe():

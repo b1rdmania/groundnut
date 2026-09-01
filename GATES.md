@@ -51,8 +51,9 @@ does not regress on any material case kind. Cached outputs must reproduce the de
 
 "Material case kind" is every one of the four kinds, with strict no-regression
 on per-kind accuracy, hardcoded in `groundnut/support_admission.py`. It is not a
-plan field and cannot be relaxed per plan. Because the exact baseline scores
-at or near 1.0 on `verbatim_supported`, a bare learned detector will fail this
+plan field and cannot be relaxed per plan. A complete exact-baseline run must
+score exactly 1.0 on `verbatim_supported`; otherwise the gate rejects the
+control before comparison. A bare learned detector will therefore fail this
 rule by construction; only a composed policy that keeps the exact check can
 pass. That is the intended boundary.
 
@@ -90,8 +91,8 @@ missing measurement is not a failure, but it is also not evidence of quality.
 
 Current status: **ADMITTED** for the frozen supported-syntax pack.
 
-Segmenter version 3 scores `1.000` precision, recall, field accuracy and
-location coverage over 20 sanitized claims spanning Markdown, rendered HTML
+Segmenter version 5 scores `1.000` precision, recall, field accuracy and
+labelled-location accuracy over 20 sanitized claims spanning Markdown, rendered HTML
 and structured memo JSON. Fixture and profile bytes are frozen and checked by
 the evaluator. The public receipt is
 `results/artifact-extraction-admission-v1.json`.
@@ -108,7 +109,8 @@ Verification metrics v4 keeps the stable anchor outcomes (`found`, `ambiguous`,
 - `byte_exact`: the raw excerpt occurs verbatim in the stored evidence window;
 - `normalised`: the excerpt occurs only after named case, whitespace, quote,
   dash or punctuation normalisation;
-- `fuzzy`: approximate anchoring, still subject to the numeric-token guard.
+- `fuzzy`: approximate similarity used only to distinguish ambiguous excerpts
+  from clear absence; it never produces a `found` outcome.
 
 These metrics measure mechanical presence only. They do not enter or replace
 the semantic-support admission gate above, and none is a truth verdict.

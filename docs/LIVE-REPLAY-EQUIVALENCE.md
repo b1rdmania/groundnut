@@ -1,7 +1,10 @@
 # Live-to-replay evidence equivalence
 
-**Frozen:** 25 August 2026  
-**Receipt:** `groundnut-live-replay-equivalence/v1`
+**Frozen:** 31 August 2026
+
+**Receipt:** `groundnut-live-replay-equivalence/v2`
+
+**Projection:** `groundnut-live-replay-evidence-projection/v2`
 
 A live run and its replay are not expected to be byte-identical. Acquisition
 mode, strategy and live-attempt state legitimately differ. Groundnut instead
@@ -10,12 +13,13 @@ byte-identical to the first.
 
 ## Compared projection
 
-The v1 projection compares these fields exactly:
+The v2 projection compares these fields exactly:
 
 - the complete artifact account, including claim IDs, normalized claim data,
   artifact/profile hashes and segmenter identity;
 - source identity, success/failure state, snapshot hash, normalized source
-  hash and the complete evidence-window identity for every acquisition;
+  hash, final-response URI and the complete evidence-window identity for every
+  acquisition;
 - the complete claim-evidence report, including mechanical verification,
   semantic support and authority assessments;
 - arena output, when present;
@@ -24,6 +28,14 @@ The v1 projection compares these fields exactly:
 
 The receipt publishes the projection hashes and hash-only differences. It does
 not copy private claim or source text into a comparison result.
+
+New writers emit `groundnut-source-acquisition/v3`; successful v3 acquisition
+results must contain `final_uri`. The projection reader also accepts historical
+`groundnut-source-acquisition/v2` records, where an absent `final_uri` remains
+an explicit unknown rather than being invented. Receipt validation accepts the
+historical equivalence v1 comparison-field contract as well as v2. Unknown
+acquisition or receipt versions fail with an explicit unsupported-schema
+diagnostic.
 
 ## Declared exclusions
 

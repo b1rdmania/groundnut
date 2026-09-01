@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass, replace
-import hashlib
 import io
 import json
 from pathlib import Path
@@ -13,6 +12,7 @@ import re
 from typing import Any, Iterable, Mapping
 
 from .provenance import sha256_text
+from .receipt import sha256_json as _sha256_json
 from .support_cases import (
     CASE_KINDS,
     CaseProvenance,
@@ -674,9 +674,3 @@ def _blank_optional(value: str) -> str | None:
 
 def _present(value: str | None) -> bool:
     return value is not None and bool(value.strip())
-
-
-def _sha256_json(value: Mapping[str, Any]) -> str:
-    return hashlib.sha256(
-        json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
-    ).hexdigest()

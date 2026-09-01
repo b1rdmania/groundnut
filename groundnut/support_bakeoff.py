@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import hashlib
 import json
 from pathlib import Path
 import re
 from typing import Any, Mapping
 
 from .probe_plan import SupportProbePlan
+from .receipt import sha256_json as _sha256_json
 from .support import SupportDetector, SupportPolicy
 from .support_admission import SupportAdmissionReport, evaluate_support_admission
 from .support_admission import RecordedProbeRun
@@ -120,9 +120,3 @@ def run_support_bakeoff(
         runs=runs,
         admissions=admissions,
     )
-
-
-def _sha256_json(value: Mapping[str, Any]) -> str:
-    return hashlib.sha256(
-        json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
-    ).hexdigest()

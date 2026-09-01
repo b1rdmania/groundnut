@@ -45,7 +45,7 @@
     "precision": 1.0,
     "recall": 1.0
   },
-  "benchmark_sha256": "96c3b4e34e22e376dedb6e347b7f9649432104c65ac3af4a59afa2c0b92fc625",
+  "benchmark_sha256": "c1f82db9d523d91b673d17ce66a9b16727ae997b70068a1d9774afb301516838",
   "cases": [
     {
       "actual": 4,
@@ -90,11 +90,11 @@
   "disclosure": "A sanitized cross-format contract-conformance pack derived from a frozen consumer boundary. It measures supported syntax exactly; it is not a representative estimate of extraction accuracy on arbitrary documents.",
   "profile": {
     "key": "host-artifact-admission",
-    "sha256": "4ca376dd5faca7877d20020859c0058de53e2c1ac8b3f4d3bcb8051098709c20"
+    "sha256": "ac02032e9477fdc40016b88989dba331446976983298208f1fe7d0b008376b9a"
   },
-  "profile_file_sha256": "bfa791c2dede0db983cfc69cc060b3dfbafd5784dd28c57deb92e3452e7bb049",
+  "profile_file_sha256": "10edca50e7b30abb2ce3511404db4d04f928ecb3b2afac81545138e4b3f2dfc1",
   "schema": "groundnut-artifact-extraction-admission/v1",
-  "sha256": "d29453cf75ea3da89204869fc12b7aeafb8bd8443f07e15e5707d9a6e0322058",
+  "sha256": "9d54441a1298cc71da05cc76370568dc669f2564f94a6f9b7cfcc3d18e9b2740",
   "status": "admitted",
   "thresholds": {
     "field_accuracy": 1.0,
