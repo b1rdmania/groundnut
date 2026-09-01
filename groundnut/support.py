@@ -14,6 +14,7 @@ from pathlib import Path
 import re
 from typing import Any, Mapping, Protocol
 
+from .receipt import sha256_json as _sha256_json
 from .sources import SourceResolution
 from .verification import Claim, VerifiedClaim, normalise
 
@@ -402,8 +403,3 @@ def _input_sha256(claim: Claim, source_sha256: str | None) -> str:
 def _require_confidence(value: float | None) -> None:
     if value is not None and not 0.0 <= value <= 1.0:
         raise ValueError("confidence must be between 0 and 1")
-
-
-def _sha256_json(value: Mapping[str, Any]) -> str:
-    encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
-    return hashlib.sha256(encoded).hexdigest()

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 from pathlib import Path
 import sys
@@ -15,6 +14,7 @@ from .artifacts import ArtifactProfile, DEFAULT_ARTIFACT_PROFILE
 from .authority import AuthorityDeclaration, AuthorityPolicy
 from .domain import DomainPack
 from .run_manifest import EngineIdentity
+from .receipt import sha256_json
 from .runner import execute_canonical_check
 from .sources import HttpResolver, SnapshotFirstResolver, SnapshotStore
 from .admitted_detectors import build_admitted_detector
@@ -39,13 +39,15 @@ def _engine_identity() -> EngineIdentity:
             version=ENGINE_VERSION,
             revision=f"package:{ENGINE_VERSION}",
             source_root=Path(__file__).resolve().parent,
-            dirty=False,
+            # A source tree outside its repository cannot attest cleanliness.
+            # Conservatively make it non-publishable instead of claiming a
+            # clean state that was never measured.
+            dirty=True,
         )
 
 
 def _canonical_sha256(value: Mapping[str, Any]) -> str:
-    encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
-    return hashlib.sha256(encoded).hexdigest()
+    return sha256_json(value)
 
 
 def _request_sha256(value: Mapping[str, Any]) -> str:

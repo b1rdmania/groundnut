@@ -51,8 +51,9 @@ does not regress on any material case kind. Cached outputs must reproduce the de
 
 "Material case kind" is every one of the four kinds, with strict no-regression
 on per-kind accuracy, hardcoded in `groundnut/support_admission.py`. It is not a
-plan field and cannot be relaxed per plan. Because the exact baseline scores
-at or near 1.0 on `verbatim_supported`, a bare learned detector will fail this
+plan field and cannot be relaxed per plan. A complete exact-baseline run must
+score exactly 1.0 on `verbatim_supported`; otherwise the gate rejects the
+control before comparison. A bare learned detector will therefore fail this
 rule by construction; only a composed policy that keeps the exact check can
 pass. That is the intended boundary.
 

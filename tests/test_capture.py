@@ -431,6 +431,28 @@ def test_v3_query_retention_is_exact_host_specific_and_normalises_uri_host_case(
         )
 
 
+def test_v2_and_v3_canonical_identity_share_host_and_blank_query_normalisation():
+    reference = SourceReference(
+        "article", "HTTPS://Example.COM/article?id=&view=full#part"
+    )
+    v2 = CaptureDeclaration(
+        "public_web", ("text/html",), retained_query_parameters=("id",)
+    )
+    v3 = CaptureDeclaration(
+        "public_web",
+        ("text/html",),
+        retained_query_parameters_by_host={"example.com": ("id",)},
+    )
+
+    assert canonical_reference(reference, v2).uri == (
+        "https://example.com/article?id="
+    )
+    assert canonical_reference(reference, v3).uri == (
+        "https://example.com/article?id="
+    )
+    assert query_policy_application(reference, v2)["keys_retained"] == ["id"]
+
+
 def test_v3_receipt_exposes_query_policy_without_values_or_sensitive_names(tmp_path):
     class Connector:
         def resolve(self, reference):

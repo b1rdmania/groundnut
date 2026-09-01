@@ -299,6 +299,8 @@ def test_http_resolver_rejects_non_http_and_ambiguous_source_uris(uri):
         "fe80::1",
         "::",
         "ff02::1",
+        "2002:7f00:1::1",
+        "2002:a9fe:a9fe::1",
     ],
 )
 def test_http_resolver_rejects_non_public_ipv4_and_ipv6(address):

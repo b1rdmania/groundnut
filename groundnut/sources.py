@@ -576,6 +576,10 @@ def _validate_public_http_uri(
             or address.is_multicast
             or address.is_unspecified
             or address.is_reserved
+            or (
+                isinstance(address, ipaddress.IPv6Address)
+                and address.sixtofour is not None
+            )
         ):
             raise _SourcePolicyBlocked(f"non_public_address:{address.compressed}")
         canonical_addresses.append(address.compressed)

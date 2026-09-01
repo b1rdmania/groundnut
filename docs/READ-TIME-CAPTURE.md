@@ -61,6 +61,9 @@ may use the original URI to fetch, but canonical identity retains only parameter
 names declared by policy. V2 retains its global `retained_query_parameters`
 contract for byte-identical replay. V3 uses exact lower-case host entries in
 `retained_query_parameters_by_host`; an undeclared host retains no query key.
+Both declaration versions share one URI normalization rule: lower-case scheme
+and host, preserve explicit port and path, retain declared blank query values,
+sort retained pairs, and drop fragments.
 Wildcards are not accepted. Credential-shaped parameter names cannot be
 declared retainable. User
 information is rejected. Public path segments are retained verbatim: path-word

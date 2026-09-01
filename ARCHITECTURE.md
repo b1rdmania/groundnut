@@ -132,7 +132,9 @@ self-hash. It still does not turn support or authority into truth.
 run into `groundnut-run-manifest/v2`. The manifest carries the exact engine
 build, domain pack, artifact, support, authority and arena policies, detector
 configuration, normalized sources, and snapshot bytes. Publication-grade execution rejects a dirty
-engine. An all-unsourced or all-unavailable run remains manifestable with an
+engine. An installed source tree without repository attestation is treated as
+conservatively dirty rather than asserting an unmeasured clean state. An
+all-unsourced or all-unavailable run remains manifestable with an
 empty normalized-source list rather than disappearing.
 
 ## Snapshot-first acquisition
@@ -219,6 +221,7 @@ to own rendering, presentation, audience, and publication authority.
 
 - an immutable engine revision
 - a path-bound shipped-source digest and explicit dirty state
+- a non-publishable fallback when repository cleanliness cannot be attested
 - exact playbook and evidence-manifest hashes
 - source and optional snapshot hashes
 - frozen support and arena policies
@@ -226,6 +229,10 @@ to own rendering, presentation, audience, and publication authority.
 - schema-tagged output artifact hashes
 Collection order is canonicalized, duplicate identities are rejected, and the
 manifest carries its own SHA-256.
+
+Receipt hashing uses one strict canonical-JSON boundary. It rejects NaN and
+infinite numbers instead of creating self-hashed bytes that conforming JSON
+readers cannot consume.
 
 The manifest contains no credentials and performs no storage or signing. A host
 can persist or sign the receipt, but Groundnut only produces deterministic

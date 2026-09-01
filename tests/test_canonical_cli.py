@@ -6,6 +6,7 @@ import shutil
 
 import pytest
 
+from groundnut import canonical_cli
 from groundnut.canonical_cli import ERROR_SCHEMA, RESPONSE_SCHEMA, execute_request
 from groundnut.provenance import sha256_text
 from groundnut.sources import ResolvedSource, SnapshotStore, SourceReference
@@ -156,3 +157,15 @@ def test_canonical_path_refuses_unadmitted_detectors():
     )
     with pytest.raises(ValueError, match="not admitted to the canonical path"):
         build_admitted_detector(foreign)
+
+
+def test_unattested_package_identity_is_not_publishable(monkeypatch, tmp_path):
+    monkeypatch.setattr(canonical_cli, "_REPOSITORY", tmp_path)
+
+    identity = canonical_cli._engine_identity()
+
+    assert identity.revision.startswith("package:")
+    assert identity.dirty is True
+    assert identity.publishable is False
+    with pytest.raises(ValueError, match="clean engine build"):
+        identity.require_publishable()

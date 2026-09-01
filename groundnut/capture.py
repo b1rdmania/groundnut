@@ -13,6 +13,7 @@ from types import MappingProxyType
 from typing import Any, Mapping
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from .receipt import sha256_json
 from .sources import (
     HttpResolver,
     ResolvedSource,
@@ -41,8 +42,7 @@ _SENSITIVE_QUERY_KEY = re.compile(
 
 
 def _canonical_sha256(value: Mapping[str, Any]) -> str:
-    encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
-    return hashlib.sha256(encoded).hexdigest()
+    return sha256_json(value)
 
 
 @dataclass(frozen=True)
@@ -190,20 +190,34 @@ def canonical_reference(
     """Reject credentials in canonical source identity instead of redacting it."""
 
     parsed = urlsplit(reference.uri)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+    if parsed.scheme.casefold() not in {"http", "https"} or not parsed.netloc:
         raise ValueError("read-time HTTP capture requires an http(s) URI")
     if parsed.username is not None or parsed.password is not None:
         raise ValueError("source URI must not contain credentials")
+    host = (parsed.hostname or "").casefold()
+    normalized_host = f"[{host}]" if ":" in host else host
+    netloc = (
+        f"{normalized_host}:{parsed.port}"
+        if parsed.port is not None
+        else normalized_host
+    )
     if declaration.retained_query_parameters_by_host is None:
         retain = set(declaration.retained_query_parameters)
-        netloc = parsed.netloc
     else:
-        host = (parsed.hostname or "").lower()
         retain = set(declaration.retained_query_parameters_by_host.get(host, ()))
-        netloc = parsed.netloc.lower()
-    retained = [(key, value) for key, value in parse_qsl(parsed.query) if key in retain]
+    retained = [
+        (key, value)
+        for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+        if key in retain
+    ]
     canonical_uri = urlunsplit(
-        (parsed.scheme, netloc, parsed.path, urlencode(sorted(retained)), "")
+        (
+            parsed.scheme.casefold(),
+            netloc,
+            parsed.path,
+            urlencode(sorted(retained)),
+            "",
+        )
     )
     return SourceReference(reference.source_id, canonical_uri)
 

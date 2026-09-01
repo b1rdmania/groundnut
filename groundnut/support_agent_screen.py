@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import hashlib
-import json
 import re
 from typing import Any, Iterable, Mapping
 
+from .receipt import sha256_json as _sha256_json
 from .support_review import PilotReviewManifest
 
 
@@ -15,12 +14,6 @@ SUGGESTION_SCHEMA = "groundnut-support-agent-suggestion/v1"
 SCREEN_SCHEMA = "groundnut-support-agent-screen/v1"
 _DECISIONS = {"accepted", "rejected", "ambiguous"}
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
-
-
-def _sha256_json(value: Any) -> str:
-    return hashlib.sha256(
-        json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
-    ).hexdigest()
 
 
 @dataclass(frozen=True)

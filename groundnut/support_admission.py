@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import hashlib
 import json
 from pathlib import Path
 import re
 from typing import Any, Mapping
 
 from .probe_plan import SupportProbePlan
+from .receipt import sha256_json
 from .support import DETECTOR_LABELS, DetectorIdentity
 from .support_cases import CASE_KINDS, SupportProbe, context_digests_sha256
 from .support_eval import SupportGold, score_support
@@ -48,7 +48,7 @@ class RecordedProbeRun:
             raise ValueError(f"unsupported support-probe run schema: {value.get('schema')}")
         supplied_hash = str(value.get("sha256", ""))
         canonical = {key: item for key, item in value.items() if key != "sha256"}
-        actual_hash = _sha256_json(canonical)
+        actual_hash = sha256_json(canonical)
         if supplied_hash != actual_hash:
             raise ValueError("support-probe run self-hash mismatch")
         plan = value.get("plan")
@@ -223,7 +223,7 @@ class SupportAdmissionReport:
 
     @property
     def sha256(self) -> str:
-        return _sha256_json(self.canonical_payload())
+        return sha256_json(self.canonical_payload())
 
     def to_dict(self) -> dict[str, Any]:
         return {**self.canonical_payload(), "sha256": self.sha256}
@@ -260,6 +260,17 @@ def evaluate_support_admission(
         raise ValueError("candidate policy is not registered as a detector")
     if plan.primary_metric not in {"macro_f1", "accuracy"}:
         raise ValueError(f"unsupported admission primary metric: {plan.primary_metric}")
+
+    # The frozen baseline is the exact-match control. Its one structural promise
+    # is perfect recovery of byte-present verbatim cases; without this check a
+    # self-consistent fabricated run can lower the comparison bar to a no-op.
+    if (
+        baseline.complete
+        and _kind_accuracy(baseline.score, "verbatim_supported") != 1.0
+    ):
+        raise ValueError(
+            "baseline run does not establish the exact-match control invariant"
+        )
 
     baseline_value = _metric(baseline.score, plan.primary_metric)
     candidate_value = _metric(candidate.score, plan.primary_metric)
@@ -348,14 +359,3 @@ def _kind_accuracy(score: Mapping[str, Any], kind: str) -> float:
     if not isinstance(value, (int, float)):
         raise ValueError(f"support score has no accuracy for material kind: {kind}")
     return float(value)
-
-
-def _sha256_json(value: Mapping[str, Any]) -> str:
-    return hashlib.sha256(
-        json.dumps(
-            value,
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
-        ).encode()
-    ).hexdigest()
