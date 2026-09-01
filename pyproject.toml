@@ -23,6 +23,7 @@ groundnut-arena = "groundnut.arena_cli:main"
 groundnut-render = "groundnut.render_cli:main"
 groundnut-equivalence = "groundnut.equivalence:main"
 groundnut-capture = "groundnut.capture:main"
+groundnut-cascade-experiment = "groundnut.inference_cascade_cli:main"
 
 [tool.setuptools.packages.find]
 include = ["groundnut*", "pipeline*"]
