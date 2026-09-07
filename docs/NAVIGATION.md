@@ -210,7 +210,7 @@ canonical semantic-support stage.
 Request: `groundnut-passage-request/v1`, `sources` (nonempty array of unique
 `source_id` and nonempty `text`), and optional positive integer `max_characters`
 (default 1600, Unicode characters rather than bytes). Response:
-`groundnut-passage-register/v1`, with `passages` in source/offset order. Each row
+`groundnut-passage-register/v1`, with `passages` in request source order, then offset order. Each row
 contains `passage_id`, `source_id`, `source_sha256`, `text_sha256`, `start`, `end`
 and `exact_text`. IDs use the existing navigation source/offset/text identity.
 Joining a source's passages reconstructs its text byte-for-byte after UTF-8

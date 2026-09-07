@@ -58,3 +58,36 @@ def test_cli_success_and_failure_are_atomic_json():
     )
     assert result.returncode == 2
     assert "passages" not in json.loads(result.stdout)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        None,
+        [],
+        {},
+        {"schema": "wrong", "sources": []},
+        {"schema": REQUEST_SCHEMA, "sources": []},
+        {"schema": REQUEST_SCHEMA, "sources": {}},
+        {"schema": REQUEST_SCHEMA, "sources": [None]},
+        {"schema": REQUEST_SCHEMA, "sources": [{}]},
+        {"schema": REQUEST_SCHEMA, "sources": [{"source_id": 1, "text": "a"}]},
+        {"schema": REQUEST_SCHEMA, "sources": [{"source_id": "s", "text": 1}]},
+        {"schema": REQUEST_SCHEMA, "sources": [{"source_id": "s", "text": ""}]},
+    ],
+)
+def test_malformed_requests_are_rejected(payload):
+    with pytest.raises(ValueError):
+        execute_request(payload)
+
+
+def test_request_source_order_is_preserved():
+    payload = request("abc", 2)
+    payload["sources"] = [{"source_id": sid, "text": "abc"} for sid in ("z", "a")]
+    rows = execute_request(payload)["passages"]
+    assert [(row["source_id"], row["start"]) for row in rows] == [
+        ("z", 0),
+        ("z", 2),
+        ("a", 0),
+        ("a", 2),
+    ]
