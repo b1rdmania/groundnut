@@ -218,3 +218,10 @@ Explored third-party components retain their own licences and are not admitted
 merely because an adapter exists. The compatibility corpus is CUAD v1,
 copyright The Atticus Project, licensed under CC BY 4.0; its contract text is
 not redistributed.
+
+### Exact passages before writing
+
+Research consumers can use the offline `python -m groundnut.passages` JSON boundary
+to obtain lossless source passages with stable source/offset/text identities. It
+performs no selection, qualification or semantic inference. See
+[the passage contract](docs/NAVIGATION.md#offline-passage-boundary-for-research-consumers).
