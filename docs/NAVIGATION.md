@@ -199,3 +199,28 @@ admission bar. A passing N4 selector still cannot replace full evidence without
 a separately preregistered safety threshold on evidence it has not shaped.
 The local run uses one worker so concurrent requests cannot change the resource
 envelope.
+
+## Offline passage boundary for research consumers
+
+`python -m groundnut.passages` accepts one JSON object on stdin and returns one
+JSON object on stdout. This additive deterministic boundary indexes full source
+text; it does not invoke a model or promote the experimental navigator to a
+canonical semantic-support stage.
+
+Request: `groundnut-passage-request/v1`, `sources` (nonempty array of unique
+`source_id` and nonempty `text`), and optional positive integer `max_characters`
+(default 1600, Unicode characters rather than bytes). Response:
+`groundnut-passage-register/v1`, with `passages` in request source order, then offset order. Each row
+contains `passage_id`, `source_id`, `source_sha256`, `text_sha256`, `start`, `end`
+and `exact_text`. IDs use the existing navigation source/offset/text identity.
+Joining a source's passages reconstructs its text byte-for-byte after UTF-8
+encoding; repeated text at different offsets has different identities. No text
+normalization, synopsis, selection, qualification or network acquisition occurs.
+Invalid input exits 2 with `groundnut-passage-error/v1` and no partial register.
+
+Measured consumer gap: IC's local splitter lacked source-bound passage identities
+and later searched again for the first matching excerpt, losing repeated-span
+location. Acceptance is synthetic lossless Unicode/whitespace and repeated-span
+round-trip, stable IDs sensitive to source mutation, invalid-input rejection and
+an actual process-boundary round-trip. Citation presence and semantic-support
+policies are unchanged. Hosts still own capture admission and qualification.
