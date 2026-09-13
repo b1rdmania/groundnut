@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from html.parser import HTMLParser
+from importlib import metadata
 import codecs
 import http.client
 import ipaddress
@@ -18,6 +19,7 @@ import io
 import json
 import hashlib
 from pathlib import Path
+import platform
 import re
 import socket
 import ssl
@@ -104,6 +106,83 @@ DEFAULT_PDF_CPU_SECONDS = 10
 DEFAULT_PDF_MEMORY_BYTES = 512 * 1024 * 1024
 
 
+def _runtime_identity() -> dict[str, str]:
+    return {"name": "python", "version": platform.python_version()}
+
+
+def _extractor_identity(
+    name: str,
+    version: str,
+    *,
+    parameters: Mapping[str, Any],
+    library: str | None = None,
+) -> tuple[dict[str, Any], dict[str, str] | None, dict[str, str]]:
+    library_identity = None
+    if library is not None:
+        library_identity = {"name": library, "version": metadata.version(library)}
+    return (
+        {"name": name, "version": version, "parameters": dict(parameters)},
+        library_identity,
+        _runtime_identity(),
+    )
+
+
+def _validate_extractor_identity(
+    extractor: Mapping[str, Any],
+    library: Mapping[str, str] | None,
+    runtime: Mapping[str, str] | None,
+) -> None:
+    if set(extractor) != {"name", "version", "parameters"}:
+        raise ValueError("extractor identity has unexpected fields")
+    if not all(
+        isinstance(extractor.get(key), str) and extractor[key].strip()
+        for key in ("name", "version")
+    ):
+        raise ValueError("extractor name and version are required")
+    parameters = extractor.get("parameters")
+    if not isinstance(parameters, Mapping) or not all(
+        isinstance(key, str) and key.strip() for key in parameters
+    ):
+        raise ValueError("extractor parameters must be an object with named fields")
+    try:
+        json.dumps(parameters, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("extractor parameters must be finite JSON") from exc
+    for label, component in (("extractor library", library), ("runtime", runtime)):
+        if component is None:
+            if label == "runtime":
+                raise ValueError("extractor runtime is required")
+            continue
+        if set(component) != {"name", "version"} or not all(
+            isinstance(component.get(key), str) and component[key].strip()
+            for key in ("name", "version")
+        ):
+            raise ValueError(f"{label} name and version are required")
+
+
+def _extractor_runtime_detail(window: "EvidenceWindow") -> str | None:
+    """Report a producer/runtime difference without invalidating stored evidence."""
+
+    if window.extractor is None:
+        return None
+    differences = []
+    if dict(window.runtime or {}) != _runtime_identity():
+        differences.append("runtime")
+    library = window.extractor_library
+    if library is not None:
+        try:
+            current = {"name": library["name"], "version": metadata.version(library["name"])}
+        except metadata.PackageNotFoundError:
+            current = {"name": library["name"], "version": "not-installed"}
+        if dict(library) != current:
+            differences.append("extractor_library")
+    return (
+        "extractor_identity_mismatch:" + ",".join(differences)
+        if differences
+        else None
+    )
+
+
 @dataclass(frozen=True)
 class SourceReference:
     source_id: str
@@ -121,6 +200,9 @@ class EvidenceWindow:
     text_sha256: str
     original_bytes: int | None = None
     original_characters: int | None = None
+    extractor: Mapping[str, Any] | None = None
+    extractor_library: Mapping[str, str] | None = None
+    runtime: Mapping[str, str] | None = None
 
     TRUNCATION_STATES = {
         "complete",
@@ -144,6 +226,14 @@ class EvidenceWindow:
             raise ValueError(f"unknown evidence-window truncation: {self.truncation}")
         if not self.extraction_method.strip():
             raise ValueError("evidence-window extraction method is required")
+        if (self.extractor is None) != (self.runtime is None):
+            raise ValueError("extractor identity requires extractor and runtime")
+        if self.extractor is None and self.extractor_library is not None:
+            raise ValueError("extractor library requires extractor identity")
+        if self.extractor is not None:
+            _validate_extractor_identity(
+                self.extractor, self.extractor_library, self.runtime
+            )
         if len(self.text_sha256) != 64 or any(
             char not in "0123456789abcdef" for char in self.text_sha256
         ):
@@ -158,6 +248,9 @@ class EvidenceWindow:
         extraction_method: str,
         original_bytes: int | None = None,
         original_characters: int | None = None,
+        extractor: Mapping[str, Any] | None = None,
+        extractor_library: Mapping[str, str] | None = None,
+        runtime: Mapping[str, str] | None = None,
     ) -> "EvidenceWindow":
         honest_truncation = _honest_truncation(
             text,
@@ -173,11 +266,18 @@ class EvidenceWindow:
             truncation=honest_truncation,
             extraction_method=extraction_method,
             text_sha256=sha256_text(text),
+            extractor=extractor,
+            extractor_library=extractor_library,
+            runtime=runtime,
         )
 
     def canonical_payload(self) -> dict[str, Any]:
-        return {
-            "schema": "groundnut-evidence-window/v1",
+        payload = {
+            "schema": (
+                "groundnut-evidence-window/v2"
+                if self.extractor is not None
+                else "groundnut-evidence-window/v1"
+            ),
             "original_bytes": self.original_bytes,
             "original_characters": self.original_characters,
             "captured_bytes": self.captured_bytes,
@@ -186,6 +286,19 @@ class EvidenceWindow:
             "extraction_method": self.extraction_method,
             "text_sha256": self.text_sha256,
         }
+        if self.extractor is not None:
+            payload.update(
+                {
+                    "extractor": dict(self.extractor),
+                    "extractor_library": (
+                        dict(self.extractor_library)
+                        if self.extractor_library is not None
+                        else None
+                    ),
+                    "runtime": dict(self.runtime or {}),
+                }
+            )
+        return payload
 
     @property
     def sha256(self) -> str:
@@ -201,8 +314,24 @@ class EvidenceWindow:
     def from_mapping(cls, value: Mapping[str, Any], *, text: str) -> "EvidenceWindow":
         if not isinstance(value, Mapping):
             raise ValueError("evidence window must be an object")
-        if value.get("schema") != "groundnut-evidence-window/v1":
+        schema = value.get("schema")
+        if schema not in {
+            "groundnut-evidence-window/v1",
+            "groundnut-evidence-window/v2",
+        }:
             raise ValueError("unsupported evidence-window schema")
+        extractor = None
+        extractor_library = None
+        runtime = None
+        if schema == "groundnut-evidence-window/v2":
+            extractor = _required_mapping(value.get("extractor"), "extractor")
+            library_value = value.get("extractor_library")
+            extractor_library = (
+                _required_mapping(library_value, "extractor_library")
+                if library_value is not None
+                else None
+            )
+            runtime = _required_mapping(value.get("runtime"), "runtime")
         recorded_window = cls(
             original_bytes=_optional_int(value.get("original_bytes")),
             original_characters=_optional_int(value.get("original_characters")),
@@ -211,6 +340,9 @@ class EvidenceWindow:
             truncation=str(value.get("truncation")),
             extraction_method=str(value.get("extraction_method")),
             text_sha256=str(value.get("text_sha256")),
+            extractor=extractor,
+            extractor_library=extractor_library,
+            runtime=runtime,
         )
         expected = cls.from_text(
             text,
@@ -218,6 +350,9 @@ class EvidenceWindow:
             extraction_method=recorded_window.extraction_method,
             original_bytes=recorded_window.original_bytes,
             original_characters=recorded_window.original_characters,
+            extractor=recorded_window.extractor,
+            extractor_library=recorded_window.extractor_library,
+            runtime=recorded_window.runtime,
         )
         if recorded_window != expected and not (
             recorded_window.truncation == "complete"
@@ -991,6 +1126,15 @@ class HttpResolver:
                             detail=pdf_failure or "application/pdf: no text layer",
                         )
                     text = extracted
+                    extractor, extractor_library, runtime = _extractor_identity(
+                        "pypdf-text-layer",
+                        "2",
+                        parameters={
+                            "max_pages": self.max_pdf_pages,
+                            "max_characters": self.max_extracted_characters,
+                        },
+                        library="pypdf",
+                    )
                     window = EvidenceWindow.from_text(
                         text,
                         original_bytes=len(body),
@@ -1009,6 +1153,9 @@ class HttpResolver:
                             f"max_pages={self.max_pdf_pages}:"
                             f"max_characters={self.max_extracted_characters}"
                         ),
+                        extractor=extractor,
+                        extractor_library=extractor_library,
+                        runtime=runtime,
                     )
                 else:
                     if not (
@@ -1038,6 +1185,19 @@ class HttpResolver:
                     character_truncated = len(text) > self.max_extracted_characters
                     if character_truncated:
                         text = text[: self.max_extracted_characters]
+                    extractor_name = (
+                        "html.parser-visible-text"
+                        if media_type in {"text/html", "application/xhtml+xml"}
+                        else "http-text"
+                    )
+                    extractor, extractor_library, runtime = _extractor_identity(
+                        extractor_name,
+                        "2",
+                        parameters={
+                            "charset": charset,
+                            "max_characters": self.max_extracted_characters,
+                        },
+                    )
                     window = EvidenceWindow.from_text(
                         text,
                         original_bytes=len(body),
@@ -1054,6 +1214,9 @@ class HttpResolver:
                             if media_type in {"text/html", "application/xhtml+xml"}
                             else f"http-text/v2:charset={charset}"
                         ),
+                        extractor=extractor,
+                        extractor_library=extractor_library,
+                        runtime=runtime,
                     )
         except _SourcePolicyBlocked as exc:
             return SourceResolution(
@@ -1314,7 +1477,8 @@ class SnapshotStore:
                 media_type=value.get("media_type"),
                 evidence_window=window,
                 final_uri=final_uri,
-            )
+            ),
+            detail=_extractor_runtime_detail(window),
         )
 
 
@@ -1498,6 +1662,12 @@ def _optional_int(value: Any) -> int | None:
     if value is None:
         return None
     return _required_int(value)
+
+
+def _required_mapping(value: Any, label: str) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping):
+        raise ValueError(f"evidence-window {label} must be an object")
+    return value
 
 
 def _required_int(value: Any) -> int:

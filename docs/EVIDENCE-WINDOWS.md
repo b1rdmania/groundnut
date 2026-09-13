@@ -11,17 +11,26 @@ establish completeness, the honest result is `evidence_window_incomplete`.
 
 ## Window object
 
-Every successful v2 or v3 snapshot carries `evidence_window`:
+Every successful v2 or v3 snapshot carries `evidence_window`. New built-in HTTP
+captures use v2, which adds the producer identity while retaining the v1 text
+and completeness fields:
 
 ```json
 {
-  "schema": "groundnut-evidence-window/v1",
+  "schema": "groundnut-evidence-window/v2",
   "original_bytes": 1200,
   "original_characters": 1180,
   "captured_bytes": 740,
   "captured_characters": 735,
   "truncation": "complete",
-  "extraction_method": "html.parser-visible-text/v1",
+  "extraction_method": "html.parser-visible-text/v2:charset=utf-8",
+  "extractor": {
+    "name": "html.parser-visible-text",
+    "version": "2",
+    "parameters": {"charset": "utf-8", "max_characters": 8388608}
+  },
+  "extractor_library": null,
+  "runtime": {"name": "python", "version": "3.12.11"},
   "text_sha256": "...",
   "sha256": "..."
 }
@@ -54,6 +63,13 @@ and produced a usable searchable window. Existing v2 snapshots that recorded
 an empty or structurally sparse HTML window as `complete` are reclassified on
 read without rewriting the frozen snapshot.
 
+The v2 producer identity is part of the evidence-window hash. `extractor`
+names the extraction contract and its parameters. `extractor_library` records
+the installed third-party package and version when one produces the text
+(`pypdf` for PDF); standard-library producers use `null`. `runtime` records the
+Python version. These fields explain extraction drift; they do not claim that
+different versions reproduce the same text.
+
 ## Built-in producers
 
 - files: complete UTF-8 decode with replacement, original byte and character
@@ -63,16 +79,23 @@ read without rewriting the frozen snapshot.
 - HTTP HTML: complete response decode followed by visible-text normalization;
 - HTTP PDF: original byte length known, original character length unknown;
   truncation is explicit when the PDF page count exceeds the configured page
-  extraction limit.
+  extraction limit. Its v2 identity records the installed pypdf version.
 
 ## Replay compatibility
 
-V2 and v3 snapshots preserve the exact window object. Loading a successful v1
+V2 and v3 snapshots preserve the exact window object. Evidence-window v1
+objects remain valid and replay unchanged. Loading a successful source snapshot v1
 snapshot constructs a hash-bound window over its stored text with
 `truncation: unknown` and `extraction_method: legacy-snapshot/v1`. This retains
 replay access without inventing a historical completeness claim. Consequently,
 a missing excerpt in a v1 snapshot becomes `evidence_window_incomplete`, while
 an excerpt found inside that snapshot remains `excerpt_found`.
+
+Replay never re-extracts the source, so a recorded producer identity that differs
+from the currently installed library or runtime is reported as
+`extractor_identity_mismatch` detail without invalidating the stored evidence.
+Any workflow claiming fresh-extraction equivalence across producer identities
+must gate that comparison separately; ordinary replay makes no such claim.
 
 Failure snapshots remain `groundnut-source-failure-snapshot/v1`; they contain
 no searchable evidence window.

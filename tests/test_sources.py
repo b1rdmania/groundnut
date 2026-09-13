@@ -107,6 +107,42 @@ def test_snapshot_round_trip_and_tamper_detection(tmp_path):
     assert tampered.failure == "source_changed"
 
 
+def test_snapshot_replay_reports_extractor_runtime_difference_without_failing(tmp_path):
+    reference = SourceReference("s1", "https://example.test/source")
+    text = "Frozen source text"
+    window = EvidenceWindow.from_text(
+        text,
+        truncation="complete",
+        extraction_method="pypdf-text-layer/v2:max_pages=400:max_characters=1000",
+        extractor={
+            "name": "pypdf-text-layer",
+            "version": "2",
+            "parameters": {"max_pages": 400, "max_characters": 1000},
+        },
+        extractor_library={"name": "pypdf", "version": "0.0.0"},
+        runtime={"name": "python", "version": "0.0.0"},
+    )
+    store = SnapshotStore(tmp_path)
+    store.archive(
+        ResolvedSource(
+            reference=reference,
+            text=text,
+            fetched_at="2026-08-17T12:00:00+00:00",
+            evidence_window=window,
+        )
+    )
+
+    loaded = store.load(reference)
+
+    assert loaded.ok
+    assert loaded.source.text == text
+    assert loaded.detail == "extractor_identity_mismatch:runtime,extractor_library"
+    assert loaded.source.evidence_window.extractor_library == {
+        "name": "pypdf",
+        "version": "0.0.0",
+    }
+
+
 def test_failure_snapshot_round_trip_preserves_observation(tmp_path):
     reference = SourceReference("s1", "https://example.test/paywall")
     resolution = SourceResolution(
@@ -176,6 +212,18 @@ def test_http_resolver_normalizes_html_without_live_network():
         b"<p>Source <b>fact</b></p>"
     )
     assert result.source.evidence_window.captured_characters == len("Source fact")
+    identity = result.source.evidence_window.to_dict()
+    assert identity["schema"] == "groundnut-evidence-window/v2"
+    assert identity["extractor"] == {
+        "name": "html.parser-visible-text",
+        "version": "2",
+        "parameters": {
+            "charset": "utf-8",
+            "max_characters": source_module.DEFAULT_MAX_EXTRACTED_CHARACTERS,
+        },
+    }
+    assert identity["extractor_library"] is None
+    assert identity["runtime"]["name"] == "python"
 
 
 def test_http_resolver_records_no_redirect_final_uri():
@@ -759,6 +807,21 @@ def test_http_resolver_extracts_pdf_text_layer():
     assert result.source.evidence_window.truncation == "complete"
     assert result.source.evidence_window.original_bytes == len(body)
     assert result.source.evidence_window.original_characters is None
+    identity = result.source.evidence_window.to_dict()
+    assert identity["schema"] == "groundnut-evidence-window/v2"
+    assert identity["extractor"] == {
+        "name": "pypdf-text-layer",
+        "version": "2",
+        "parameters": {
+            "max_pages": 400,
+            "max_characters": source_module.DEFAULT_MAX_EXTRACTED_CHARACTERS,
+        },
+    }
+    assert identity["extractor_library"]["name"] == "pypdf"
+    assert identity["extractor_library"]["version"] == source_module.metadata.version(
+        "pypdf"
+    )
+    assert identity["runtime"]["name"] == "python"
 
 
 def test_large_pdf_worker_input_completes_without_stdin_deadlock():
