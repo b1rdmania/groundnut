@@ -55,8 +55,8 @@ quotation presence, semantic support, evidence authority, and truth separate.
 - Declared read-time producers bind connector intent and allowed media classes
   into a capture receipt, preserve the first read, and omit connector secrets.
 - Snapshots disclose the exact searched evidence window, its extraction method,
-  and whether capture was complete, truncated, empty, sparse, hollow, or
-  historically unknown.
+  producer library and runtime identity, and whether capture was complete,
+  truncated, empty, sparse, hollow, or historically unknown.
 - Byte-exact and named-normalisation quotation anchoring are the only methods
   that establish mechanical presence. Fuzzy similarity is diagnostic-only and
   preserves ambiguity; none is a semantic-support or truth judgment.

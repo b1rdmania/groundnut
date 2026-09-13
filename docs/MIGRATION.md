@@ -7,6 +7,25 @@ moved out of the original CUAD compatibility path.
 The migration is additive: compatibility behaviour remains stable while the IC
 loop adopts the canonical checking and ledger contracts deliberately.
 
+## 0.2.0a3 passage and extractor-provenance boundaries
+
+This build gives the post-a2 public additions a distinct package identity.
+`python -m groundnut.passages` exposes lossless source/offset-bound passages for
+research consumers without performing selection or semantic inference.
+
+New built-in HTTP captures emit `groundnut-evidence-window/v2`, recording the
+extractor contract and parameters, the installed pypdf version for PDFs, and
+the Python runtime. Existing evidence-window v1 and source-snapshot v1-v3
+records remain readable without rewriting. A producer identity difference is
+reported on stored replay but does not invalidate the hash-bound text that was
+actually captured. Consumers must separately gate any claim of fresh-extraction
+equivalence across producer identities.
+
+The bundled pypdf pin is 6.18.0. Real-PDF comparison against 6.15.0 showed
+plain-extraction changes beginning at 6.16.2, including normalized-text changes
+on layout-heavy documents; this release does not claim byte-identical extraction
+across those versions.
+
 ## 0.2.0a2 evidence-boundary hardening
 
 This build gives the post-KISS-review behavior a distinct package identity.
