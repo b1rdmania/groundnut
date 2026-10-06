@@ -287,6 +287,9 @@ class _HttpFixtureResponse:
 HTTP_FIXTURES = {
     "text/html": f"<main>{SOURCE_TEXT}</main>".encode(),
     "text/plain": SOURCE_TEXT.encode(),
+    "application/json": json.dumps(
+        {"permit": {"status": "ISSUED", "summary": SOURCE_TEXT, "hectares": 12.50}}
+    ).encode(),
 }
 
 
@@ -325,7 +328,11 @@ def test_built_in_http_v2_evidence_windows_are_compared(tmp_path, media_type):
     [acquisition] = json.loads(live_document)["execution"]["run"]["acquisitions"]
     window = acquisition["result"]["evidence_window"]
     assert window["schema"] == "groundnut-evidence-window/v2"
-    assert window["extractor"]["name"] in {"html.parser-visible-text", "http-text"}
+    assert window["extractor"]["name"] in {
+        "html.parser-visible-text",
+        "http-text",
+        "json-leaf-text",
+    }
     assert result["status"] == "equivalent"
     assert result["replay_byte_identical"] is True
 
