@@ -6,6 +6,9 @@ is injected; no test opens a socket.
 """
 
 import json
+import random
+import re
+import tracemalloc
 
 import pytest
 
@@ -321,6 +324,134 @@ def test_json_leaf_text_bounds_rendering_of_amplifying_paths():
     assert truncated is True
     assert len(text) == 50_000
     assert text.startswith(f"{key}[0]: 0\n{key}[1]: 1\n")
+
+
+def _reference_leaf_text(body):
+    """Straightforward full rendering of the documented format, for comparison."""
+
+    document = json.loads(body, parse_int=str, parse_float=str)
+    lines = []
+
+    def step(key, at_root):
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]*", key):
+            return key if at_root else "." + key
+        quoted = json.dumps(key, ensure_ascii=False)
+        for character in ("\x85", "\u2028", "\u2029"):
+            quoted = quoted.replace(character, f"\\u{ord(character):04x}")
+        return f"[{quoted}]"
+
+    def render(value):
+        if value is True or value is False or value is None:
+            return json.dumps(value)
+        if isinstance(value, (dict, list)):
+            return "{}" if isinstance(value, dict) else "[]"
+        return re.sub("\r\n|[\n\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029]", " ", value)
+
+    def walk(value, path):
+        if isinstance(value, dict) and value:
+            for key, item in value.items():
+                walk(item, path + step(key, not path))
+        elif isinstance(value, list) and value:
+            for index, item in enumerate(value):
+                walk(item, f"{path}[{index}]")
+        else:
+            lines.append(f"{path or '$'}: {render(value)}")
+
+    walk(document, "")
+    return "\n".join(lines)
+
+
+def _random_documents(count, seed=20261005):
+    rng = random.Random(seed)
+    keys = [
+        "a", "b_2", "a.b", "[0]", "", "1", "$", "x: y", 'q"t', "line\nbr",
+        "sep\u2028x", "caf\u00e9", "\U0001F600", "k" * 40, "back\\slash",
+        "nel\x85", "ctl\x01",
+    ]
+    strings = [
+        "", "v", "a\r\nb", "c\rd\ne", "x\u2028y\u2029z", "t\tab",
+        "\U0001F600 emoji", "long " * 30, "\r\n" * 5, "end\r",
+    ]
+
+    def value(depth):
+        draw = rng.random()
+        if depth > 3 or draw < 0.35:
+            return rng.choice([True, False, None, 0, 1.5, -2, 10**30, {}, []] + strings)
+        if draw < 0.7:
+            return {
+                rng.choice(keys) + (str(index) if rng.random() < 0.3 else ""): value(depth + 1)
+                for index in range(rng.randint(1, 4))
+            }
+        return [value(depth + 1) for _ in range(rng.randint(1, 4))]
+
+    return [json.dumps(value(0), ensure_ascii=rng.random() < 0.5) for _ in range(count)]
+
+
+def test_json_leaf_text_matches_the_reference_rendering_at_every_cut():
+    documents = [STUDY.decode(), '"root"', "[]", "{}", '"a\\r\\nb"'] + _random_documents(60)
+    for body in documents:
+        full = _reference_leaf_text(body)
+        # Every cut through the first lines, then a stride, then the end.
+        cuts = {*range(1, 400), *range(400, len(full), 37), *range(len(full) - 3, len(full) + 3)}
+        for cut in sorted(cut for cut in cuts if cut >= 1):
+            assert json_to_leaf_text(body, max_characters=cut) == (
+                full[:cut],
+                len(full) > cut,
+            ), (body, cut)
+
+
+def test_json_leaf_text_quotes_long_keys_identically_across_chunk_edges():
+    edge = source_module._JSON_QUOTE_CHUNK_CHARACTERS
+    key = "a" * (edge - 1) + '"\u2028\x01' + "b" * edge + "\x85"
+    body = json.dumps({"outer": {key: {"leaf": "v\r\nw"}}}, ensure_ascii=False)
+    full = _reference_leaf_text(body)
+
+    assert json_to_leaf_text(body) == (full, False)
+    for cut in (edge - 2, edge, edge + 3, edge + 9, len(full) - 6, len(full) - 1):
+        assert json_to_leaf_text(body, max_characters=cut) == (full[:cut], True)
+
+
+@pytest.mark.parametrize("first_key", ["k", "\U0001F600"])
+def test_json_leaf_text_memory_stays_bounded_for_deep_long_key_paths(first_key):
+    # 64 containers whose keys are 20,000 characters: copying the path prefix
+    # per level (the pre-fix renderer) peaked above 160 MiB here.
+    keys = [first_key + "k" * 20_000] + ["k" * 20_000] * 62
+    body = "".join("{" + json.dumps(key, ensure_ascii=False) + ":" for key in keys)
+    body += '{"v":1}' + "}" * len(keys)
+
+    tracemalloc.start()
+    try:
+        text, truncated = json_to_leaf_text(body)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    assert truncated is False
+    assert text.endswith(".v: 1") and len(text.splitlines()) == 1
+    assert peak < 32 * 1024 * 1024
+
+
+def _traced_peak(function, *args, **kwargs):
+    tracemalloc.start()
+    try:
+        result = function(*args, **kwargs)
+        return result, tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+
+
+def test_json_leaf_text_never_builds_a_line_past_the_budget():
+    body = json.dumps({"k" * 3_000_000: {"a": "x" * 5_000_000, "b": 1}})
+
+    _, parse_peak = _traced_peak(json.loads, body)
+    (text, truncated), render_peak = _traced_peak(
+        json_to_leaf_text, body, max_characters=1_000
+    )
+
+    assert (text, truncated) == ("k" * 1_000, True)
+    # Parsing holds the 8M decoded characters; rendering a 1,000-character
+    # window must add almost nothing on top of that.
+    assert render_peak < parse_peak + 1024 * 1024
 
 
 # --- HTTP resolver -----------------------------------------------------------

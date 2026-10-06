@@ -168,7 +168,10 @@ be refused, but cannot exceed the bound.
 The whole document is validated before rendering, so validity never depends on
 the character limit. Rendering stops once the configured
 `max_extracted_characters` is exceeded and the window is `truncated`, exactly
-as for other text; a lossy charset decode is `unknown`.
+as for other text; a lossy charset decode is `unknown`. The renderer keeps the
+open path as a list of steps and builds each line, key and value only as far
+as the remaining character budget, so its memory beyond parsing is bounded by
+that budget rather than by nesting depth times key length.
 
 A JSON body has no markup, so the HTML byte-to-text ratio cannot reveal a
 shell. The v1 window classification instead treats a tiny rendered window as

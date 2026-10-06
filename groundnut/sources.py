@@ -548,12 +548,14 @@ def _json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return value
 
 
+_JSON_SURROGATE = re.compile("[\ud800-\udfff]")
+
+
 def _require_unicode_scalars(value: str) -> None:
     # A lone surrogate escape such as "\ud800" decodes but is not text.
-    try:
-        value.encode("utf-8")
-    except UnicodeEncodeError as exc:
-        raise JsonLeafTextError("invalid json") from exc
+    # Searching avoids an encoded copy of every string.
+    if _JSON_SURROGATE.search(value):
+        raise JsonLeafTextError("invalid json")
 
 
 def _json_value_upper_bound(value: str) -> int:
@@ -591,40 +593,97 @@ def _validate_json_tree(document: Any, max_depth: int) -> None:
                 check(item, depth)
 
 
-def _json_path_key(key: str) -> str:
-    quoted = json.dumps(key, ensure_ascii=False)
-    for character in ("\x85", "\u2028", "\u2029"):
-        quoted = quoted.replace(character, f"\\u{ord(character):04x}")
-    return f"[{quoted}]"
+# Joined path prefixes up to this length are cached per open container so a
+# container with many leaves does not rebuild its path for each one. Longer
+# prefixes are rebuilt per line, but each such line consumes more than this
+# many characters of the budget, so the rebuilds are bounded too.
+_JSON_PATH_CACHE_CHARACTERS = 4096
+_JSON_QUOTE_CHUNK_CHARACTERS = 65536
 
 
-def _json_children(container: dict | list, prefix: str):
-    if isinstance(container, dict):
-        for key, value in container.items():
-            if _JSON_PLAIN_KEY.fullmatch(key):
-                step = f".{key}" if prefix else key
-            else:
-                step = _json_path_key(key)
-            yield prefix + step, value
-    else:
-        for index, value in enumerate(container):
-            yield f"{prefix}[{index}]", value
+def _json_quoted_key_step(key: str, limit: int) -> str:
+    """Return the first ``limit`` characters of ``["<key as JSON string>"]``.
+
+    Escaping is per character, so quoting the key in chunks yields the same
+    text as quoting it whole while never materialising more than ``limit``
+    characters plus one chunk.
+    """
+
+    pieces = ['["']
+    produced = 2
+    position = 0
+    while position < len(key) and produced <= limit:
+        chunk = key[position : position + _JSON_QUOTE_CHUNK_CHARACTERS]
+        quoted = json.dumps(chunk, ensure_ascii=False)[1:-1]
+        for character in ("\x85", "\u2028", "\u2029"):
+            quoted = quoted.replace(character, f"\\u{ord(character):04x}")
+        pieces.append(quoted)
+        produced += len(quoted)
+        position += len(chunk)
+    if position >= len(key):
+        pieces.append('"]')
+    return "".join(pieces)[:limit]
 
 
-def _json_scalar(value: Any) -> str:
+def _json_step(key: str | int, at_root: bool, limit: int) -> str:
+    """Render one path step, cut to ``limit`` characters."""
+
+    if isinstance(key, int):
+        return f"[{key}]"[:limit]
+    if _JSON_PLAIN_KEY.fullmatch(key):
+        return key[:limit] if at_root else "." + key[: max(limit - 1, 0)]
+    return _json_quoted_key_step(key, limit)
+
+
+def _json_scalar(value: Any, limit: int) -> str:
+    """Render a leaf value, cut to ``limit`` characters."""
+
+    kind = type(value)
+    if kind is str:
+        # A break is at most two characters (CRLF) and always becomes one
+        # space, so 2 * limit + 1 source characters always yield at least
+        # ``limit`` rendered ones, and a CRLF split at the slice edge still
+        # renders as the single space it would have produced.
+        return _JSON_LINE_BREAK.sub(" ", value[: 2 * limit + 1])[:limit]
+    if kind is _JsonNumber:
+        return value[:limit]
     if value is True:
-        return "true"
+        return "true"[:limit]
     if value is False:
-        return "false"
+        return "false"[:limit]
     if value is None:
-        return "null"
-    if isinstance(value, dict):
-        return "{}"
-    if isinstance(value, list):
-        return "[]"
-    if isinstance(value, _JsonNumber):
-        return str(value)
-    return _JSON_LINE_BREAK.sub(" ", value)
+        return "null"[:limit]
+    return ("{}" if kind is dict else "[]")[:limit]
+
+
+def _json_line(
+    steps: list[str],
+    cached_prefix: str | None,
+    step: str,
+    value: Any,
+    limit: int,
+) -> str:
+    """Build ``<path>: <value>`` for one leaf, cut to ``limit`` characters."""
+
+    if cached_prefix is not None:
+        head = cached_prefix + step + ": "
+        if len(head) >= limit:
+            return head[:limit]
+        return head + _json_scalar(value, limit - len(head))
+    parts: list[str] = []
+    used = 0
+    for part in (*steps, step, ": "):
+        if used + len(part) >= limit:
+            parts.append(part[: limit - used])
+            return "".join(parts)
+        parts.append(part)
+        used += len(part)
+    parts.append(_json_scalar(value, limit - used))
+    return "".join(parts)
+
+
+def _json_items(container: dict | list):
+    return iter(container.items()) if isinstance(container, dict) else enumerate(container)
 
 
 def json_to_leaf_text(
@@ -644,6 +703,10 @@ def json_to_leaf_text(
     ``null``, ``{}`` and ``[]`` are written as such; strings are decoded and
     each line break inside them becomes one space. Returns the rendered text,
     cut to ``max_characters``, and whether that cut occurred.
+
+    Rendering memory is bounded by the character budget: the open path is a
+    list of steps, and each line, key and value is built only as far as the
+    remaining budget, so deep paths with long keys are never copied per level.
 
     Raises :class:`JsonLeafTextError` for anything that is not strict JSON
     (including NaN/Infinity, lone surrogates and duplicate object keys), for
@@ -671,30 +734,59 @@ def json_to_leaf_text(
         raise JsonLeafTextError("invalid json") from exc
     _validate_json_tree(document, max_depth)
 
+    # No single step or value needs more than the whole budget plus one
+    # character to show that the output overflows.
+    step_limit = max_characters + 1
     lines: list[str] = []
-    size = -1  # length of "\n".join(lines); the first line adds no separator
-    stack = []
-    if isinstance(document, (dict, list)) and document:
-        stack.append(_json_children(document, ""))
-    else:
-        lines.append(f"$: {_json_scalar(document)}")
-        size = len(lines[0])
-    while stack and size <= max_characters:
+    written = 0  # len("\n".join(lines))
+    if not (isinstance(document, (dict, list)) and document):
+        line = "$: " + _json_scalar(document, step_limit)
+        if len(line) > max_characters:
+            return line[:max_characters], True
+        return line, False
+
+    # iterators[d] walks the container at depth d. steps[d - 1] is the step
+    # into it, path_lengths[d] its path length, and cached_prefixes[d] its
+    # joined path while that path is short enough to cache.
+    iterators = [_json_items(document)]
+    steps: list[str] = []
+    path_lengths = [0]
+    cached_prefixes: list[str | None] = [""]
+    while iterators:
         try:
-            path, item = next(stack[-1])
+            key, item = next(iterators[-1])
         except StopIteration:
-            stack.pop()
+            iterators.pop()
+            path_lengths.pop()
+            cached_prefixes.pop()
+            if steps:
+                steps.pop()
             continue
+        step = _json_step(key, not steps, step_limit)
         if isinstance(item, (dict, list)) and item:
-            stack.append(_json_children(item, path))
+            length = path_lengths[-1] + len(step)
+            parent_prefix = cached_prefixes[-1]
+            iterators.append(_json_items(item))
+            steps.append(step)
+            path_lengths.append(length)
+            cached_prefixes.append(
+                parent_prefix + step
+                if parent_prefix is not None
+                and length <= _JSON_PATH_CACHE_CHARACTERS
+                else None
+            )
             continue
-        line = f"{path}: {_json_scalar(item)}"
+        separator = 1 if lines else 0
+        room = max_characters - written - separator
+        if room < 0:
+            return "\n".join(lines), True
+        line = _json_line(steps, cached_prefixes[-1], step, item, room + 1)
+        if len(line) > room:
+            lines.append(line[:room])
+            return "\n".join(lines), True
         lines.append(line)
-        size += len(line) + 1
-    text = "\n".join(lines)
-    if len(text) > max_characters:
-        return text[:max_characters], True
-    return text, False
+        written += separator + len(line)
+    return "\n".join(lines), False
 
 
 def _pdf_to_text_and_pages(
