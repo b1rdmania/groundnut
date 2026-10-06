@@ -44,8 +44,9 @@ truncation; `truncation` is an explicit producer statement with values
 `complete`, `truncated`, `unknown`, `empty`, `sparse`, or `hollow`. `empty` means text
 normalization yielded no searchable characters. `sparse` is the built-in HTML
 producer's fail-closed classification for less than 1,024 visible characters
-from a response of at least 4,096 bytes. Neither state permits Groundnut to
-conclude that a missing excerpt was searched-and-absent.
+from a response of at least 4,096 bytes. The JSON producer has its own bounds,
+described under [JSON leaf text](#json-leaf-text). Neither state permits
+Groundnut to conclude that a missing excerpt was searched-and-absent.
 
 `hollow` is a high-confidence unusable observation: a bounded CAPTCHA/human
 check, access-denied page, JavaScript-required shell, Cloudflare/browser check,
@@ -80,6 +81,113 @@ different versions reproduce the same text.
 - HTTP PDF: original byte length known, original character length unknown;
   truncation is explicit when the PDF page count exceeds the configured page
   extraction limit. Its v2 identity records the installed pypdf version.
+- HTTP JSON (`application/json` exactly): complete response decode, strict
+  parse, then `json-leaf-text/v1` rendering. Original byte and character
+  lengths describe the decoded JSON body, as for other text.
+
+## JSON leaf text
+
+Several primary records are published only through JSON APIs (for example
+the ClinicalTrials.gov v2 API, the bioRxiv/medRxiv details API and Europe PMC
+REST search), while their HTML pages are script shells or refuse automated
+reads. Raw JSON is a poor search window: string escapes and key syntax sit
+between a quoted value and its text. `json-leaf-text/v1` renders the parsed
+document as searchable text instead.
+
+```text
+extraction_method: json-leaf-text/v1:charset=utf-8
+extractor: {"name": "json-leaf-text", "version": "1",
+            "parameters": {"charset": "utf-8", "max_characters": 8388608,
+                           "max_depth": 64, "max_values": 1000000}}
+extractor_library: null
+```
+
+Every leaf becomes one line, `<path>: <value>`, in document order. A leaf is a
+string, number, `true`, `false`, `null`, or an empty object or array. Lines are
+joined with `\n` and there is no trailing newline.
+
+```text
+protocolSection.statusModule.overallStatus: COMPLETED
+protocolSection.designModule.phases[0]: PHASE2
+protocolSection.designModule.enrollmentInfo.count: 47079
+resultsSection.outcomeMeasuresModule.outcomeMeasures[0].paramValue: 243.40
+derivedSection.conditionBrowseModule.meshes: []
+hasResults: true
+["@context"]: https://schema.org
+```
+
+Path syntax:
+
+- an object key matching `[A-Za-z_][A-Za-z0-9_-]*` is a plain name, joined to
+  its parent with `.` (no leading dot at the root);
+- every other key, including keys containing `.`, `[`, `]`, `"`, `:`,
+  whitespace or non-ASCII characters, keys starting with a digit, and the empty
+  key, is written as `["…"]`: a bracketed JSON string literal (escapes as in
+  JSON, with U+0085, U+2028 and U+2029 also escaped). `json.loads` of the
+  bracket contents returns the original key;
+- an array element is `[i]`, zero-based;
+- a scalar or empty container at the document root has the path `$`. A key
+  named `$` is not plain, so it renders as `["$"]`.
+
+Each path parses back to exactly one key sequence, so `a.b` (key `b` inside
+`a`), `["a.b"]` (one key containing a dot), `c[0]` (array index) and
+`["c[0]"]` (one key) never collide.
+
+Values:
+
+- numbers keep their exact source literal: `243.40`, `1e-7`, `-0` and
+  integers of any length are not reformatted;
+- `true`, `false` and `null` are written as such; empty containers are `{}`
+  and `[]`;
+- strings are decoded (`\u00e9` becomes `é`, `\"` becomes `"`) and written
+  without quotes. Each line break inside a string — `\r\n` as one break, and
+  every other boundary recognised by Python `str.splitlines()` (`\n`, `\r`,
+  U+000B, U+000C, U+001C–U+001E, U+0085, U+2028, U+2029) — becomes one space.
+  No other whitespace is changed, so each leaf stays on exactly one line.
+
+The value side is evidence text, not a serialization: a string `"true"` and the
+literal `true` render identically. Path and line structure are unambiguous;
+value types are not preserved.
+
+Parsing is strict and fails closed. Each failure carries one fixed detail that
+never echoes source text:
+
+| Failure | Detail | Cause |
+|---|---|---|
+| `source_media_unsupported` | `application/json: invalid json` | syntax error, trailing data, byte-order mark, `NaN`/`Infinity`, raw control character in a string, or a lone UTF-16 surrogate escape |
+| `source_media_unsupported` | `application/json: duplicate object key` | any object repeats a key |
+| `source_media_unsupported` | `application/json: nesting exceeds limit` | containers nested deeper than 64, or a parser `RecursionError` |
+| `source_too_large` | `application/json: value count exceeds limit` | the pre-parse bound exceeds 1,000,000 values |
+
+The value bound is checked before parsing, because a parsed Python object tree
+can need tens of times the memory of the body. It counts every `,`, `[` and
+`{` in the body plus one, including any inside strings, so it can only
+overestimate. Text-heavy bodies with many commas inside strings may therefore
+be refused, but cannot exceed the bound.
+
+The whole document is validated before rendering, so validity never depends on
+the character limit. Rendering stops once the configured
+`max_extracted_characters` is exceeded and the window is `truncated`, exactly
+as for other text; a lossy charset decode is `unknown`.
+
+A JSON body has no markup, so the HTML byte-to-text ratio cannot reveal a
+shell. The v1 window classification instead treats a tiny rendered window as
+the JSON analogue of a shell — an error or empty-result envelope served behind
+a 2xx status:
+
+- `empty`: the root is `{}`, `[]`, `null` or a blank string;
+- `hollow`: fewer than 256 rendered characters that match the same
+  interstitial patterns as HTML (for example `{"error":"Too many requests"}`);
+- `sparse`: any other window under 256 rendered characters (for example
+  `{"message":"not found"}`);
+- otherwise `complete`.
+
+These bounds belong to `json-leaf-text/v1` and are re-applied on replay; a
+different bound requires a new extractor version. A small but genuine record is
+also classified `sparse`. An excerpt found in it still anchors, but absence
+cannot be concluded and canonical snapshot resolution reports it as an
+incomplete evidence window. The HTML and plain-text rules are unchanged, and a
+JSON body served as `text/plain` remains raw `http-text/v2`.
 
 ## Replay compatibility
 

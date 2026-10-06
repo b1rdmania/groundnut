@@ -18,10 +18,27 @@ The host must declare, before dispatch:
 - the allowed media types.
 
 The declaration is canonicalized and hash-bound into every capture receipt.
-HTML, XHTML, plain text and text-layer PDFs are the admitted media classes.
-Other media produce the explicit `source_media_unsupported` failure. Paywalls,
-unreachable sources and PDFs without a usable text layer retain their existing
-failure states.
+HTML, XHTML, plain text, text-layer PDFs and `application/json` are the
+admitted media classes. Other media produce the explicit
+`source_media_unsupported` failure. Paywalls, unreachable sources and PDFs
+without a usable text layer retain their existing failure states.
+
+The response media type must be one the declaration lists. A JSON response
+under a declaration without `application/json`, or an HTML response under a
+JSON-only declaration, fails as `source_media_unsupported` with a redacted
+`declared_media_type_mismatch` detail and archives no text. Only the exact
+`application/json` type is admitted; `+json` suffix types such as
+`application/ld+json` are not.
+
+JSON bodies become `json-leaf-text/v1` windows; the rendering and window rules
+are in [Evidence windows](./EVIDENCE-WINDOWS.md#json-leaf-text). A body that is
+not strict JSON, repeats an object key or nests deeper than 64 fails as
+`source_media_unsupported`; one over the pre-parse value bound fails as
+`source_too_large`. The detail is one of four fixed strings
+(`application/json: invalid json`, `application/json: duplicate object key`,
+`application/json: nesting exceeds limit`,
+`application/json: value count exceeds limit`). These contain no source or
+connector text, so they survive capture redaction like `http_<status>`.
 
 ## Live acquisition security status
 
@@ -150,6 +167,25 @@ groundnut-capture capture-request.json --out capture-receipt.json --allow-live
 
 Omitting `--allow-live` fails closed. Replay uses the same stored snapshot and
 `SnapshotFirstResolver` contract as canonical checks and equivalence testing.
+
+JSON APIs often carry the record identity in the query string. A path-addressed
+record such as `https://clinicaltrials.gov/api/v2/studies/NCT04368728` needs no
+retained query key. A search such as Europe PMC REST does. Otherwise distinct
+queries collapse to one canonical snapshot, and the second capture fails
+closed on the snapshot identity claim:
+
+```json
+{
+  "connector": "public_api",
+  "intent": "evidence_verification",
+  "media_types": ["application/json"],
+  "retained_query_parameters_by_host": {
+    "www.ebi.ac.uk": ["format", "query", "resultType"]
+  }
+}
+```
+
+The shared resolver already sends `application/json` in its `Accept` header.
 
 The shipped HTML and PDF fixtures are sanitized conformance examples. A real
 second-deck live/replay/replay receipt remains an operational validation, not a

@@ -44,7 +44,8 @@ quotation presence, semantic support, evidence authority, and truth separate.
 
 ## What works today
 
-- Markdown research reports are checked against their cited web and PDF sources.
+- Markdown research reports are checked against their cited web, PDF and JSON
+  API sources.
 - Successful live fetches are normalized and snapshotted for offline replay.
 - Shared HTTP acquisition permits only public HTTP(S) destinations, rechecks
   redirects, pins each connection to a validated address while preserving TLS
@@ -54,6 +55,9 @@ quotation presence, semantic support, evidence authority, and truth separate.
   denial-of-service exposure; they are not a completed security review.
 - Declared read-time producers bind connector intent and allowed media classes
   into a capture receipt, preserve the first read, and omit connector secrets.
+- Strict JSON responses (`application/json`) are rendered as one
+  `<path>: <value>` line per leaf (`json-leaf-text/v1`) so quoted values anchor
+  without JSON escapes; invalid, duplicate-key or over-deep JSON fails closed.
 - Snapshots disclose the exact searched evidence window, its extraction method,
   producer library and runtime identity, and whether capture was complete,
   truncated, empty, sparse, hollow, or historically unknown.

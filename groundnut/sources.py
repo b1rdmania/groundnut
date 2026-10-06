@@ -63,6 +63,43 @@ def _is_hollow_html(text: str, extraction_method: str) -> bool:
     )
 
 
+JSON_MEDIA_TYPE = "application/json"
+JSON_LEAF_TEXT_EXTRACTOR = "json-leaf-text"
+JSON_LEAF_TEXT_VERSION = "1"
+JSON_MAX_DEPTH = 64
+JSON_MAX_VALUES = 1_000_000
+JSON_FAILURE_DETAILS = frozenset(
+    {
+        "application/json: invalid json",
+        "application/json: duplicate object key",
+        "application/json: nesting exceeds limit",
+        "application/json: value count exceeds limit",
+    }
+)
+_JSON_TOO_LARGE_REASON = "value count exceeds limit"
+_JSON_LEAF_TEXT_V1_PREFIX = "json-leaf-text/v1:"
+_SPARSE_JSON_MAX_CHARACTERS = 256
+_EMPTY_JSON_ROOT_VALUES = {"", "{}", "[]", "null"}
+
+
+def _json_window_state(text: str) -> str:
+    """Classify a json-leaf-text/v1 window; the HTML rules never apply to it.
+
+    A JSON body has no markup to strip, so the HTML byte-to-text ratio cannot
+    reveal a shell. A tiny rendered window is the JSON analogue: an error or
+    empty-result envelope served behind a 2xx status. These bounds are part of
+    the v1 contract and are re-applied on replay.
+    """
+
+    if text.startswith("$: ") and text[3:].strip() in _EMPTY_JSON_ROOT_VALUES:
+        return "empty"
+    if len(text) < _SPARSE_JSON_MAX_CHARACTERS:
+        if any(pattern.search(text) for pattern in _HOLLOW_PATTERNS):
+            return "hollow"
+        return "sparse"
+    return "complete"
+
+
 def _honest_truncation(
     text: str,
     *,
@@ -76,6 +113,8 @@ def _honest_truncation(
         return truncation
     if not text.strip():
         return "empty"
+    if extraction_method.startswith(_JSON_LEAF_TEXT_V1_PREFIX):
+        return _json_window_state(text)
     if _is_hollow_html(text, extraction_method):
         return "hollow"
     if (
@@ -474,6 +513,188 @@ def html_to_text(value: str) -> str:
     parser = _TextExtractor()
     parser.feed(value)
     return parser.text()
+
+
+class JsonLeafTextError(ValueError):
+    """A body cannot become a json-leaf-text window.
+
+    The message is fixed vocabulary (``invalid json``, ``duplicate object key``,
+    ``nesting exceeds limit`` or ``value count exceeds limit``) and never
+    echoes source text.
+    """
+
+
+class _JsonNumber(str):
+    """A JSON number literal kept exactly as written in the source."""
+
+    __slots__ = ()
+
+
+_JSON_PLAIN_KEY = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*")
+# Every boundary str.splitlines() recognises; CRLF is one break.
+_JSON_LINE_BREAK = re.compile("\r\n|[\n\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029]")
+
+
+def _reject_json_constant(value: str) -> Any:
+    raise JsonLeafTextError("invalid json")
+
+
+def _json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            raise JsonLeafTextError("duplicate object key")
+        value[key] = item
+    return value
+
+
+def _require_unicode_scalars(value: str) -> None:
+    # A lone surrogate escape such as "\ud800" decodes but is not text.
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise JsonLeafTextError("invalid json") from exc
+
+
+def _json_value_upper_bound(value: str) -> int:
+    """Bound the parsed value count before allocating any Python objects.
+
+    Every value is the root, an array element or an object member, so the
+    count cannot exceed separators plus containers plus one. Counting raw
+    characters (including any inside strings) keeps the bound conservative.
+    """
+
+    return value.count(",") + value.count("[") + value.count("{") + 1
+
+
+def _validate_json_tree(document: Any, max_depth: int) -> None:
+    """Check the whole document, so validity never depends on truncation."""
+
+    def check(item: Any, depth: int) -> None:
+        if isinstance(item, (dict, list)):
+            stack.append((item, depth + 1))
+        elif type(item) is str:
+            _require_unicode_scalars(item)
+
+    stack: list[tuple[Any, int]] = []
+    check(document, 0)
+    while stack:
+        container, depth = stack.pop()
+        if depth > max_depth:
+            raise JsonLeafTextError("nesting exceeds limit")
+        if isinstance(container, dict):
+            for key, item in container.items():
+                _require_unicode_scalars(key)
+                check(item, depth)
+        else:
+            for item in container:
+                check(item, depth)
+
+
+def _json_path_key(key: str) -> str:
+    quoted = json.dumps(key, ensure_ascii=False)
+    for character in ("\x85", "\u2028", "\u2029"):
+        quoted = quoted.replace(character, f"\\u{ord(character):04x}")
+    return f"[{quoted}]"
+
+
+def _json_children(container: dict | list, prefix: str):
+    if isinstance(container, dict):
+        for key, value in container.items():
+            if _JSON_PLAIN_KEY.fullmatch(key):
+                step = f".{key}" if prefix else key
+            else:
+                step = _json_path_key(key)
+            yield prefix + step, value
+    else:
+        for index, value in enumerate(container):
+            yield f"{prefix}[{index}]", value
+
+
+def _json_scalar(value: Any) -> str:
+    if value is True:
+        return "true"
+    if value is False:
+        return "false"
+    if value is None:
+        return "null"
+    if isinstance(value, dict):
+        return "{}"
+    if isinstance(value, list):
+        return "[]"
+    if isinstance(value, _JsonNumber):
+        return str(value)
+    return _JSON_LINE_BREAK.sub(" ", value)
+
+
+def json_to_leaf_text(
+    value: str,
+    *,
+    max_characters: int = DEFAULT_MAX_EXTRACTED_CHARACTERS,
+    max_depth: int = JSON_MAX_DEPTH,
+    max_values: int = JSON_MAX_VALUES,
+) -> tuple[str, bool]:
+    """Render strict JSON as one ``<path>: <value>`` line per leaf.
+
+    Leaves are scalars and empty containers, emitted in document order. The
+    path joins plain keys (``[A-Za-z_][A-Za-z0-9_-]*``) with dots, writes
+    array indices as ``[i]`` and writes every other key as a bracketed JSON
+    string literal (``["a.b"]``). A scalar or empty container at the root uses
+    the path ``$``. Numbers keep their source literal; ``true``, ``false``,
+    ``null``, ``{}`` and ``[]`` are written as such; strings are decoded and
+    each line break inside them becomes one space. Returns the rendered text,
+    cut to ``max_characters``, and whether that cut occurred.
+
+    Raises :class:`JsonLeafTextError` for anything that is not strict JSON
+    (including NaN/Infinity, lone surrogates and duplicate object keys), for
+    nesting deeper than ``max_depth``, and, before parsing, for a body whose
+    conservative value-count bound exceeds ``max_values``.
+    """
+
+    if max_characters < 1 or max_depth < 1 or max_values < 1:
+        raise ValueError("json leaf-text limits must be positive")
+    if _json_value_upper_bound(value) > max_values:
+        raise JsonLeafTextError(_JSON_TOO_LARGE_REASON)
+    try:
+        document = json.loads(
+            value,
+            object_pairs_hook=_json_object,
+            parse_float=_JsonNumber,
+            parse_int=_JsonNumber,
+            parse_constant=_reject_json_constant,
+        )
+    except JsonLeafTextError:
+        raise
+    except RecursionError as exc:
+        raise JsonLeafTextError("nesting exceeds limit") from exc
+    except ValueError as exc:
+        raise JsonLeafTextError("invalid json") from exc
+    _validate_json_tree(document, max_depth)
+
+    lines: list[str] = []
+    size = -1  # length of "\n".join(lines); the first line adds no separator
+    stack = []
+    if isinstance(document, (dict, list)) and document:
+        stack.append(_json_children(document, ""))
+    else:
+        lines.append(f"$: {_json_scalar(document)}")
+        size = len(lines[0])
+    while stack and size <= max_characters:
+        try:
+            path, item = next(stack[-1])
+        except StopIteration:
+            stack.pop()
+            continue
+        if isinstance(item, (dict, list)) and item:
+            stack.append(_json_children(item, path))
+            continue
+        line = f"{path}: {_json_scalar(item)}"
+        lines.append(line)
+        size += len(line) + 1
+    text = "\n".join(lines)
+    if len(text) > max_characters:
+        return text[:max_characters], True
+    return text, False
 
 
 def _pdf_to_text_and_pages(
@@ -1177,26 +1398,50 @@ class HttpResolver:
                         response=response,
                         media_type=media_type,
                     )
-                    text = (
-                        html_to_text(raw)
-                        if media_type in {"text/html", "application/xhtml+xml"}
-                        else raw
-                    )
-                    character_truncated = len(text) > self.max_extracted_characters
-                    if character_truncated:
-                        text = text[: self.max_extracted_characters]
-                    extractor_name = (
-                        "html.parser-visible-text"
-                        if media_type in {"text/html", "application/xhtml+xml"}
-                        else "http-text"
-                    )
+                    parameters: dict[str, Any] = {
+                        "charset": charset,
+                        "max_characters": self.max_extracted_characters,
+                    }
+                    if media_type == JSON_MEDIA_TYPE:
+                        try:
+                            text, character_truncated = json_to_leaf_text(
+                                raw, max_characters=self.max_extracted_characters
+                            )
+                        except JsonLeafTextError as exc:
+                            return SourceResolution(
+                                source=None,
+                                failure=(
+                                    "source_too_large"
+                                    if str(exc) == _JSON_TOO_LARGE_REASON
+                                    else "source_media_unsupported"
+                                ),
+                                detail=f"{JSON_MEDIA_TYPE}: {exc}",
+                            )
+                        extractor_name = JSON_LEAF_TEXT_EXTRACTOR
+                        extractor_version = JSON_LEAF_TEXT_VERSION
+                        parameters["max_depth"] = JSON_MAX_DEPTH
+                        parameters["max_values"] = JSON_MAX_VALUES
+                    else:
+                        text = (
+                            html_to_text(raw)
+                            if media_type in {"text/html", "application/xhtml+xml"}
+                            else raw
+                        )
+                        character_truncated = (
+                            len(text) > self.max_extracted_characters
+                        )
+                        if character_truncated:
+                            text = text[: self.max_extracted_characters]
+                        extractor_name = (
+                            "html.parser-visible-text"
+                            if media_type in {"text/html", "application/xhtml+xml"}
+                            else "http-text"
+                        )
+                        extractor_version = "2"
                     extractor, extractor_library, runtime = _extractor_identity(
                         extractor_name,
-                        "2",
-                        parameters={
-                            "charset": charset,
-                            "max_characters": self.max_extracted_characters,
-                        },
+                        extractor_version,
+                        parameters=parameters,
                     )
                     window = EvidenceWindow.from_text(
                         text,
@@ -1210,9 +1455,7 @@ class HttpResolver:
                             else "complete"
                         ),
                         extraction_method=(
-                            f"html.parser-visible-text/v2:charset={charset}"
-                            if media_type in {"text/html", "application/xhtml+xml"}
-                            else f"http-text/v2:charset={charset}"
+                            f"{extractor_name}/v{extractor_version}:charset={charset}"
                         ),
                         extractor=extractor,
                         extractor_library=extractor_library,
