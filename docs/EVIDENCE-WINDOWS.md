@@ -200,8 +200,30 @@ patterns when v1 was defined. A later edit to the HTML patterns does not
 change how stored v1 JSON windows classify. A small but genuine record is
 also classified `sparse`. An excerpt found in it still anchors, but absence
 cannot be concluded and canonical snapshot resolution reports it as an
-incomplete evidence window. The HTML and plain-text rules are unchanged, and a
-JSON body served as `text/plain` remains raw `http-text/v2`.
+incomplete evidence window. These JSON rules apply only to `json-leaf-text/v1`
+windows; HTML and plain-text classification is unchanged.
+
+### Change from raw JSON capture
+
+JSON capture itself did change. Up to 0.2.0a3, the HTTP resolver stored an
+`application/json` body as raw decoded text under `http-text/v2`. Built-in
+captures now render it as `json-leaf-text/v1`:
+
+- a new capture of the same bytes has different text, window and snapshot
+  hashes;
+- bodies that raw capture accepted now fail closed: duplicate object keys, a
+  UTF-8 byte-order mark, `NaN` or `Infinity`, lone surrogate escapes, numbers
+  with non-ASCII digits, or nesting deeper than 64
+  (`source_media_unsupported`), and bodies over the value bound
+  (`source_too_large`);
+- small JSON envelopes that raw capture recorded as `complete` are now
+  `sparse`, `hollow` or `empty`.
+
+Stored raw-JSON snapshots replay unchanged under `http-text/v2`; replay never
+re-extracts them. Live-to-replay equivalence between a new JSON capture and an
+old raw-JSON snapshot therefore reports `different`. A JSON body served as
+`text/plain` is still stored as raw `http-text/v2`. See
+[MIGRATION](./MIGRATION.md).
 
 ## Replay compatibility
 

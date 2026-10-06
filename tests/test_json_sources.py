@@ -14,6 +14,7 @@ import re
 import subprocess
 import sys
 import textwrap
+import shutil
 import tracemalloc
 
 import pytest
@@ -124,6 +125,9 @@ class _Response:
 
     def __exit__(self, *args):
         return False
+
+
+RAW_JSON_SNAPSHOTS = Path(__file__).parent / "fixtures" / "raw_json_http_text_v2"
 
 
 class _Opener:
@@ -842,6 +846,79 @@ def test_html_and_text_extraction_methods_are_unchanged():
     }
 
 
+def test_raw_json_http_text_v2_snapshots_from_0_2_0a3_replay_unchanged(tmp_path):
+    # Archived by the 0.2.0a3 HttpResolver, which stored application/json as
+    # raw http-text/v2: one body repeats a key, one is a tiny error envelope.
+    expected = {
+        "https://example.test/api/v2/studies/NCT99999999": (
+            '{"protocolSection":{"statusModule":{"overallStatus":"COMPLETED"},'
+            '"designModule":{"enrollmentInfo":{"count":47079}}},'
+            '"sponsor":"Caf\\u00e9 Research","a":1,"a":2}'
+        ),
+        "https://example.test/api/error": '{"message":"not found"}',
+    }
+    store = SnapshotStore(tmp_path)
+    shutil.copytree(RAW_JSON_SNAPSHOTS, tmp_path, dirs_exist_ok=True)
+    before = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
+
+    for uri, text in expected.items():
+        archived = json.loads(store.path_for(uri).read_text())
+        loaded = store.load(SourceReference("cited", uri))
+
+        assert loaded.ok is True
+        assert loaded.detail in {None, "extractor_identity_mismatch:runtime"}
+        assert loaded.source.text == text
+        assert loaded.source.evidence_window.to_dict() == archived["evidence_window"]
+        assert loaded.source.evidence_window.extraction_method == "http-text/v2:charset=utf-8"
+        assert loaded.source.evidence_window.truncation == "complete"
+    assert {path.name: path.read_bytes() for path in tmp_path.iterdir()} == before
+    # The same bytes captured now take the new path and its rules.
+    assert _resolve(b'{"message":"not found"}').source.evidence_window.truncation == "sparse"
+    assert _resolve(expected["https://example.test/api/v2/studies/NCT99999999"].encode()).detail == (
+        "application/json: duplicate object key"
+    )
+
+
+def _resolve_with_headers(body, content_type):
+    opener = _Opener({STUDY_URI: body})
+
+    def open_with_headers(request, timeout):
+        response = opener(request, timeout)
+        response.headers = _Headers("application/json", {"Content-Type": content_type})
+        return response
+
+    return _resolver(open_with_headers).resolve(SourceReference("charset", STUDY_URI))
+
+
+def test_http_json_honours_declared_charset_and_rejects_a_utf8_bom():
+    latin = _resolve_with_headers(
+        '{"sponsor":"Café Research"}'.encode("windows-1252"),
+        "application/json; charset=windows-1252",
+    )
+    utf16 = _resolve_with_headers(
+        '{"sponsor":"Café Research"}'.encode("utf-16"),
+        "application/json; charset=utf-16",
+    )
+    bom = _resolve_with_headers(
+        b'\xef\xbb\xbf{"sponsor":"Caf\xc3\xa9 Research"}', "application/json"
+    )
+
+    assert latin.source.text == "sponsor: Café Research"
+    assert latin.source.evidence_window.extraction_method == (
+        "json-leaf-text/v1:charset=cp1252"
+    )
+    assert latin.source.evidence_window.original_bytes == 27
+    assert utf16.source.text == "sponsor: Café Research"
+    assert utf16.source.evidence_window.extraction_method == (
+        "json-leaf-text/v1:charset=utf-16"
+    )
+    assert (bom.ok, bom.failure, bom.detail) == (
+        False,
+        "source_media_unsupported",
+        "application/json: invalid json",
+    )
+
+
 # --- read-time capture -------------------------------------------------------
 
 
@@ -875,6 +952,55 @@ def test_declared_media_type_match_remains_strict(tmp_path, served, declared):
     assert result["detail"].startswith("declared_media_type_mismatch;detail_ref=sha256:")
     assert result["evidence_window"] is None
     assert "COMPLETED" not in store.path_for(STUDY_URI).read_text()
+
+
+@pytest.mark.parametrize(
+    ("body", "failure", "detail"),
+    [
+        (b'{"protocolSection":', "source_media_unsupported", "application/json: invalid json"),
+        (b"[" + b"0," * 1_000_000 + b"0]", "source_too_large", "application/json: value count exceeds limit"),
+    ],
+)
+def test_undeclared_json_that_cannot_be_extracted_reports_its_own_failure(
+    tmp_path, body, failure, detail
+):
+    # The declared-media check runs after extraction, so an HTML-only
+    # declaration sees the extraction failure, not a media mismatch.
+    receipt = ReadTimeCaptureProducer(
+        SnapshotStore(tmp_path),
+        _resolver(_Opener({STUDY_URI: body})),
+        CaptureDeclaration("public_web", ("text/html",)),
+    ).capture(SourceReference("study", STUDY_URI))
+
+    result = receipt["acquisition"]["result"]
+    assert (result["ok"], result["failure"], result["detail"]) == (False, failure, detail)
+
+
+def test_retaining_fields_keeps_filtered_and_full_records_apart(tmp_path):
+    full = "https://clinicaltrials.example.test/api/v2/studies/NCT99999999"
+    filtered = full + "?fields=protocolSection"
+    bodies = {full: STUDY, filtered: b'{"protocolSection":{"note":"' + b"x" * 300 + b'"}}'}
+
+    def capture_both(declaration, store):
+        producer = ReadTimeCaptureProducer(store, _resolver(_Opener(bodies)), declaration)
+        producer.capture(SourceReference("filtered", filtered))
+        producer.capture(SourceReference("full", full))
+
+    retained = CaptureDeclaration(
+        "public_api",
+        ("application/json",),
+        retained_query_parameters_by_host={"clinicaltrials.example.test": ["fields"]},
+    )
+    store = SnapshotStore(tmp_path / "retained")
+    capture_both(retained, store)
+    assert resolve_snapshot(SourceReference("c", full), retained, store).source.text == STUDY_TEXT
+    assert "note: " in resolve_snapshot(SourceReference("c", filtered), retained, store).source.text
+
+    dropped = CaptureDeclaration(
+        "public_api", ("application/json",), retained_query_parameters_by_host={}
+    )
+    with pytest.raises(ValueError, match="collapse to one canonical snapshot"):
+        capture_both(dropped, SnapshotStore(tmp_path / "dropped"))
 
 
 def test_json_extraction_failure_keeps_its_fixed_detail_through_capture(tmp_path):

@@ -7,6 +7,32 @@ moved out of the original CUAD compatibility path.
 The migration is additive: compatibility behaviour remains stable while the IC
 loop adopts the canonical checking and ledger contracts deliberately.
 
+## Unreleased: JSON source extraction
+
+Built-in HTTP captures of `application/json` now emit `json-leaf-text/v1`
+evidence windows. Each leaf is one `<path>: <value>` line; numbers keep their
+literal text and escapes are decoded. Capture declarations may list
+`application/json`; the media match between declaration and response stays
+strict. See [Evidence windows](./EVIDENCE-WINDOWS.md#json-leaf-text).
+
+Up to 0.2.0a3 the resolver stored these bodies as raw `http-text/v2` text, so
+this changes behaviour:
+
+- new captures of the same JSON bytes hash differently (text, evidence window
+  and snapshot);
+- bodies that raw capture accepted now fail closed as
+  `source_media_unsupported`: duplicate keys, a UTF-8 byte-order mark,
+  `NaN`/`Infinity`, lone surrogate escapes, non-ASCII digits, or nesting
+  deeper than 64. More than 1,000,000 values fails as `source_too_large`;
+- small JSON envelopes previously recorded as `complete` are now `sparse`,
+  `hollow` or `empty`, so absence can no longer be concluded from them;
+- existing raw-JSON snapshots replay byte-for-byte under `http-text/v2` and
+  are never re-extracted. `groundnut-equivalence` reports `different` when a
+  new JSON capture is compared with such a snapshot. Refresh a raw-JSON
+  snapshot deliberately rather than comparing across the two extractors.
+
+JSON served as `text/plain` is still captured as raw `http-text/v2`.
+
 ## 0.2.0a3 passage and extractor-provenance boundaries
 
 This build gives the post-a2 public additions a distinct package identity.
