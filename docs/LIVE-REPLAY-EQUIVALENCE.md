@@ -37,6 +37,13 @@ historical equivalence v1 comparison-field contract as well as v2. Unknown
 acquisition or receipt versions fail with an explicit unsupported-schema
 diagnostic.
 
+Successful acquisitions may carry `groundnut-evidence-window/v1` or
+`groundnut-evidence-window/v2`; built-in HTTP producers have emitted v2 since
+0.2.0a3. The complete window object is compared in both cases, so a v2
+producer-identity change (extractor, extractor library or runtime) between
+live and replay is reported as a difference. Any other window schema fails as
+unsupported.
+
 ## Declared exclusions
 
 Only acquisition and derived-envelope metadata is excluded:

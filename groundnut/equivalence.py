@@ -33,6 +33,12 @@ V2_COMPARED_FIELDS = (
 )
 COMPARED_FIELDS = V2_COMPARED_FIELDS
 
+# v2 adds producer identity (extractor, library, runtime); the projection
+# compares the complete window object either way.
+EVIDENCE_WINDOW_SCHEMAS = frozenset(
+    {"groundnut-evidence-window/v1", "groundnut-evidence-window/v2"}
+)
+
 EXCLUDED_FIELDS = (
     {
         "path": "/request_sha256",
@@ -296,7 +302,7 @@ def _projection(execution: Mapping[str, Any], label: str) -> dict[str, Any]:
             window = _as_mapping(
                 evidence_window, f"{label} acquisition evidence_window"
             )
-            if window.get("schema") != "groundnut-evidence-window/v1":
+            if window.get("schema") not in EVIDENCE_WINDOW_SCHEMAS:
                 raise ValueError(f"{label} has unsupported evidence-window schema")
             _validate_hash(window, f"{label} evidence window")
             if result.get("failure") is not None:
