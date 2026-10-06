@@ -79,7 +79,22 @@ JSON_FAILURE_DETAILS = frozenset(
 _JSON_TOO_LARGE_REASON = "value count exceeds limit"
 _JSON_LEAF_TEXT_V1_PREFIX = "json-leaf-text/v1:"
 _SPARSE_JSON_MAX_CHARACTERS = 256
+_HOLLOW_JSON_MAX_CHARACTERS = 4096
 _EMPTY_JSON_ROOT_VALUES = {"", "{}", "[]", "null"}
+# Frozen for json-leaf-text/v1. Stored v1 windows are reclassified on replay,
+# so these must never follow edits to the HTML patterns above; a change here
+# requires a new extractor version.
+_JSON_V1_HOLLOW_PATTERNS = (
+    re.compile(r"\b(?:verify|confirm) (?:that )?you are (?:a )?human\b", re.I),
+    re.compile(r"\b(?:captcha|access denied|forbidden|request blocked)\b", re.I),
+    re.compile(r"\b(?:enable|requires?) javascript\b", re.I),
+    re.compile(r"\bjavascript (?:is required|must be enabled)\b", re.I),
+    re.compile(r"\bjust a moment\b.*\b(?:cloudflare|security|browser)\b", re.I | re.S),
+    re.compile(r"\bchecking (?:your )?browser\b", re.I),
+    re.compile(r"\b(?:too many requests|rate limit(?:ed| exceeded)?)\b", re.I),
+    re.compile(r"\b(?:subscribe|sign in|log in) to (?:continue|read|view|access)\b", re.I),
+    re.compile(r"\b(?:accept|manage) (?:all )?cookies\b.*\b(?:continue|consent|preferences?)\b", re.I | re.S),
+)
 
 
 def _json_window_state(text: str) -> str:
@@ -93,9 +108,11 @@ def _json_window_state(text: str) -> str:
 
     if text.startswith("$: ") and text[3:].strip() in _EMPTY_JSON_ROOT_VALUES:
         return "empty"
+    if len(text) <= _HOLLOW_JSON_MAX_CHARACTERS and any(
+        pattern.search(text) for pattern in _JSON_V1_HOLLOW_PATTERNS
+    ):
+        return "hollow"
     if len(text) < _SPARSE_JSON_MAX_CHARACTERS:
-        if any(pattern.search(text) for pattern in _HOLLOW_PATTERNS):
-            return "hollow"
         return "sparse"
     return "complete"
 
@@ -539,6 +556,14 @@ def _reject_json_constant(value: str) -> Any:
     raise JsonLeafTextError("invalid json")
 
 
+def _json_number(literal: str) -> _JsonNumber:
+    # The pure-Python scanner fallback matches digits with \d, which accepts
+    # non-ASCII digits; a JSON number literal is ASCII only.
+    if not literal.isascii():
+        raise JsonLeafTextError("invalid json")
+    return _JsonNumber(literal)
+
+
 def _json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     value: dict[str, Any] = {}
     for key, item in pairs:
@@ -758,8 +783,8 @@ def json_to_leaf_text(
         document = json.loads(
             value,
             object_pairs_hook=_json_object,
-            parse_float=_JsonNumber,
-            parse_int=_JsonNumber,
+            parse_float=_json_number,
+            parse_int=_json_number,
             parse_constant=_reject_json_constant,
         )
     except JsonLeafTextError:

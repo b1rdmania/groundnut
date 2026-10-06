@@ -154,7 +154,7 @@ never echoes source text:
 
 | Failure | Detail | Cause |
 |---|---|---|
-| `source_media_unsupported` | `application/json: invalid json` | syntax error, trailing data, byte-order mark, `NaN`/`Infinity`, raw control character in a string, or a lone UTF-16 surrogate escape |
+| `source_media_unsupported` | `application/json: invalid json` | syntax error, trailing data, byte-order mark, `NaN`/`Infinity`, raw control character in a string, a lone UTF-16 surrogate escape, or a number containing a non-ASCII digit |
 | `source_media_unsupported` | `application/json: duplicate object key` | any object repeats a key |
 | `source_media_unsupported` | `application/json: nesting exceeds limit` | containers nested deeper than 64 |
 | `source_too_large` | `application/json: value count exceeds limit` | the pre-parse bound exceeds 1,000,000 values |
@@ -186,14 +186,18 @@ the JSON analogue of a shell — an error or empty-result envelope served behind
 a 2xx status:
 
 - `empty`: the root is `{}`, `[]`, `null` or a blank string;
-- `hollow`: fewer than 256 rendered characters that match the same
-  interstitial patterns as HTML (for example `{"error":"Too many requests"}`);
+- `hollow`: at most 4,096 rendered characters that match a block-page pattern
+  (for example `{"error":"Too many requests"}`), the same length bound HTML
+  uses;
 - `sparse`: any other window under 256 rendered characters (for example
   `{"message":"not found"}`);
 - otherwise `complete`.
 
 These bounds belong to `json-leaf-text/v1` and are re-applied on replay; a
-different bound requires a new extractor version. A small but genuine record is
+different bound requires a new extractor version. For the same reason v1
+holds its own frozen copy of the block-page patterns, identical to the HTML
+patterns when v1 was defined. A later edit to the HTML patterns does not
+change how stored v1 JSON windows classify. A small but genuine record is
 also classified `sparse`. An excerpt found in it still anchors, but absence
 cannot be concluded and canonical snapshot resolution reports it as an
 incomplete evidence window. The HTML and plain-text rules are unchanged, and a

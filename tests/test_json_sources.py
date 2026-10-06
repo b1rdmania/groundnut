@@ -5,7 +5,9 @@ record (ClinicalTrials.gov v2, bioRxiv details, Europe PMC search). Transport
 is injected; no test opens a socket.
 """
 
+import hashlib
 import json
+import json.scanner
 from pathlib import Path
 import random
 import re
@@ -695,6 +697,63 @@ def test_json_window_classification_fails_closed_on_tiny_envelopes(body, expecte
 
     assert result.ok is True
     assert result.source.evidence_window.truncation == expected
+
+
+def _message_body(rendered_length, prefix=""):
+    # {"m": "<text>"} renders as "m: <text>"
+    filler = "x" * (rendered_length - 3 - len(prefix))
+    return json.dumps({"m": prefix + filler}).encode()
+
+
+@pytest.mark.parametrize(
+    ("rendered_length", "prefix", "expected"),
+    [
+        (255, "", "sparse"),
+        (256, "", "complete"),
+        (255, "Too many requests ", "hollow"),
+        (256, "Too many requests ", "hollow"),
+        (4096, "Access denied ", "hollow"),
+        (4097, "Access denied ", "complete"),
+    ],
+)
+def test_json_window_thresholds_at_their_boundaries(rendered_length, prefix, expected):
+    result = _resolve(_message_body(rendered_length, prefix))
+
+    assert result.source.evidence_window.captured_characters == rendered_length
+    assert result.source.evidence_window.truncation == expected
+
+
+def test_json_v1_block_patterns_are_frozen_independently_of_html(monkeypatch):
+    rows = [[pattern.pattern, pattern.flags] for pattern in source_module._JSON_V1_HOLLOW_PATTERNS]
+    digest = hashlib.sha256(json.dumps(rows, separators=(",", ":")).encode()).hexdigest()
+    assert digest == "4cc4112b5109593832a7f346b53a1b06a251005cda08b436fad5b73a82e4db17"
+
+    monkeypatch.setattr(source_module, "_HOLLOW_PATTERNS", ())
+    json_window = _resolve(b'{"error":"Too many requests"}').source.evidence_window
+    html_window = _resolve(
+        b"<main>Too many requests</main>", media_type="text/html"
+    ).source.evidence_window
+    assert json_window.truncation == "hollow"
+    assert html_window.truncation == "complete"
+
+
+@pytest.mark.parametrize(
+    "literal",
+    ["1\u0661\u0662", "0.\u0665", "2.5e\u0663", "-7\uff10"],
+)
+def test_json_numbers_must_be_ascii_even_with_the_python_scanner(monkeypatch, literal):
+    body = f"[{literal}]"
+    with pytest.raises(JsonLeafTextError, match="^invalid json$"):
+        json_to_leaf_text(body)
+
+    # The pure-Python fallback matches every digit after the first with \d.
+    # (A keyword argument forces a fresh decoder; plain json.loads reuses one
+    # built with the C scanner at import.)
+    monkeypatch.setattr(json.scanner, "make_scanner", json.scanner.py_make_scanner)
+    assert json.loads(body, parse_int=str, parse_float=str) == [literal]
+    assert json_to_leaf_text("[123, 4.50, 1e-7]") == ("[0]: 123\n[1]: 4.50\n[2]: 1e-7", False)
+    with pytest.raises(JsonLeafTextError, match="^invalid json$"):
+        json_to_leaf_text(body)
 
 
 def test_sparse_and_hollow_json_windows_never_prove_quote_absence():
