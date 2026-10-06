@@ -1,3 +1,4 @@
+from dataclasses import replace
 import json
 from pathlib import Path
 import socket
@@ -21,6 +22,7 @@ from groundnut.run_manifest import EngineIdentity
 from groundnut.runner import execute_canonical_check
 from groundnut.sources import (
     EvidenceWindow,
+    HttpResolver,
     ResolvedSource,
     SnapshotFirstResolver,
     SnapshotStore,
@@ -155,13 +157,20 @@ def _rehash(value):
 
 
 def _rewrite_acquisitions(document, *, schema, remove_final_uri):
+    def rewrite(acquisition):
+        acquisition["schema"] = schema
+        if remove_final_uri:
+            acquisition["result"].pop("final_uri", None)
+
+    return _rewrite_run(document, rewrite)
+
+
+def _rewrite_run(document, rewrite_acquisition):
     value = json.loads(document)
     execution = value["execution"]
     run = execution["run"]
     for acquisition in run["acquisitions"]:
-        acquisition["schema"] = schema
-        if remove_final_uri:
-            acquisition["result"].pop("final_uri", None)
+        rewrite_acquisition(acquisition)
     _rehash(run)
     run_bytes = _canonical_bytes(run)
     for artifact in execution["manifest"]["artifacts"]:
@@ -245,6 +254,118 @@ def test_historical_v2_acquisitions_without_final_uri_remain_readable(tmp_path):
 
     assert result["status"] == "equivalent"
     assert result["schema"] == "groundnut-live-replay-equivalence/v2"
+
+
+class _HttpFixtureResponse:
+    status = 200
+
+    def __init__(self, body, media_type, uri):
+        self.body = body
+        self.uri = uri
+        self.headers = self
+        self.media_type = media_type
+
+    def get_content_type(self):
+        return self.media_type
+
+    def get(self, name, default=None):
+        return default
+
+    def read(self, size=-1):
+        return self.body if size < 0 else self.body[:size]
+
+    def geturl(self):
+        return self.uri
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+
+HTTP_FIXTURES = {
+    "text/html": f"<main>{SOURCE_TEXT}</main>".encode(),
+    "text/plain": SOURCE_TEXT.encode(),
+}
+
+
+def _http_live_and_replays(tmp_path, media_type):
+    body = HTTP_FIXTURES[media_type]
+    live_resolver = HttpResolver(
+        opener=lambda request, timeout: _HttpFixtureResponse(
+            body, media_type, request.full_url
+        ),
+        address_resolver=lambda hostname, port: ("93.184.216.34",),
+        allow_injected_transport=True,
+    )
+    artifact = _artifact(tmp_path)
+    store = SnapshotStore(tmp_path / "snapshots")
+    live = _execute(
+        artifact,
+        SnapshotFirstResolver(store, live_resolver, mode="snapshot_preferred"),
+    )
+    return artifact, store, live
+
+
+@pytest.mark.parametrize("media_type", sorted(HTTP_FIXTURES))
+def test_built_in_http_v2_evidence_windows_are_compared(tmp_path, media_type):
+    artifact, store, live = _http_live_and_replays(tmp_path, media_type)
+    replay_resolver = SnapshotFirstResolver(store, mode="replay_only")
+    replay = _execute(artifact, replay_resolver)
+    replay_second = _execute(artifact, replay_resolver)
+    live_document = _document(live, "1" * 64)
+
+    result = compare_documents(
+        live_document,
+        _document(replay, "2" * 64),
+        _document(replay_second, "2" * 64),
+    )
+
+    [acquisition] = json.loads(live_document)["execution"]["run"]["acquisitions"]
+    window = acquisition["result"]["evidence_window"]
+    assert window["schema"] == "groundnut-evidence-window/v2"
+    assert window["extractor"]["name"] in {"html.parser-visible-text", "http-text"}
+    assert result["status"] == "equivalent"
+    assert result["replay_byte_identical"] is True
+
+
+def test_v2_producer_identity_drift_is_reported_not_hidden(tmp_path):
+    artifact, store, live = _http_live_and_replays(tmp_path, "text/plain")
+    source = live.run.acquisitions[0].resolution.source
+    store.archive(
+        replace(
+            source,
+            evidence_window=replace(
+                source.evidence_window, runtime={"name": "python", "version": "0.0.0"}
+            ),
+        )
+    )
+    replay_resolver = SnapshotFirstResolver(store, mode="replay_only")
+
+    result = compare_documents(
+        _document(live, "1" * 64),
+        _document(_execute(artifact, replay_resolver), "2" * 64),
+        _document(_execute(artifact, replay_resolver), "2" * 64),
+    )
+
+    assert result["status"] == "different"
+    assert any(
+        "evidence_window" in row["path"]
+        for row in result["differences"]["live_vs_replay"]
+    )
+
+
+def test_unknown_evidence_window_schema_is_rejected(tmp_path):
+    live, replay, replay_second, _, _ = _live_and_replays(tmp_path)
+
+    def rewrite(acquisition):
+        window = acquisition["result"]["evidence_window"]
+        window["schema"] = "groundnut-evidence-window/v9"
+        _rehash(window)
+
+    with pytest.raises(ValueError, match="unsupported evidence-window schema"):
+        compare_documents(_rewrite_run(live, rewrite), replay, replay_second)
 
 
 def test_v3_successful_acquisition_requires_final_uri(tmp_path):
