@@ -156,7 +156,7 @@ never echoes source text:
 |---|---|---|
 | `source_media_unsupported` | `application/json: invalid json` | syntax error, trailing data, byte-order mark, `NaN`/`Infinity`, raw control character in a string, or a lone UTF-16 surrogate escape |
 | `source_media_unsupported` | `application/json: duplicate object key` | any object repeats a key |
-| `source_media_unsupported` | `application/json: nesting exceeds limit` | containers nested deeper than 64, or a parser `RecursionError` |
+| `source_media_unsupported` | `application/json: nesting exceeds limit` | containers nested deeper than 64 |
 | `source_too_large` | `application/json: value count exceeds limit` | the pre-parse bound exceeds 1,000,000 values |
 
 The value bound is checked before parsing, because a parsed Python object tree
@@ -164,6 +164,13 @@ can need tens of times the memory of the body. It counts every `,`, `[` and
 `{` in the body plus one, including any inside strings, so it can only
 overestimate. Text-heavy bodies with many commas inside strings may therefore
 be refused, but cannot exceed the bound.
+
+Nesting is also checked before parsing. The standard-library parser recurses
+once per container, so a body of a few thousand brackets can exhaust a small
+thread stack before any post-parse check runs. A linear, string-aware scan
+counts brackets outside strings and stops at depth 65. Checks run in this
+order: value bound, nesting, then strict parsing. A body that is both malformed
+and too deep therefore reports `nesting exceeds limit`.
 
 The whole document is validated before rendering, so validity never depends on
 the character limit. Rendering stops once the configured

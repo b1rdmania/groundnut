@@ -569,6 +569,40 @@ def _json_value_upper_bound(value: str) -> int:
     return value.count(",") + value.count("[") + value.count("{") + 1
 
 
+# One match per structural bracket outside strings. Runs of other text and
+# whole strings, including an unterminated one, are consumed possessively, so
+# the scan is linear and never backtracks.
+_JSON_STRUCTURE = re.compile(
+    r'(?:[^"\[\]{}]++|"(?:[^"\\]++|\\.)*+"?)*+([\[\]{}])?', re.S
+)
+
+
+def _json_nesting_exceeds(value: str, max_depth: int) -> bool:
+    """Check bracket depth before parsing, so the parser never recurses past it.
+
+    The C parser recurses once per container before any post-parse check can
+    run, and a few thousand levels crash a thread with a small stack. Up to
+    the parser's first syntax error it sees the same structure as this scan,
+    so a body the scan accepts bounds the parser's recursion.
+    """
+
+    depth = 0
+    for match in _JSON_STRUCTURE.finditer(value):
+        bracket = match.group(1)
+        if bracket is None:
+            continue
+        if bracket in "[{":
+            depth += 1
+            if depth > max_depth:
+                return True
+        else:
+            depth -= 1
+            if depth < 0:
+                # Unbalanced: the parser rejects the body at or before here.
+                return False
+    return False
+
+
 def _validate_json_tree(document: Any, max_depth: int) -> None:
     """Check the whole document, so validity never depends on truncation."""
 
@@ -709,15 +743,17 @@ def json_to_leaf_text(
     remaining budget, so deep paths with long keys are never copied per level.
 
     Raises :class:`JsonLeafTextError` for anything that is not strict JSON
-    (including NaN/Infinity, lone surrogates and duplicate object keys), for
-    nesting deeper than ``max_depth``, and, before parsing, for a body whose
-    conservative value-count bound exceeds ``max_values``.
+    (including NaN/Infinity, lone surrogates and duplicate object keys), and,
+    before parsing, for a body whose conservative value-count bound exceeds
+    ``max_values`` or whose bracket nesting exceeds ``max_depth``.
     """
 
     if max_characters < 1 or max_depth < 1 or max_values < 1:
         raise ValueError("json leaf-text limits must be positive")
     if _json_value_upper_bound(value) > max_values:
         raise JsonLeafTextError(_JSON_TOO_LARGE_REASON)
+    if _json_nesting_exceeds(value, max_depth):
+        raise JsonLeafTextError("nesting exceeds limit")
     try:
         document = json.loads(
             value,

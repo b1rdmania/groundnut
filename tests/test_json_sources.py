@@ -6,8 +6,12 @@ is injected; no test opens a socket.
 """
 
 import json
+from pathlib import Path
 import random
 import re
+import subprocess
+import sys
+import textwrap
 import tracemalloc
 
 import pytest
@@ -293,6 +297,132 @@ def test_json_leaf_text_bounds_value_count_before_parsing():
     # It is checked before parsing, so it wins over a later syntax error.
     with pytest.raises(JsonLeafTextError, match="^value count exceeds limit$"):
         json_to_leaf_text("[1,2,3,", max_values=3)
+
+
+def _run_isolated(code, *, timeout):
+    """Run code in a fresh interpreter: a crash or hang fails the test only."""
+
+    return subprocess.run(
+        [sys.executable, "-c", textwrap.dedent(code)],
+        cwd=Path(__file__).resolve().parent.parent,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+    )
+
+
+def test_deep_json_fails_closed_on_a_small_thread_stack():
+    # Before the pre-parse scan, the C parser recursed ~10,000 levels on a
+    # 10 KB body before the depth check ran and crashed a 512 KiB thread.
+    completed = _run_isolated(
+        """
+        import threading
+        threading.stack_size(512 * 1024)
+        from groundnut.sources import (
+            HttpResolver, JsonLeafTextError, SourceReference, json_to_leaf_text,
+        )
+
+        class Headers:
+            def get_content_type(self):
+                return "application/json"
+            def get(self, name, default=None):
+                return default
+
+        class Response:
+            status = 200
+            headers = Headers()
+            def __init__(self, body):
+                self.body = body
+            def read(self, size=-1):
+                return self.body
+            def geturl(self):
+                return "https://example.test/deep"
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+
+        results = []
+
+        def run():
+            for depth in (10_000, 100_000):
+                body = "[" * depth + "]" * depth
+                try:
+                    json_to_leaf_text(body)
+                    results.append("parsed")
+                except JsonLeafTextError as error:
+                    results.append(str(error))
+                resolver = HttpResolver(
+                    opener=lambda request, timeout: Response(body.encode()),
+                    address_resolver=lambda host, port: ("93.184.216.34",),
+                    allow_injected_transport=True,
+                )
+                resolution = resolver.resolve(
+                    SourceReference("deep", "https://example.test/deep")
+                )
+                results.append(f"{resolution.failure}|{resolution.detail}")
+
+        thread = threading.Thread(target=run)
+        thread.start()
+        thread.join()
+        print(results)
+        """,
+        timeout=120,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == str(
+        ["nesting exceeds limit", "source_media_unsupported|application/json: nesting exceeds limit"] * 2
+    )
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        ('["' + "[" * 100 + '"]', ('[0]: ' + "[" * 100, False)),
+        ('["\\"' + "{" * 100 + '"]', ('[0]: "' + "{" * 100, False)),
+        ('{"k\\\\":"' + "]" * 10 + '"}', ('["k\\\\"]: ' + "]" * 10, False)),
+        ("[" * 64 + "]" * 64, ("[0]" * 63 + ": []", False)),
+        ('{"a":' * 32 + "[" * 32 + "]" * 32 + "}" * 32, (".".join(["a"] * 32) + "[0]" * 31 + ": []", False)),
+    ],
+)
+def test_depth_scan_ignores_brackets_inside_strings(body, expected):
+    assert json_to_leaf_text(body) == expected
+
+
+@pytest.mark.parametrize(
+    ("body", "reason"),
+    [
+        ("[" * 65 + "]" * 65, "nesting exceeds limit"),
+        ('{"a":' * 33 + "[" * 32 + "]" * 32 + "}" * 33, "nesting exceeds limit"),
+        ("[" * 65, "nesting exceeds limit"),
+        ('["' + "[" * 100, "invalid json"),
+        ("]" + "[" * 100, "invalid json"),
+        ("[]]" + "[" * 100, "invalid json"),
+    ],
+)
+def test_depth_scan_fails_closed_before_parsing(body, reason):
+    with pytest.raises(JsonLeafTextError) as error:
+        json_to_leaf_text(body)
+
+    assert str(error.value) == reason
+
+
+def test_depth_scan_is_linear_on_unterminated_escaped_quotes():
+    # A backtracking string pattern is quadratic here (about 3.6 s at 32 KB,
+    # four times longer per doubling); the possessive scan takes milliseconds.
+    completed = _run_isolated(
+        """
+        from groundnut.sources import JSON_MAX_DEPTH, _json_nesting_exceeds
+        body = '["' + '\\\\"' * 2_000_000 + "[" * 100
+        print(_json_nesting_exceeds(body, JSON_MAX_DEPTH))
+        """,
+        timeout=60,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "False"
 
 
 def test_json_leaf_text_truncates_at_the_character_limit():
