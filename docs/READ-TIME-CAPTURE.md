@@ -180,8 +180,13 @@ million characters. That is over the default 8,388,608-character extraction
 cap, so it captures as `truncated` and cannot support a conclusion that a
 quote is absent. Its protocol section,
 `https://clinicaltrials.gov/api/v2/studies/NCT04368728?fields=protocolSection`,
-renders to about 207,000 characters and captures complete. Retain `fields` for
-that host, and the search parameters for Europe PMC REST:
+renders to about 207,000 characters and captures complete. Keep the current
+character cap; this filtered response is complete only for the selected protocol
+section, not for the full study record or omitted results. Cite it only for claims
+whose evidence is in those fields. Results claims need a separately captured
+response containing the relevant results; an unavailable or truncated response
+remains an evidence limitation. Retain `fields` for that host, and the search
+parameters for Europe PMC REST:
 
 ```json
 {

@@ -750,10 +750,19 @@ def test_json_numbers_must_be_ascii_even_with_the_python_scanner(monkeypatch, li
     with pytest.raises(JsonLeafTextError, match="^invalid json$"):
         json_to_leaf_text(body)
 
-    # The pure-Python fallback matches every digit after the first with \d.
-    # (A keyword argument forces a fresh decoder; plain json.loads reuses one
-    # built with the C scanner at import.)
+    # Exercise the installed Python fallback first: newer Python patch
+    # releases already reject non-ASCII digits in NUMBER_RE.
     monkeypatch.setattr(json.scanner, "make_scanner", json.scanner.py_make_scanner)
+    with pytest.raises(JsonLeafTextError, match="^invalid json$"):
+        json_to_leaf_text(body)
+
+    # Explicitly recreate the older permissive scanner to exercise our own
+    # guard on every Python patch release, without requiring a stdlib bug.
+    # Keyword arguments force a fresh decoder using this patched scanner.
+    monkeypatch.setattr(
+        json.scanner, "NUMBER_RE",
+        re.compile(r"(-?(?:0|[1-9]\d*))(\.\d+)?([eE][-+]?\d+)?"),
+    )
     assert json.loads(body, parse_int=str, parse_float=str) == [literal]
     assert json_to_leaf_text("[123, 4.50, 1e-7]") == ("[0]: 123\n[1]: 4.50\n[2]: 1e-7", False)
     with pytest.raises(JsonLeafTextError, match="^invalid json$"):
