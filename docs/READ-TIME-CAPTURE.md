@@ -18,10 +18,32 @@ The host must declare, before dispatch:
 - the allowed media types.
 
 The declaration is canonicalized and hash-bound into every capture receipt.
-HTML, XHTML, plain text and text-layer PDFs are the admitted media classes.
-Other media produce the explicit `source_media_unsupported` failure. Paywalls,
-unreachable sources and PDFs without a usable text layer retain their existing
-failure states.
+HTML, XHTML, plain text, text-layer PDFs and `application/json` are the
+admitted media classes. Other media produce the explicit
+`source_media_unsupported` failure. Paywalls, unreachable sources and PDFs
+without a usable text layer retain their existing failure states.
+
+The response media type must be one the declaration lists. That check runs
+after the shared resolver has extracted the response. A JSON response that
+extracts successfully under a declaration without `application/json`, or an
+HTML response under a JSON-only declaration, fails as
+`source_media_unsupported` with a redacted `declared_media_type_mismatch`
+detail and archives no text. A JSON body that cannot be extracted reports its
+own extraction failure instead, even under a declaration that does not list
+JSON. Examples are `application/json: invalid json`, or `source_too_large`
+over the value bound. That failure is archived like any other failed read.
+Only the exact `application/json` type is admitted; `+json` suffix types such
+as `application/ld+json` are not.
+
+JSON bodies become `json-leaf-text/v1` windows; the rendering and window rules
+are in [Evidence windows](./EVIDENCE-WINDOWS.md#json-leaf-text). A body that is
+not strict JSON, repeats an object key or nests deeper than 64 fails as
+`source_media_unsupported`; one over the pre-parse value bound fails as
+`source_too_large`. The detail is one of four fixed strings
+(`application/json: invalid json`, `application/json: duplicate object key`,
+`application/json: nesting exceeds limit`,
+`application/json: value count exceeds limit`). These contain no source or
+connector text, so they survive capture redaction like `http_<status>`.
 
 ## Live acquisition security status
 
@@ -150,6 +172,40 @@ groundnut-capture capture-request.json --out capture-receipt.json --allow-live
 
 Omitting `--allow-live` fails closed. Replay uses the same stored snapshot and
 `SnapshotFirstResolver` contract as canonical checks and equivalence testing.
+
+JSON APIs often select the record, or the part of it returned, through the
+query string. Measured on 5 October 2026, the full ClinicalTrials.gov record
+`https://clinicaltrials.gov/api/v2/studies/NCT04368728` renders to about 8.9
+million characters. That is over the default 8,388,608-character extraction
+cap, so it captures as `truncated` and cannot support a conclusion that a
+quote is absent. Its protocol section,
+`https://clinicaltrials.gov/api/v2/studies/NCT04368728?fields=protocolSection`,
+renders to about 207,000 characters and captures complete. Keep the current
+character cap; this filtered response is complete only for the selected protocol
+section, not for the full study record or omitted results. Cite it only for claims
+whose evidence is in those fields. Results claims need a separately captured
+response containing the relevant results; an unavailable or truncated response
+remains an evidence limitation. Retain `fields` for that host, and the search
+parameters for Europe PMC REST:
+
+```json
+{
+  "connector": "public_api",
+  "intent": "evidence_verification",
+  "media_types": ["application/json"],
+  "retained_query_parameters_by_host": {
+    "clinicaltrials.gov": ["fields"],
+    "www.ebi.ac.uk": ["format", "query", "resultType"]
+  }
+}
+```
+
+Without `fields` retained, the filtered and full record URIs canonicalize to
+the same URI and share one snapshot key. Whichever is captured first is what a
+later citation of either URI replays against, and capturing the other fails
+closed on the snapshot identity claim.
+
+The shared resolver already sends `application/json` in its `Accept` header.
 
 The shipped HTML and PDF fixtures are sanitized conformance examples. A real
 second-deck live/replay/replay receipt remains an operational validation, not a

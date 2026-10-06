@@ -15,6 +15,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from .receipt import sha256_json
 from .sources import (
+    JSON_FAILURE_DETAILS,
     HttpResolver,
     ResolvedSource,
     SnapshotFirstResolver,
@@ -34,6 +35,7 @@ ALLOWED_MEDIA_TYPES = {
     "application/xhtml+xml",
     "text/plain",
     "application/pdf",
+    "application/json",
 }
 _SENSITIVE_QUERY_KEY = re.compile(
     r"(?:^|[_-])(token|secret|password|passwd|key|sig|signature|credential|session|auth)(?:$|[_-])",
@@ -432,6 +434,8 @@ def _safe_failure_detail(detail: str | None) -> str | None:
     if re.fullmatch(r"http_[1-5][0-9]{2}", detail):
         return detail
     if detail == "application/pdf: no text layer or no extractor":
+        return detail
+    if detail in JSON_FAILURE_DETAILS:
         return detail
     return _bounded_detail("connector_detail_redacted", detail)
 

@@ -90,8 +90,11 @@ Markdown and rendered HTML can carry the same field in an adjacent
 Both marker names are profile configuration. A consumer such as an IC writer
 can use its own convention. The engine takes no product logic from it.
 
-The built-in adapters cover local text and simple HTTP text/HTML. Paywalls,
-unreachable sources, and unsupported PDFs remain explicit failure states.
+The built-in adapters cover local text, simple HTTP text/HTML, text-layer PDF,
+and strict JSON rendered as path-addressed leaf text (`json-leaf-text/v1`,
+documented in `docs/EVIDENCE-WINDOWS.md`). Paywalls, unreachable sources,
+unsupported PDFs, and JSON that is invalid or nested too deeply remain explicit
+failure states.
 `SnapshotStore` archives the normalized source with its hash and refuses a
 tampered snapshot. A checker therefore works against what the writer saw, not
 against what a live URL serves later.
