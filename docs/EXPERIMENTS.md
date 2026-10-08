@@ -316,6 +316,20 @@ Use OpenContracts when human annotation volume justifies an operator surface.
 Use Inspect AI only when Groundnut's own runner cannot express or reproduce the
 required experiment without duplicating substantial machinery.
 
+### R0 — inference-cascade challenge map
+
+R0 is a post-authoring reasoning-integrity experiment, not another semantic
+support gate. A separate author or reviewer agent supplies a hash-bound graph
+of report claims, editorial dependencies, presentation mode, confidence,
+materiality and current support assessment. Groundnut deterministically exposes
+the upstream-most challenge roots and every downstream editorial choice in
+their blast radius.
+
+The initial seeded objective is root and impact recovery with zero interruption
+of protected legitimate judgments. Dependency extraction from raw prose is
+explicitly unmeasured. R0 is ineligible for the IC loop, admission and
+publication gating; see `INFERENCE-CASCADES.md`.
+
 ## Component map
 
 | Component | Intended contribution | Current state |
@@ -332,6 +346,7 @@ required experiment without duplicating substantial machinery.
 | OpenContracts | Human annotation and review | Interchange landed; application optional |
 | Inspect AI | Large experiment orchestration | Adoption trigger not met |
 | IC arena | Downstream extrapolation attacks | Private experimental consumer |
+| Inference cascade map | Upstream reasoning challenges and downstream blast radius | R0 contract and seeded fixtures implemented; prose extraction unmeasured |
 
 ## Non-negotiable reporting
 
