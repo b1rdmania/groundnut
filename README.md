@@ -216,7 +216,8 @@ aggregate measurements only.
 
 ## Licence and attribution
 
-Groundnut code is Apache 2.0. See [LICENSE](./LICENSE).
+Groundnut code is all rights reserved. It is published for reference only; see
+[LICENSE](./LICENSE). Versions published before 20 October 2026 remain under Apache 2.0.
 
 Explored third-party components retain their own licences and are not admitted
 merely because an adapter exists. The compatibility corpus is CUAD v1,
