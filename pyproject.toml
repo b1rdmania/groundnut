@@ -12,7 +12,7 @@ license = "LicenseRef-Proprietary"
 authors = [{name = "Andy"}]
 dependencies = [
   "certifi",
-  "pypdf==6.19.0",
+  "pypdf==6.21.2",
 ]
 
 [project.scripts]
