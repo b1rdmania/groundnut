@@ -32,6 +32,7 @@ stages until their frozen admission condition passes.
 | [Structured navigation](./NAVIGATION.md) | Frozen navigation interface and rejected selector results |
 | [Annotation](./ANNOTATION.md) | Human review and benchmark interchange |
 | [Support admission plan](./plans/support-admission-plan-v1.md) | Draft preregistration; reviewer still TBD |
+| [Inference cascades](./INFERENCE-CASCADES.md) | Advisory reasoning-lineage and blast-radius experiment; outside the IC loop |
 | [22 August review](./plans/review-2026-08-22.md) | Read-only findings behind the admission guards |
 | [Evidence operations plan](./plans/evidence-operations-plan-v1.md) | Execution plan for issues #20–#22 |
 
